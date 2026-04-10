@@ -389,5 +389,9 @@ function convertRemainingJsx(output: string): string {
     '$1\n$2`;',
   );
 
+  // =>${ (arrow body fused with template) → => {
+  code = code.replace(/=>\$\{\n/g, '=> {\n');
+  code = code.replace(/=>\$\{(\s)/g, '=> {$1');
+
   return importSection + code;
 }
