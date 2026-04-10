@@ -186,6 +186,30 @@ function postProcessOutput(output: string): string {
     return `class=\${classMap(${convertClsxArgs(args)})}`;
   });
 
+  // --- Rewrite remaining fire* event calls ---
+  // Catch any fireNonCancelableEvent(onXxx, ...) that survived through raw JSX or helpers
+  result = result.replace(
+    /fireNonCancelableEvent\(\s*(on[A-Z]\w*)\b/g,
+    (_, propName) => {
+      const eventName = propName.slice(2, 3).toLowerCase() + propName.slice(3);
+      return `fireNonCancelableEvent(this, '${eventName}'`;
+    },
+  );
+  result = result.replace(
+    /fireCancelableEvent\(\s*(on[A-Z]\w*)\b/g,
+    (_, propName) => {
+      const eventName = propName.slice(2, 3).toLowerCase() + propName.slice(3);
+      return `fireNonCancelableEvent(this, '${eventName}'`;
+    },
+  );
+  result = result.replace(
+    /fireKeyboardEvent\(\s*(on[A-Z]\w*)\b/g,
+    (_, propName) => {
+      const eventName = propName.slice(2, 3).toLowerCase() + propName.slice(3);
+      return `fireNonCancelableEvent(this, '${eventName}'`;
+    },
+  );
+
   // --- Strip remaining Cloudscape internals ---
   result = result.replace(/\.__internalRootRef=\$\{[^}]+\}\s*/g, '');
   result = result.replace(/\bref=\{__internalRootRef\}\s*/g, '');
