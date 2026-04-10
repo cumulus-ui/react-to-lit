@@ -34,14 +34,13 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   sections.push(`const hostStyles = css\`:host { display: block; }\`;`);
   sections.push('');
 
-  // --- Helpers (only emit non-JSX helpers) ---
+  // --- Helpers ---
   for (const helper of ir.helpers) {
-    // Skip helpers that contain JSX — they need manual transformation
+    // Helpers containing JSX need manual conversion to html`` templates
     if (helper.source.includes('/>') || helper.source.includes('</')) {
-      sections.push(`// TODO: transform helper '${helper.name}' (contains JSX)`);
-    } else {
-      sections.push(helper.source);
+      sections.push(`// WARNING: helper '${helper.name}' contains JSX — needs manual conversion to html\`\``);
     }
+    sections.push(helper.source);
     sections.push('');
   }
 

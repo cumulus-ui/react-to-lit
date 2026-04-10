@@ -82,10 +82,26 @@ export function parseComponent(
   const sourceFile = component.sourceFile;
   const props = extractProps(component, sourceFile);
 
-  // 5. Extract hooks
+  // 5. Extract hooks from the implementation body
   const hookResult = ts.isBlock(component.body)
     ? extractHooks(component.body, sourceFile, hookRegistry)
     : { state: [], effects: [], refs: [], computedValues: [], handlers: [], publicMethods: [], controllers: [], contexts: [], skipped: [], unknown: [] };
+
+  // 5b. Also extract hooks from the index.tsx wrapper (may have useImperativeHandle, etc.)
+  if (component.hasInternal) {
+    try {
+      const indexComponent = findComponent(indexFile);
+      if (ts.isBlock(indexComponent.body)) {
+        const indexHooks = extractHooks(indexComponent.body, indexFile, hookRegistry);
+        // Merge public methods from index.tsx (e.g., useImperativeHandle focus/select)
+        hookResult.publicMethods.push(...indexHooks.publicMethods);
+        // Merge contexts from index.tsx
+        hookResult.contexts.push(...indexHooks.contexts);
+      }
+    } catch {
+      // Index component might not have a parseable body (e.g., just delegates to internal)
+    }
+  }
 
   // 6. Extract standalone event handlers
   const handlers = ts.isBlock(component.body)

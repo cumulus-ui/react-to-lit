@@ -13,6 +13,7 @@ import type { TemplateNodeIR } from '../ir/types.js';
 export type ComponentRegistry = Record<string, string>;
 
 export const cloudscapeComponentRegistry: ComponentRegistry = {
+  // Core components
   'InternalIcon': 'cs-icon',
   'Icon': 'cs-icon',
   'InternalSpinner': 'cs-spinner',
@@ -33,8 +34,47 @@ export const cloudscapeComponentRegistry: ComponentRegistry = {
   'LiveRegion': 'cs-live-region',
   'Tooltip': 'cs-tooltip',
   'InternalStatusIcon': 'cs-status-icon',
-  'AbstractSwitch': 'cs-abstract-switch', // Placeholder — handled by abstract-switch transform
   'CheckboxIcon': 'cs-checkbox-icon',
+  'InternalBox': 'cs-box',
+  'InternalHeader': 'cs-header',
+  'InternalSelect': 'cs-select',
+  'InternalAutosuggest': 'cs-autosuggest',
+  'InternalMultiselect': 'cs-multiselect',
+  'InternalTokenGroup': 'cs-token-group',
+  'InternalFileDropzone': 'cs-file-dropzone',
+  'InternalFormField': 'cs-form-field',
+  'InternalExpandableSection': 'cs-expandable-section',
+  'InternalColumnLayout': 'cs-column-layout',
+  'InternalTextarea': 'cs-textarea',
+  'InternalDateInput': 'cs-date-input',
+  'InternalTimeInput': 'cs-time-input',
+  'InternalPopover': 'cs-popover',
+  'InternalToggle': 'cs-toggle',
+  'InternalRadioGroup': 'cs-radio-group',
+  'InternalBreadcrumbGroup': 'cs-breadcrumb-group',
+  'InternalCalendar': 'cs-calendar',
+  'InternalButtonDropdown': 'cs-button-dropdown',
+  'InternalSpaceBetween': 'cs-space-between',
+  'InternalTable': 'cs-table',
+  'InternalCards': 'cs-cards',
+  'InternalContainer': 'cs-container',
+  'InternalContainerAsSubstep': 'cs-container',
+  'InternalItemCard': 'cs-item-card',
+  'InternalGrid': 'cs-grid',
+  'InternalTabs': 'cs-tabs',
+  'InternalPagination': 'cs-pagination',
+
+  // Sub-components / shared internals
+  'AbstractSwitch': 'cs-abstract-switch',
+  'ToggleIcon': 'cs-toggle-icon',
+  'RadioIcon': 'cs-radio-icon',
+
+  // React-only wrapper components → unwrap (keep children)
+  'BuiltInErrorBoundary': '__UNWRAP__',
+  'CSSTransition': '__UNWRAP__',
+  'AnalyticsFunnelSubStep': '__UNWRAP__',
+  'AnalyticsFunnelStep': '__UNWRAP__',
+  'FocusLock': '__UNWRAP__',
 };
 
 // ---------------------------------------------------------------------------
@@ -68,14 +108,22 @@ function resolveNode(
   // If this is a component node, try to resolve it
   if (node.kind === 'component' && node.tag) {
     const resolved = registry[node.tag];
-    if (resolved) {
+    if (resolved === '__UNWRAP__') {
+      // Unwrap: replace with a fragment containing the children
+      resolvedNode = {
+        kind: 'fragment',
+        attributes: [],
+        children: node.children,
+        condition: node.condition,
+        loop: node.loop,
+      };
+    } else if (resolved) {
       resolvedNode = {
         ...node,
-        kind: 'element', // Now it's a custom element, not a React component
+        kind: 'element',
         tag: resolved,
       };
 
-      // Add side-effect import for the component
       const componentPath = deriveImportPath(resolved);
       if (componentPath) {
         imports.add(componentPath);

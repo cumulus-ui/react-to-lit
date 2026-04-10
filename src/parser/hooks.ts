@@ -396,12 +396,20 @@ function processControllerHook(
     fieldName = '_ctrl';
   }
 
-  const args = call.arguments.map((a) => getNodeText(a, sourceFile)).join(', ');
+  // useControllable(controlledValue, handler, defaultValue, { componentName, ... })
+  // → ControllableController(this, { defaultValue: defaultValue })
+  // The controller only needs the defaultValue; the controlled/uncontrolled
+  // distinction is handled differently in web components.
+  const defaultValueArg = call.arguments.length >= 3
+    ? getNodeText(call.arguments[2], sourceFile)
+    : 'undefined';
+
+  const constructorArgs = `defaultValue: ${defaultValueArg}`;
 
   result.controllers.push({
     className: controller.className,
     importPath: controller.importPath,
-    constructorArgs: args,
+    constructorArgs,
     fieldName,
   });
 }

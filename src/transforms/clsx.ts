@@ -22,6 +22,14 @@ export function transformClsx(node: TemplateNodeIR): TemplateNodeIR {
     if (attr.kind === 'classMap' && typeof attr.value !== 'string') {
       return transformClassAttribute(attr);
     }
+    // Also handle any attribute expression containing clsx()
+    if (typeof attr.value !== 'string' && attr.value.expression.includes('clsx(')) {
+      return transformClassAttribute({ ...attr, kind: 'classMap' });
+    }
+    // Transform className → class for any remaining className attributes
+    if (attr.name === 'className') {
+      return { ...attr, name: 'class', kind: attr.kind === 'classMap' ? 'classMap' as const : attr.kind };
+    }
     return attr;
   });
 

@@ -6,18 +6,15 @@
  *   fireCancelableEvent(onFollow, { href }, event)
  * into Lit event dispatch:
  *   fireNonCancelableEvent(this, 'change', { value })
+ *
+ * Scans all code: handlers, effects, helpers, and template expressions.
  */
-import type { ComponentIR, HandlerIR } from '../ir/types.js';
+import type { ComponentIR, HandlerIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
 
 // ---------------------------------------------------------------------------
 // Main transform
 // ---------------------------------------------------------------------------
 
-/**
- * Transform event callback patterns in handlers.
- * - Rewrites fireNonCancelableEvent/fireCancelableEvent calls
- * - Removes event props from the props list (they become CustomEvents)
- */
 export function transformEvents(ir: ComponentIR): ComponentIR {
   // Collect event prop names
   const eventProps = new Map<string, string>(); // propName → eventName
@@ -30,15 +27,45 @@ export function transformEvents(ir: ComponentIR): ComponentIR {
 
   if (eventProps.size === 0) return ir;
 
-  // Transform handler bodies
-  const transformedHandlers = ir.handlers.map((handler) =>
-    transformHandlerBody(handler, eventProps),
-  );
+  const rewrite = (text: string) => rewriteEventCalls(text, eventProps);
 
-  // Add fireNonCancelableEvent import if needed
-  const needsEventImport = transformedHandlers.some(
-    (h) => h.body.includes('fireNonCancelableEvent(this,'),
-  );
+  // Transform handler bodies
+  const handlers = ir.handlers.map((h) => ({
+    ...h,
+    body: rewrite(h.body),
+  }));
+
+  // Transform effect bodies
+  const effects = ir.effects.map((e) => ({
+    ...e,
+    body: rewrite(e.body),
+    cleanup: e.cleanup ? rewrite(e.cleanup) : undefined,
+  }));
+
+  // Transform helper source
+  const helpers = ir.helpers.map((h) => ({
+    ...h,
+    source: rewrite(h.source),
+  }));
+
+  // Transform public methods
+  const publicMethods = ir.publicMethods.map((m) => ({
+    ...m,
+    body: rewrite(m.body),
+  }));
+
+  // Transform template expressions
+  const template = rewriteTemplateEvents(ir.template, eventProps);
+
+  // Check if we need event import
+  const allCode = [
+    ...handlers.map((h) => h.body),
+    ...effects.map((e) => e.body),
+    ...helpers.map((h) => h.source),
+    ...publicMethods.map((m) => m.body),
+  ].join('\n');
+
+  const needsEventImport = allCode.includes('fireNonCancelableEvent(this,');
 
   const imports = [...ir.imports];
   if (needsEventImport) {
@@ -50,59 +77,106 @@ export function transformEvents(ir: ComponentIR): ComponentIR {
 
   return {
     ...ir,
-    handlers: transformedHandlers,
+    handlers,
+    effects,
+    helpers,
+    publicMethods,
+    template,
     imports,
   };
 }
 
 // ---------------------------------------------------------------------------
-// Handler body transformation
+// Text rewriting
 // ---------------------------------------------------------------------------
 
-function transformHandlerBody(
-  handler: HandlerIR,
+function rewriteEventCalls(
+  text: string,
   eventProps: Map<string, string>,
-): HandlerIR {
-  let body = handler.body;
+): string {
+  let result = text;
 
-  // Replace: fireNonCancelableEvent(onFoo, detail)
-  // With:    fireNonCancelableEvent(this, 'foo', detail)
   for (const [propName, eventName] of eventProps) {
-    // Pattern: fireNonCancelableEvent(propName, ...)
+    // fireNonCancelableEvent(propName, ...)
     const nonCancelablePattern = new RegExp(
       `fireNonCancelableEvent\\(\\s*${escapeRegex(propName)}\\b`,
       'g',
     );
-    body = body.replace(
+    result = result.replace(
       nonCancelablePattern,
       `fireNonCancelableEvent(this, '${eventName}'`,
     );
 
-    // Pattern: fireCancelableEvent(propName, detail, event)
+    // fireCancelableEvent(propName, detail, event)
     const cancelablePattern = new RegExp(
       `fireCancelableEvent\\(\\s*${escapeRegex(propName)}\\b`,
       'g',
     );
-    body = body.replace(
+    result = result.replace(
       cancelablePattern,
       `fireNonCancelableEvent(this, '${eventName}'`,
     );
+
+    // Direct callback invocation: propName?.(detail) or propName(detail)
+    // onChange?.({ checked: true }) → fireNonCancelableEvent(this, 'change', { checked: true })
+    const directCallOptional = new RegExp(
+      `${escapeRegex(propName)}\\?\\.\\(`,
+      'g',
+    );
+    result = result.replace(
+      directCallOptional,
+      `fireNonCancelableEvent(this, '${eventName}', `,
+    );
   }
 
-  return { ...handler, body };
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Template expression rewriting
+// ---------------------------------------------------------------------------
+
+function rewriteTemplateEvents(
+  node: TemplateNodeIR,
+  eventProps: Map<string, string>,
+): TemplateNodeIR {
+  // Rewrite attribute expressions
+  const attrs = node.attributes.map((attr) => rewriteAttrEvent(attr, eventProps));
+
+  // Recurse
+  const children = node.children.map((c) => rewriteTemplateEvents(c, eventProps));
+
+  return {
+    ...node,
+    attributes: attrs,
+    children,
+    condition: node.condition
+      ? {
+          ...node.condition,
+          alternate: node.condition.alternate
+            ? rewriteTemplateEvents(node.condition.alternate, eventProps)
+            : undefined,
+        }
+      : undefined,
+  };
+}
+
+function rewriteAttrEvent(
+  attr: AttributeIR,
+  eventProps: Map<string, string>,
+): AttributeIR {
+  if (typeof attr.value === 'string') return attr;
+  const rewritten = rewriteEventCalls(attr.value.expression, eventProps);
+  if (rewritten === attr.value.expression) return attr;
+  return { ...attr, value: { expression: rewritten } };
 }
 
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
 
-/**
- * Convert a React event prop name to a Lit event name.
- * onChange → 'change', onFollow → 'follow', onBlur → 'blur'
- */
 function propNameToEventName(propName: string): string {
   if (!propName.startsWith('on')) return propName.toLowerCase();
-  // Remove 'on' prefix and lowercase the first letter
   const rest = propName.slice(2);
   return rest.charAt(0).toLowerCase() + rest.slice(1);
 }

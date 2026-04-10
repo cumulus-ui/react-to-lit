@@ -95,6 +95,15 @@ function cleanHandlerBody(body: string): string {
   // Remove: [DATA_ATTR_FUNNEL_VALUE]: uniqueId
   result = result.replace(/\[DATA_ATTR_FUNNEL_VALUE\]\s*:\s*\w+,?\s*/g, '');
 
+  // Strip React type annotations: React.KeyboardEvent<Element> → KeyboardEvent
+  result = result.replace(/React\.\w+Event<[^>]+>/g, (match) => {
+    return match.replace(/^React\./, '').replace(/<[^>]+>$/, '');
+  });
+  // React.Ref<...> → any, React.RefObject<...> → any
+  result = result.replace(/React\.(Ref|RefObject|MutableRefObject)<[^>]+>/g, 'any');
+  // React.HTMLAttributes<...> → any
+  result = result.replace(/React\.\w+Attributes<[^>]+>/g, 'any');
+
   return result;
 }
 
@@ -124,12 +133,10 @@ function cleanTemplate(node: TemplateNodeIR): TemplateNodeIR {
     if (REMOVE_ATTR_PREFIXES.some((p) => attr.name.startsWith(p))) return false;
     if (attr.name.startsWith('.__')) return false;
 
-    // Remove spread of baseProps
+    // Remove ALL spread attributes — React spread has no Lit equivalent
+    // and all Cloudscape spreads are internal plumbing
     if (attr.kind === 'spread') {
-      const expr = typeof attr.value === 'string' ? attr.value : attr.value.expression;
-      if (expr.includes('baseProps') || expr.includes('analyticsMetadata') || expr.includes('performanceMarkAttributes')) {
-        return false;
-      }
+      return false;
     }
 
     // Remove attributes that reference __internalRootRef

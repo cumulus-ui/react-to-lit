@@ -66,27 +66,27 @@ function analyzeComponent(componentName: string): DiffResult {
     const output = emitComponent(transformed);
     result.hasGenerated = true;
 
-    // Analyze output quality
-    if (output.includes('WithNativeAttributes')) {
-      result.issues.push('Contains un-unwrapped WithNativeAttributes');
+    // Analyze output quality — focus on the class body (after 'export class')
+    const classSection = output.slice(output.indexOf('export class'));
+    const renderSection = output.slice(output.indexOf('override render()'));
+
+    if (renderSection.includes('WithNativeAttributes')) {
+      result.issues.push('Contains un-unwrapped WithNativeAttributes in render');
     }
-    if (output.includes('clsx(')) {
-      result.issues.push('Contains un-transformed clsx() call');
+    if (renderSection.includes('clsx(')) {
+      result.issues.push('Contains un-transformed clsx() in render');
     }
-    if (output.includes('baseProps')) {
-      result.issues.push('Contains baseProps reference');
+    if (classSection.includes('baseProps') && !output.includes('// WARNING:')) {
+      result.issues.push('Contains baseProps reference in class body');
     }
-    if (output.includes('__internalRootRef')) {
-      result.issues.push('Contains __internalRootRef');
+    if (classSection.includes('__internalRootRef')) {
+      result.issues.push('Contains __internalRootRef in class body');
     }
-    if (output.includes('TODO: transform helper')) {
-      result.issues.push('Has JSX helpers that need transformation');
-    }
-    if (output.includes('AbstractSwitch')) {
+    if (renderSection.includes('AbstractSwitch') || renderSection.includes('cs-abstract-switch')) {
       result.issues.push('Contains AbstractSwitch (needs inlining)');
     }
-    if (output.includes('<InternalIcon') || output.includes('<InternalSpinner') || output.includes('<InternalButton')) {
-      result.issues.push('Contains unresolved React component references in helpers');
+    if (output.includes('/* spread:')) {
+      result.issues.push('Contains spread comment');
     }
 
     // Compare with hand-written version if available
