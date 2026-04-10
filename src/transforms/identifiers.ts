@@ -174,10 +174,6 @@ function rewriteText(
   for (const [refName, field] of refMap) {
     const refCurrentPattern = new RegExp(`\\b${escapeRegex(refName)}\\.current\\b`, 'g');
     result = result.replace(refCurrentPattern, `this.${field}`);
-
-    // Also handle bare ref name (not .current) when used as a value
-    const refBarePattern = new RegExp(`(?<!\\.)\\b${escapeRegex(refName)}\\b(?!\\.current)(?!\\s*[:(=])`, 'g');
-    result = result.replace(refBarePattern, `this.${field}`);
   }
 
   // Replace state variable references: stateName → this._stateName
@@ -189,41 +185,13 @@ function rewriteText(
   // Replace props.foo → this.foo
   result = result.replace(/\bprops\.(\w+)/g, 'this.$1');
 
-  // Replace destructured prop names: foo → this.foo
-  // Only replace if it's a standalone identifier (not inside a word, not property access)
-  for (const propName of propNames) {
-    // Skip very short names and common variable names to avoid false positives
-    if (propName.length <= 2) continue;
-    if (COMMON_LOCALS.has(propName)) continue;
-
-    // Require the identifier to NOT be preceded by a letter, digit, _, ., -, or '
-    // and NOT followed by a letter, digit, _, ., :, (, = or '
-    const propPattern = new RegExp(
-      `(?<![\\w.\\-'"\`])${escapeRegex(propName)}(?![\\w.:'"\`(=])`,
-      'g',
-    );
-    result = result.replace(propPattern, `this.${propName}`);
-  }
+  // NOTE: We intentionally do NOT rewrite bare destructured prop names (e.g., color → this.color).
+  // This requires scope analysis that regex cannot provide — it would incorrectly rewrite
+  // object keys, loop variables, function parameters, and locally declared variables.
+  // The post-processor in class.ts handles the safe cases.
 
   return result;
 }
-
-// Variable names that should NOT be rewritten to this.xxx
-const COMMON_LOCALS = new Set([
-  'e', 'i', 'j', 'k', 'n', 'x', 'y',
-  'el', 'fn', 'cb', 'id',
-  'key', 'ref', 'tag', 'val', 'err', 'evt', 'arg', 'idx', 'len',
-  'item', 'node', 'list', 'data', 'prev', 'next', 'self', 'that',
-  'true', 'false', 'null', 'undefined', 'void',
-  'event', 'index', 'child', 'error', 'result', 'target',
-  'width', 'height',
-  'props', 'state', 'attrs',
-  // Don't rewrite loop variables or common JS builtins
-  'map', 'filter', 'reduce', 'forEach', 'find', 'some', 'every',
-  'Array', 'Object', 'String', 'Number', 'Boolean', 'Math', 'Date',
-  'console', 'document', 'window', 'setTimeout', 'clearTimeout',
-  'Promise', 'JSON', 'RegExp', 'Error', 'Map', 'Set',
-]);
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -213,17 +213,9 @@ function postProcessOutput(output: string): string {
   result = result.replace(/\bnativeAttributes=\{[^}]*\}\s*/g, '');
   result = result.replace(/\bnativeInputAttributes=\{[^}]*\}\s*/g, '');
 
-  // --- Convert PascalCase React components to kebab-case custom elements ---
-  // <InternalFoo → <cs-foo, </InternalFoo → </cs-foo
-  result = result.replace(/<(\/?)Internal([A-Z]\w*)/g, (_, slash, name) => {
-    const kebab = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-    return `<${slash}cs-${kebab}`;
-  });
-  // <Dropdown → <cs-dropdown, etc. (only for known component-like PascalCase tags)
-  result = result.replace(/<(\/?)(Dropdown|OptionsList|ButtonDropdown|TokenGroup|RadioButton|Tooltip|LiveRegion|SpaceBetween|FormField|ExpandableSection)\b/g, (_, slash, name) => {
-    const kebab = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-    return `<${slash}cs-${kebab}`;
-  });
+  // Note: PascalCase→kebab conversion for component tags is handled by the
+  // component registry in the template IR. We do NOT convert in post-processing
+  // because it would break raw JSX in helper function bodies.
 
   // --- Convert styles.xxx to plain class names (only in code, not imports) ---
   // Split into import section and code section to avoid mangling import paths
