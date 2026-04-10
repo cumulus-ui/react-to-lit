@@ -203,7 +203,7 @@ function rewritePropNames(text: string, propNames: Set<string>): string {
     // - property access foo.bar (preceded/followed by .)
     // - destructuring const { foo } (preceded by { or ,)
     result = result.replace(
-      new RegExp(`(?<![\\w.\\-{,])\\b${esc(propName)}\\b(?![\\w.:('"\`=,}])`, 'g'),
+      new RegExp(`(?<![\\w.\\-{,])\\b${esc(propName)}\\b(?![\\w.:\\-('"\`=,}])`, 'g'),
       `this.${propName}`,
     );
   }

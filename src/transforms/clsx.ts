@@ -120,7 +120,7 @@ function parseClsxArgs(argsStr: string): string {
       if (parts.length === 2) {
         const condition = parts[0].trim();
         const className = stripStylesPrefix(parts[1].trim());
-        entries.push(`'${className}': ${condition}`);
+        entries.push(`${quoteClassName(className)}: ${condition}`);
         continue;
       }
     }
@@ -128,7 +128,7 @@ function parseClsxArgs(argsStr: string): string {
     // Static class: styles.root or styles['class-name']
     if (trimmed.startsWith('styles')) {
       const className = stripStylesPrefix(trimmed);
-      entries.push(`'${className}': true`);
+      entries.push(`${quoteClassName(className)}: true`);
       continue;
     }
 
@@ -186,6 +186,16 @@ function parseObjectEntry(entry: string): string | null {
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
+
+/**
+ * Quote a class name correctly: use backticks if it contains ${}, single quotes otherwise.
+ */
+function quoteClassName(name: string): string {
+  if (name.includes('${')) {
+    return `[\`${name}\`]`;
+  }
+  return `'${name}'`;
+}
 
 /**
  * Strip styles.xxx or styles['xxx'] or styles[`xxx`] prefix.

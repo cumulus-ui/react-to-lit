@@ -239,6 +239,8 @@ function postProcessOutput(output: string): string {
     codeSection = codeSection.replace(/\bstyles\["([^"]+)"\]/g, "'$1'");
     // Preserve template literals: styles[`foo-${bar}`] → `foo-${bar}`
     codeSection = codeSection.replace(/\bstyles\[(`[^`]+`)\]/g, '$1');
+    // Fix any single-quoted strings that contain ${} → backtick template literals
+    codeSection = codeSection.replace(/'([^']*\$\{[^']*)'(?=\s*[:\]}),])/g, '`$1`');
     result = importSection + codeSection;
   }
 
@@ -298,11 +300,15 @@ function convertRemainingJsx(output: string): string {
 
   // Convert PascalCase JSX component tags to kebab-case custom elements
   // <RadioButton → <cs-radio-button, </RadioButton → </cs-radio-button
-  // Only match when < is preceded by whitespace, newline, or start of template (not a letter like Record<)
-  code = code.replace(/(?<=[\s\n(`])(<\/?)(([A-Z][a-z]+){2,})\b/g, (match, prefix, name) => {
+  // Match when < is preceded by whitespace, newline, (, `, >, $ (template expressions)
+  code = code.replace(/(?<=[\s\n(`>$])(<\/?)(([A-Z][a-z]+){2,})\b/g, (match, prefix, name) => {
     if (/^(Object|Array|String|Number|Boolean|Map|Set|Error|Promise|Date|RegExp|Symbol|Function|Record|Partial|Required|Readonly|Pick|Omit|Exclude|Extract|NonNullable|ReturnType|Parameters|InstanceType)$/.test(name)) return match;
     const kebab = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
     return `${prefix}cs-${kebab}`;
+  });
+  // Also handle single-word PascalCase components that are known Cloudscape internals
+  code = code.replace(/(?<=[\s\n(`>$])(<\/?)(Dropdown|Grid|Tile|Option|Tag|Transition|Portal)\b/g, (_, prefix, name) => {
+    return `${prefix}cs-${name.toLowerCase()}`;
   });
 
   // Remove key={...} attributes
@@ -336,6 +342,23 @@ function convertRemainingJsx(output: string): string {
 
   // Convert JSX children expressions: >{expr}< → >${expr}<
   code = code.replace(/>\s*\{([^}]+)\}\s*</g, '>${$1}<');
+
+  // Wrap JSX inside ${ } expressions with html``
+  // Pattern: ${expr && (\n  <cs-xxx → ${expr ? html`\n  <cs-xxx : nothing
+  code = code.replace(
+    /\$\{([^}]+)\s*&&\s*\(\s*\n(\s*<cs-)/g,
+    '${$1 ? html`\n$2',
+  );
+  // Close these with ` : nothing}
+  code = code.replace(
+    /(<\/cs-[\w-]+>|\/?>)\s*\n(\s*)\)\}/g,
+    '$1\n$2` : nothing}',
+  );
+
+  // Wrap ternary JSX: ? <cs-xxx → ? html`<cs-xxx
+  code = code.replace(/\?\s*<(cs-[\w-]+)/g, '? html`<$1');
+  // And the else branch: : <cs-xxx → : html`<cs-xxx
+  code = code.replace(/:\s*<(cs-[\w-]+)/g, ': html`<$1');
 
   // Wrap .map() callback bodies containing Lit elements in html``
   code = code.replace(

@@ -37,8 +37,13 @@ export function emitLifecycle(effects: EffectIR[]): string {
     lines.push('  override connectedCallback(): void {');
     lines.push('    super.connectedCallback();');
     for (const effect of mountEffects) {
-      lines.push(`    // mount effect`);
-      lines.push(indentBody(effect.body, 4));
+      if (mountEffects.length > 1) {
+        lines.push('    {');
+        lines.push(indentBody(effect.body, 6));
+        lines.push('    }');
+      } else {
+        lines.push(indentBody(effect.body, 4));
+      }
     }
     lines.push('  }');
     lines.push('');
@@ -78,7 +83,14 @@ export function emitLifecycle(effects: EffectIR[]): string {
   if (updatedEffects.length > 0) {
     lines.push('  override updated(): void {');
     for (const effect of updatedEffects) {
-      lines.push(indentBody(effect.body, 4));
+      // Wrap each effect in a block scope to avoid variable name collisions
+      if (updatedEffects.length > 1) {
+        lines.push('    {');
+        lines.push(indentBody(effect.body, 6));
+        lines.push('    }');
+      } else {
+        lines.push(indentBody(effect.body, 4));
+      }
     }
     lines.push('  }');
     lines.push('');
