@@ -3,7 +3,7 @@
  *
  * Produces @property() and @state() declarations from PropIR and StateIR.
  */
-import type { PropIR, StateIR, ControllerIR, ContextIR } from '../ir/types.js';
+import type { PropIR, StateIR, ControllerIR, ContextIR, ComputedIR } from '../ir/types.js';
 
 // ---------------------------------------------------------------------------
 // HTML element built-in properties that need 'override'
@@ -117,6 +117,30 @@ export function emitContexts(contexts: ContextIR[]): string {
     } else {
       lines.push(`  @provide({ context: ${ctx.contextName} })`);
       lines.push(`  ${ctx.fieldName}: ${ctx.type};`);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Computed values (from useMemo → getters)
+// ---------------------------------------------------------------------------
+
+export function emitComputed(computed: ComputedIR[]): string {
+  const lines: string[] = [];
+
+  for (const c of computed) {
+    const typeAnnotation = c.type ? `: ${c.type}` : '';
+    // If the expression is a block, extract the return value
+    let body = c.expression.trim();
+    if (body.startsWith('{') && body.endsWith('}')) {
+      // Block body — emit as-is
+      lines.push(`  private get _${c.name}()${typeAnnotation} ${body}`);
+    } else {
+      // Expression body
+      lines.push(`  private get _${c.name}()${typeAnnotation} { return ${body}; }`);
     }
     lines.push('');
   }

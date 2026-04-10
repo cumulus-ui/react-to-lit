@@ -20,7 +20,7 @@ import { findComponent } from './component.js';
 import { extractProps } from './props.js';
 import { extractHooks } from './hooks.js';
 import { parseJSXFromBody } from './jsx.js';
-import { extractHandlers, extractHelpers } from './utils.js';
+import { extractHandlers, extractHelpers, collectLocalVariables } from './utils.js';
 import type { HookRegistry } from '../hooks/registry.js';
 import { createHookRegistry } from '../hooks/registry.js';
 
@@ -111,6 +111,11 @@ export function parseComponent(
   // Merge handlers from useCallback with standalone handlers
   const allHandlers = [...hookResult.handlers, ...handlers];
 
+  // 6b. Collect local variable names for scope-aware identifier rewriting
+  const localVariables = ts.isBlock(component.body)
+    ? collectLocalVariables(component.body)
+    : new Set<string>();
+
   // 7. Parse JSX template
   const template = parseJSXFromBody(component.body, sourceFile);
 
@@ -158,6 +163,7 @@ export function parseComponent(
     publicMethods: hookResult.publicMethods,
     helpers,
     bodyPreamble,
+    localVariables,
     forwardRef: component.forwardRef,
   };
 }

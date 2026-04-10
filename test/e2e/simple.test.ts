@@ -129,8 +129,9 @@ describe('E2E: parse → emit', () => {
       expect(output).toContain('override render()');
     });
 
-    it('should contain helpers (typeToIcon)', () => {
-      expect(output).toContain('typeToIcon');
+    it('should not contain JSX helpers', () => {
+      // JSX-containing helpers are filtered out
+      expect(output).not.toMatch(/<InternalIcon/);
     });
 
     it('should log output for manual review', () => {

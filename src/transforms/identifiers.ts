@@ -1,14 +1,15 @@
 /**
  * Identifier rewriting transform.
  *
- * Rewrites React-style identifiers to Lit-style across ALL code:
- * handlers, effects, public methods, body preamble, helpers, AND templates.
- *
+ * Rewrites React-style identifiers to Lit-style:
  * - props.foo → this.foo
- * - foo (destructured prop) → this.foo
  * - stateName (from useState) → this._stateName
  * - setStateName(val) → this._stateName = val
  * - refName.current → this._refName
+ *
+ * In template attribute expressions ONLY, also rewrites destructured
+ * prop names: color → this.color (safe because template attribute
+ * values are always expressions, never object keys or declarations).
  */
 import type {
   ComponentIR,
@@ -21,12 +22,6 @@ import type {
 // ---------------------------------------------------------------------------
 
 export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
-  // Build the rewrite map
-  const propNames = new Set(ir.props.map((p) => p.name));
-  // Also include event props — they appear in handler bodies
-  const eventPropNames = new Set(
-    ir.props.filter((p) => p.category === 'event').map((p) => p.name),
-  );
   const stateMap = new Map<string, string>();
   const setterMap = new Map<string, string>();
   const refMap = new Map<string, string>();
@@ -40,8 +35,15 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
     refMap.set(r.name, `_${r.name}`);
   }
 
+  // Safe rewriter: state, setters, refs, props.xxx — no bare prop name rewriting
   const rewriter = (text: string) =>
-    rewriteText(text, propNames, stateMap, setterMap, refMap);
+    rewriteSafe(text, stateMap, setterMap, refMap);
+
+  // Prop names for template-only rewriting
+  const propNames = new Set(ir.props.map((p) => p.name));
+  // Exclude state/ref names from prop rewriting (they have their own patterns)
+  for (const s of ir.state) { propNames.delete(s.name); propNames.delete(s.setter); }
+  for (const r of ir.refs) { propNames.delete(r.name); }
 
   // Transform handlers
   const handlers = ir.handlers.map((h) => ({
@@ -71,8 +73,8 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
     source: rewriter(h.source),
   }));
 
-  // Transform template expressions
-  const template = rewriteTemplateIdentifiers(ir.template, rewriter);
+  // Transform template expressions (with prop name rewriting in attributes)
+  const template = rewriteTemplateNode(ir.template, rewriter, propNames);
 
   return {
     ...ir,
@@ -86,113 +88,137 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
 }
 
 // ---------------------------------------------------------------------------
-// Template expression rewriting
+// Safe text rewriting (state, setters, refs, props.xxx)
 // ---------------------------------------------------------------------------
 
-function rewriteTemplateIdentifiers(
-  node: TemplateNodeIR,
-  rewriter: (text: string) => string,
-): TemplateNodeIR {
-  // Rewrite attribute expressions
-  const attributes = node.attributes.map((attr) =>
-    rewriteAttrIdentifiers(attr, rewriter),
-  );
-
-  // Rewrite expression nodes
-  let expression = node.expression;
-  if (expression) {
-    expression = rewriter(expression);
-  }
-
-  // Rewrite condition expression
-  let condition = node.condition;
-  if (condition) {
-    condition = {
-      ...condition,
-      expression: rewriter(condition.expression),
-      alternate: condition.alternate
-        ? rewriteTemplateIdentifiers(condition.alternate, rewriter)
-        : undefined,
-    };
-  }
-
-  // Rewrite loop expressions
-  let loop = node.loop;
-  if (loop) {
-    loop = {
-      ...loop,
-      iterable: rewriter(loop.iterable),
-    };
-  }
-
-  // Recurse into children
-  const children = node.children.map((c) =>
-    rewriteTemplateIdentifiers(c, rewriter),
-  );
-
-  return {
-    ...node,
-    attributes,
-    children,
-    expression,
-    condition,
-    loop,
-  };
-}
-
-function rewriteAttrIdentifiers(
-  attr: AttributeIR,
-  rewriter: (text: string) => string,
-): AttributeIR {
-  if (typeof attr.value === 'string') return attr;
-  return {
-    ...attr,
-    value: { expression: rewriter(attr.value.expression) },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Text rewriting
-// ---------------------------------------------------------------------------
-
-function rewriteText(
+function rewriteSafe(
   text: string,
-  propNames: Set<string>,
   stateMap: Map<string, string>,
   setterMap: Map<string, string>,
   refMap: Map<string, string>,
 ): string {
   let result = text;
 
-  // Replace setter calls: setFoo(val) → this._foo = val
+  // setFoo(val) → this._foo = val
   for (const [setter, field] of setterMap) {
-    const setterPattern = new RegExp(`\\b${escapeRegex(setter)}\\(([^)]+)\\)`, 'g');
-    result = result.replace(setterPattern, `this.${field} = $1`);
+    result = result.replace(
+      new RegExp(`\\b${esc(setter)}\\(([^)]+)\\)`, 'g'),
+      `this.${field} = $1`,
+    );
   }
 
-  // Replace ref.current → this._refName
+  // fooRef.current → this._fooRef
   for (const [refName, field] of refMap) {
-    const refCurrentPattern = new RegExp(`\\b${escapeRegex(refName)}\\.current\\b`, 'g');
-    result = result.replace(refCurrentPattern, `this.${field}`);
+    result = result.replace(
+      new RegExp(`\\b${esc(refName)}\\.current\\b`, 'g'),
+      `this.${field}`,
+    );
   }
 
-  // Replace state variable references: stateName → this._stateName
+  // stateName → this._stateName
   for (const [stateName, field] of stateMap) {
-    const statePattern = new RegExp(`(?<!\\.)\\b${escapeRegex(stateName)}\\b(?!\\s*[:(])`, 'g');
-    result = result.replace(statePattern, `this.${field}`);
+    result = result.replace(
+      new RegExp(`(?<![.:])\\b${esc(stateName)}\\b(?!\\s*[:(])`, 'g'),
+      `this.${field}`,
+    );
   }
 
-  // Replace props.foo → this.foo
+  // props.foo → this.foo
   result = result.replace(/\bprops\.(\w+)/g, 'this.$1');
-
-  // NOTE: We intentionally do NOT rewrite bare destructured prop names (e.g., color → this.color).
-  // This requires scope analysis that regex cannot provide — it would incorrectly rewrite
-  // object keys, loop variables, function parameters, and locally declared variables.
-  // The post-processor in class.ts handles the safe cases.
 
   return result;
 }
 
-function escapeRegex(str: string): string {
+// ---------------------------------------------------------------------------
+// Template tree rewriting
+// ---------------------------------------------------------------------------
+
+function rewriteTemplateNode(
+  node: TemplateNodeIR,
+  rewriter: (text: string) => string,
+  propNames: Set<string>,
+): TemplateNodeIR {
+  // Rewrite attribute expressions (with prop name rewriting)
+  const attributes = node.attributes.map((attr) => {
+    if (typeof attr.value === 'string') return attr;
+    let expr = rewriter(attr.value.expression);
+    // In template attributes, safe to rewrite prop names
+    expr = rewritePropNames(expr, propNames);
+    return { ...attr, value: { expression: expr } };
+  });
+
+  // Rewrite expression nodes
+  let expression = node.expression;
+  if (expression) {
+    expression = rewriter(expression);
+    expression = rewritePropNames(expression, propNames);
+  }
+
+  // Rewrite condition
+  let condition = node.condition;
+  if (condition) {
+    let condExpr = rewriter(condition.expression);
+    condExpr = rewritePropNames(condExpr, propNames);
+    condition = {
+      ...condition,
+      expression: condExpr,
+      alternate: condition.alternate
+        ? rewriteTemplateNode(condition.alternate, rewriter, propNames)
+        : undefined,
+    };
+  }
+
+  // Rewrite loop
+  let loop = node.loop;
+  if (loop) {
+    let iterable = rewriter(loop.iterable);
+    iterable = rewritePropNames(iterable, propNames);
+    loop = { ...loop, iterable };
+  }
+
+  // Recurse into children
+  const children = node.children.map((c) =>
+    rewriteTemplateNode(c, rewriter, propNames),
+  );
+
+  return { ...node, attributes, children, expression, condition, loop };
+}
+
+// ---------------------------------------------------------------------------
+// Prop name rewriting (template-only, conservative)
+// ---------------------------------------------------------------------------
+
+/**
+ * Rewrite bare prop names to this.propName.
+ * Only applied in template expressions where the context is known to be
+ * an expression value (not an object key, declaration, or parameter).
+ */
+function rewritePropNames(text: string, propNames: Set<string>): string {
+  let result = text;
+  for (const propName of propNames) {
+    if (propName.length <= 2) continue;
+    if (EXCLUDE.has(propName)) continue;
+    // Match standalone identifier: not preceded by . or - or alphanumeric
+    // Not followed by : ( = . (which would indicate object key, call, assignment, property access)
+    result = result.replace(
+      new RegExp(`(?<![\\w.\\-])\\b${esc(propName)}\\b(?![\\w.:('"\`=])`, 'g'),
+      `this.${propName}`,
+    );
+  }
+  return result;
+}
+
+/** Names that must NEVER be rewritten */
+const EXCLUDE = new Set([
+  'true', 'false', 'null', 'undefined', 'void',
+  'event', 'index', 'value', 'item', 'key', 'error', 'target', 'result',
+  'Array', 'Object', 'String', 'Number', 'Boolean', 'Math', 'Date',
+  'Map', 'Set', 'Promise', 'JSON', 'Error', 'RegExp', 'Symbol',
+  'console', 'document', 'window',
+  'html', 'css', 'nothing', 'svg', 'classMap', 'ifDefined',
+  'props', 'state', 'style',
+]);
+
+function esc(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

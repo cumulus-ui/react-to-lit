@@ -159,9 +159,12 @@ describe('parseComponent', () => {
       expect(childrenProp!.category).toBe('slot');
     });
 
-    it('should have helpers (typeToIcon or similar)', () => {
-      // StatusIndicator defines a helper map/function for icon names
-      expect(ir.helpers.length).toBeGreaterThan(0);
+    it('should have pure utility helpers (no JSX helpers)', () => {
+      // JSX-containing helpers like typeToIcon are now filtered out
+      // Only pure utility functions should remain
+      for (const h of ir.helpers) {
+        expect(h.source).not.toMatch(/<[A-Z]/);
+      }
     });
 
     it('should have a template with component references', () => {

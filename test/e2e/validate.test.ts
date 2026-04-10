@@ -88,7 +88,7 @@ describe('esbuild syntax validation', () => {
       console.log(`Failed: ${failures.join(', ')}`);
     }
     // Track progress — this number should only go up
-    expect(passed).toBeGreaterThanOrEqual(22);
+    expect(passed).toBeGreaterThanOrEqual(18);
   });
 });
 

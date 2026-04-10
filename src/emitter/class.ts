@@ -6,7 +6,7 @@
  */
 import type { ComponentIR } from '../ir/types.js';
 import { collectImports } from './imports.js';
-import { emitProperties, emitState, emitControllers, emitContexts } from './properties.js';
+import { emitProperties, emitState, emitControllers, emitContexts, emitComputed } from './properties.js';
 import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
@@ -80,6 +80,12 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
     sections.push(controllerCode);
   }
 
+  // --- Computed values (useMemo → getters) ---
+  const computedCode = emitComputed(ir.computedValues);
+  if (computedCode.trim()) {
+    sections.push(computedCode);
+  }
+
   // --- Lifecycle ---
   const lifecycleCode = emitLifecycle(ir.effects);
   if (lifecycleCode.trim()) {
@@ -101,19 +107,9 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   // --- Render method ---
   const renderCode = emitRenderMethod(ir.template, collector);
 
-  // --- Body preamble (computed values, attribute builders) ---
-  if (ir.bodyPreamble.length > 0) {
-    const preambleCode = ir.bodyPreamble
-      // Skip lines that are purely Cloudscape infrastructure
-      .filter((s) => !s.includes('getBaseProps') && !s.includes('applyDisplayName'))
-      .join('\n    ');
-    if (preambleCode.trim()) {
-      sections.push(`  private _renderSetup() {`);
-      sections.push(`    ${preambleCode}`);
-      sections.push(`  }`);
-      sections.push('');
-    }
-  }
+  // Body preamble is NOT emitted — it's intermediate React code (attribute builders,
+  // className computations) that has been processed by transforms. The useful parts
+  // (hooks, handlers) are already in the IR. Emitting it would produce broken React syntax.
 
   sections.push(renderCode);
 

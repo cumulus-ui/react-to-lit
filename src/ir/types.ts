@@ -67,6 +67,9 @@ export interface ComponentIR {
   /** Unprocessed body statements between hooks and return (preamble code) */
   bodyPreamble: string[];
 
+  /** Locally declared variable names (for scope-aware identifier rewriting) */
+  localVariables: Set<string>;
+
   /** Whether the original component used React.forwardRef */
   forwardRef: boolean;
 }

@@ -69,7 +69,8 @@ export function extractHandlers(
 
 /**
  * Extract top-level helper functions that are not the main component.
- * These are utility functions like `typeToIcon()` in status-indicator.
+ * Only extracts PURE utility functions (no JSX). Functions containing
+ * JSX are React sub-components that need separate transpilation.
  */
 export function extractHelpers(
   sourceFile: ts.SourceFile,
@@ -83,13 +84,13 @@ export function extractHelpers(
       const name = stmt.name.text;
       if (name === componentFunctionName) continue;
       if (name === 'default') continue;
-      // Skip internal Cloudscape helpers
       if (isCloudscapeInfraFunction(name)) continue;
 
-      helpers.push({
-        name,
-        source: getNodeText(stmt, sourceFile),
-      });
+      const source = getNodeText(stmt, sourceFile);
+      // Skip functions containing JSX — they're sub-components
+      if (containsJSX(source)) continue;
+
+      helpers.push({ name, source });
     }
 
     // Variable declarations with function values
@@ -100,22 +101,35 @@ export function extractHelpers(
         if (name === componentFunctionName) continue;
         if (isCloudscapeInfraFunction(name)) continue;
 
-        // Only include if the value is a function or object literal (like a map)
         if (
           ts.isArrowFunction(decl.initializer) ||
           ts.isFunctionExpression(decl.initializer) ||
           ts.isObjectLiteralExpression(decl.initializer)
         ) {
-          helpers.push({
-            name,
-            source: getNodeText(stmt, sourceFile),
-          });
+          const source = getNodeText(stmt, sourceFile);
+          // Skip functions containing JSX
+          if (containsJSX(source)) continue;
+
+          helpers.push({ name, source });
         }
       }
     }
   }
 
   return helpers;
+}
+
+/**
+ * Check if source text contains JSX syntax.
+ */
+function containsJSX(source: string): boolean {
+  // Look for JSX patterns: <Component, </Component, <div className=, />
+  return (
+    /<[A-Z][a-zA-Z]+[\s>\/]/.test(source) ||
+    /<\/[A-Z]/.test(source) ||
+    /\bclassName\s*[={]/.test(source) ||
+    /<[a-z]+\s+[a-zA-Z]+=\{/.test(source)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -155,4 +169,85 @@ function isCloudscapeInfraFunction(name: string): boolean {
     'checkSafeUrl',
   ]);
   return infraFunctions.has(name);
+}
+
+// ---------------------------------------------------------------------------
+// Local variable collection (for scope-aware identifier rewriting)
+// ---------------------------------------------------------------------------
+
+/**
+ * Collect all locally declared variable names from a function body.
+ * These should NOT be rewritten to this.xxx by the identifier transform.
+ *
+ * Collects:
+ * - const/let/var declarations: const foo = ...
+ * - Destructured bindings: const { a, b } = ..., const [x, y] = ...
+ * - Function declarations: function foo() {}
+ * - For-loop variables: for (const item of ...)
+ * - Catch clause variables: catch (err)
+ *
+ * Does NOT collect:
+ * - Function parameters (those are props — handled separately)
+ * - Import bindings (those are at file scope)
+ */
+export function collectLocalVariables(body: ts.Block): Set<string> {
+  const locals = new Set<string>();
+
+  function walk(node: ts.Node): void {
+    // Variable declarations
+    if (ts.isVariableDeclaration(node)) {
+      collectBindingNames(node.name, locals);
+    }
+
+    // Function declarations (named)
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      locals.add(node.name.text);
+      // Also collect parameters of inner functions
+      for (const param of node.parameters) {
+        collectBindingNames(param.name, locals);
+      }
+    }
+
+    // Arrow functions and function expressions — collect their params
+    if ((ts.isArrowFunction(node) || ts.isFunctionExpression(node))) {
+      for (const param of node.parameters) {
+        collectBindingNames(param.name, locals);
+      }
+    }
+
+    // For-of / for-in initializer
+    if (ts.isForOfStatement(node) || ts.isForInStatement(node)) {
+      if (ts.isVariableDeclarationList(node.initializer)) {
+        for (const decl of node.initializer.declarations) {
+          collectBindingNames(decl.name, locals);
+        }
+      }
+    }
+
+    // Catch clause
+    if (ts.isCatchClause(node) && node.variableDeclaration) {
+      collectBindingNames(node.variableDeclaration.name, locals);
+    }
+
+    ts.forEachChild(node, walk);
+  }
+
+  walk(body);
+  return locals;
+}
+
+function collectBindingNames(name: ts.BindingName, names: Set<string>): void {
+  if (ts.isIdentifier(name)) {
+    names.add(name.text);
+  } else if (ts.isObjectBindingPattern(name)) {
+    for (const element of name.elements) {
+      collectBindingNames(element.name, names);
+    }
+  } else if (ts.isArrayBindingPattern(name)) {
+    for (const element of name.elements) {
+      if (!ts.isOmittedExpression(element)) {
+        collectBindingNames(element.name, names);
+      }
+    }
+  }
 }
