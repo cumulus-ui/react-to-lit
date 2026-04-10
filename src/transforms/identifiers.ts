@@ -100,11 +100,19 @@ function rewriteSafe(
   let result = text;
 
   // setFoo(val) → this._foo = val
+  // Uses balanced paren matching for callbacks with nested parens
   for (const [setter, field] of setterMap) {
-    result = result.replace(
-      new RegExp(`\\b${esc(setter)}\\(([^)]+)\\)`, 'g'),
-      `this.${field} = $1`,
-    );
+    const pattern = new RegExp(`\\b${esc(setter)}\\(`, 'g');
+    let match;
+    while ((match = pattern.exec(result)) !== null) {
+      const start = match.index;
+      const argStart = start + match[0].length;
+      const argEnd = findMatchingParen(result, argStart - 1);
+      if (argEnd === -1) continue;
+      const arg = result.slice(argStart, argEnd);
+      result = result.slice(0, start) + `this.${field} = ${arg}` + result.slice(argEnd + 1);
+      pattern.lastIndex = start + `this.${field} = ${arg}`.length;
+    }
   }
 
   // fooRef.current → this._fooRef
@@ -223,4 +231,13 @@ const EXCLUDE = new Set([
 
 function esc(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function findMatchingParen(text: string, openPos: number): number {
+  let depth = 0;
+  for (let i = openPos; i < text.length; i++) {
+    if (text[i] === '(') depth++;
+    else if (text[i] === ')') { depth--; if (depth === 0) return i; }
+  }
+  return -1;
 }

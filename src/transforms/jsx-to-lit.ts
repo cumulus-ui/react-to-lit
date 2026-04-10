@@ -75,6 +75,9 @@ const UNWRAP_COMPONENTS = new Set([
   'AnalyticsFunnelSubStep',
   'AnalyticsFunnelStep',
   'FocusLock',
+  'Fragment',
+  'Suspense',
+  'StrictMode',
 ]);
 
 /** Attributes to remove from output */
@@ -378,7 +381,7 @@ function resolveTagName(tagName: ts.JsxTagNameExpression): string {
   // PascalCase → cs-kebab-case for multi-word names
   if (/^[A-Z]/.test(original) && original !== original.toLowerCase()) {
     // Skip TypeScript utility types and known non-components
-    if (/^(React|Fragment|Suspense|StrictMode)$/.test(original)) return original;
+    if (/^(React|Fragment|Suspense|StrictMode)$/.test(original)) return '__unwrap__';
     const kebab = original.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
     return `cs-${kebab}`;
   }
@@ -394,6 +397,7 @@ function getOriginalTagName(tagName: ts.JsxTagNameExpression): string {
     const obj = tagName.expression.getText();
     const prop = tagName.name.text;
     if (obj === 'React' && prop === 'Fragment') return 'Fragment';
+    if (prop === 'Provider' || prop === 'Consumer') return 'Fragment';
     return `${obj}.${prop}`;
   }
   return tagName.getText();
