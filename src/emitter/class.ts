@@ -36,10 +36,6 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
 
   // --- Helpers ---
   for (const helper of ir.helpers) {
-    // Helpers containing JSX need manual conversion to html`` templates
-    if (helper.source.includes('/>') || helper.source.includes('</')) {
-      sections.push(`// WARNING: helper '${helper.name}' contains JSX — needs manual conversion to html\`\``);
-    }
     sections.push(helper.source);
     sections.push('');
   }

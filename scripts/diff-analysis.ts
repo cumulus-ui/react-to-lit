@@ -114,10 +114,6 @@ function analyzeComponent(componentName: string): AnalysisResult {
     }
 
     // --- WARNINGS (suboptimal but not broken) ---
-    if (output.includes('// WARNING: helper')) {
-      const count = (output.match(/\/\/ WARNING: helper/g) || []).length;
-      result.warnings.push(`${count} helper(s) with JSX need manual conversion`);
-    }
     if (output.replace(/\/\/.*$/gm, '').includes('__internalRootRef')) {
       result.warnings.push('__internalRootRef reference remains');
     }
