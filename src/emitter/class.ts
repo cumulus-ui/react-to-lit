@@ -178,6 +178,18 @@ function postProcessOutput(output: string): string {
     return `class=\${classMap(${convertClsxArgs(args)})}`;
   });
 
+  // --- Clean up classMap objects ---
+  // Remove comment-only entries: { /* comment */, 'foo': true } → { 'foo': true }
+  result = result.replace(/\/\*[^*]*\*\/\s*,?\s*/g, (match, offset) => {
+    // Only clean inside classMap({ ... }) calls
+    const before = result.slice(Math.max(0, offset - 50), offset);
+    if (before.includes('classMap(') || before.includes("': ")) return '';
+    return match;
+  });
+  // Remove leading/trailing commas in objects: { , 'foo': true } → { 'foo': true }
+  result = result.replace(/\{\s*,/g, '{');
+  result = result.replace(/,\s*\}/g, ' }');
+
   // --- Rewrite remaining fire* event calls ---
   // Catch any fireNonCancelableEvent(onXxx, ...) that survived through raw JSX or helpers
   result = result.replace(

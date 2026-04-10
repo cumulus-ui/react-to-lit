@@ -115,13 +115,10 @@ function rewriteSafe(
     );
   }
 
-  // stateName → this._stateName
-  for (const [stateName, field] of stateMap) {
-    result = result.replace(
-      new RegExp(`(?<![.:])\\b${esc(stateName)}\\b(?!\\s*[:(])`, 'g'),
-      `this.${field}`,
-    );
-  }
+  // NOTE: We do NOT rewrite bare state names (e.g. annotations → this._annotations)
+  // in code bodies. This breaks destructuring targets, object shorthands, and
+  // object key positions. State names are only rewritten in template expressions
+  // (via rewritePropNames) where the context is known to be safe.
 
   // props.foo → this.foo
   result = result.replace(/\bprops\.(\w+)/g, 'this.$1');
@@ -198,10 +195,15 @@ function rewritePropNames(text: string, propNames: Set<string>): string {
   for (const propName of propNames) {
     if (propName.length <= 2) continue;
     if (EXCLUDE.has(propName)) continue;
-    // Match standalone identifier: not preceded by . or - or alphanumeric
-    // Not followed by : ( = . (which would indicate object key, call, assignment, property access)
+    // Match standalone identifier, but NOT in:
+    // - object shorthand { foo, bar } (followed by , or })
+    // - object key { foo: val } (followed by :)
+    // - function call foo() (followed by ()
+    // - assignment foo = (followed by =)
+    // - property access foo.bar (preceded/followed by .)
+    // - destructuring const { foo } (preceded by { or ,)
     result = result.replace(
-      new RegExp(`(?<![\\w.\\-])\\b${esc(propName)}\\b(?![\\w.:('"\`=])`, 'g'),
+      new RegExp(`(?<![\\w.\\-{,])\\b${esc(propName)}\\b(?![\\w.:('"\`=,}])`, 'g'),
       `this.${propName}`,
     );
   }

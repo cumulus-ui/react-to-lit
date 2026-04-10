@@ -16,12 +16,21 @@ import type { EffectIR } from '../ir/types.js';
 export function emitLifecycle(effects: EffectIR[]): string {
   const lines: string[] = [];
 
+  // Deduplicate effects by normalized body content
+  const seen = new Set<string>();
+  const uniqueEffects = effects.filter((e) => {
+    const key = e.body.replace(/\s+/g, ' ').trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   // Group effects by kind
-  const mountEffects = effects.filter((e) => e.deps === 'empty' && !e.isLayout);
-  const everyRenderEffects = effects.filter((e) => e.deps === 'none');
-  const depEffects = effects.filter((e) => Array.isArray(e.deps));
-  const layoutEffects = effects.filter((e) => e.isLayout);
-  const cleanupEffects = effects.filter((e) => e.cleanup);
+  const mountEffects = uniqueEffects.filter((e) => e.deps === 'empty' && !e.isLayout);
+  const everyRenderEffects = uniqueEffects.filter((e) => e.deps === 'none');
+  const depEffects = uniqueEffects.filter((e) => Array.isArray(e.deps));
+  const layoutEffects = uniqueEffects.filter((e) => e.isLayout);
+  const cleanupEffects = uniqueEffects.filter((e) => e.cleanup);
 
   // connectedCallback — mount-only effects
   if (mountEffects.length > 0) {
