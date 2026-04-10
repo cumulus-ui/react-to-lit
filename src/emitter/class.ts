@@ -181,7 +181,6 @@ function postProcessOutput(output: string): string {
   // --- Clean up classMap objects ---
   // Remove comment-only entries: { /* comment */, 'foo': true } → { 'foo': true }
   result = result.replace(/\/\*[^*]*\*\/\s*,?\s*/g, (match, offset) => {
-    // Only clean inside classMap({ ... }) calls
     const before = result.slice(Math.max(0, offset - 50), offset);
     if (before.includes('classMap(') || before.includes("': ")) return '';
     return match;
@@ -189,6 +188,9 @@ function postProcessOutput(output: string): string {
   // Remove leading/trailing commas in objects: { , 'foo': true } → { 'foo': true }
   result = result.replace(/\{\s*,/g, '{');
   result = result.replace(/,\s*\}/g, ' }');
+
+  // --- Convert remaining JSX in output to Lit syntax ---
+  result = convertRemainingJsx(result);
 
   // --- Rewrite remaining fire* event calls ---
   // Catch any fireNonCancelableEvent(onXxx, ...) that survived through raw JSX or helpers
@@ -280,4 +282,60 @@ function convertClsxArgs(args: string): string {
   }
 
   return `{ ${entries.join(', ')} }`;
+}
+
+/**
+ * Convert remaining raw JSX patterns to Lit syntax in the code section.
+ */
+function convertRemainingJsx(output: string): string {
+  // Split into import section and code section
+  const importEnd = output.lastIndexOf("import ");
+  const importEndLine = output.indexOf('\n', output.indexOf(';', importEnd));
+  if (importEndLine <= 0) return output;
+
+  const importSection = output.slice(0, importEndLine + 1);
+  let code = output.slice(importEndLine + 1);
+
+  // Convert PascalCase JSX component tags to kebab-case custom elements
+  // <RadioButton → <cs-radio-button, </RadioButton → </cs-radio-button
+  // Only match when < is preceded by whitespace, newline, or start of template (not a letter like Record<)
+  code = code.replace(/(?<=[\s\n(`])(<\/?)(([A-Z][a-z]+){2,})\b/g, (match, prefix, name) => {
+    if (/^(Object|Array|String|Number|Boolean|Map|Set|Error|Promise|Date|RegExp|Symbol|Function|Record|Partial|Required|Readonly|Pick|Omit|Exclude|Extract|NonNullable|ReturnType|Parameters|InstanceType)$/.test(name)) return match;
+    const kebab = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+    return `${prefix}cs-${kebab}`;
+  });
+
+  // Remove key={...} attributes
+  code = code.replace(/\s+key=\{[^}]*\}/g, '');
+
+  // Remove ref={...} attributes (already handled by cleanup but catch stragglers)
+  code = code.replace(/\s+ref=\{[^}]*\}/g, '');
+
+  // Remove {...spread} JSX attributes
+  code = code.replace(/\n\s*\{\.\.\.\w[^}]*\}\s*\n/g, '\n');
+
+  // Convert JSX expression attributes: prop={expr} → .prop=${expr}
+  // Only match inside what looks like an element tag (after < and before > or />)
+  code = code.replace(/(\s)([\w-]+)=\{([^}]*)\}/g, (match, ws, name, expr) => {
+    // Skip already-converted Lit bindings
+    if (name.startsWith('@') || name.startsWith('?') || name.startsWith('.')) return match;
+    // Skip class= (already converted by classMap)
+    if (name === 'class') return match;
+    // Boolean attributes
+    if (/^(disabled|checked|readOnly|readonly|required|hidden|indeterminate|open|multiple|selected)$/.test(name)) {
+      return `${ws}?${name}=\${${expr}}`;
+    }
+    // Event handlers: onXxx → @xxx
+    if (/^on[A-Z]/.test(name)) {
+      const eventName = name.slice(2).toLowerCase();
+      return `${ws}@${eventName}=\${${expr}}`;
+    }
+    // Property binding
+    return `${ws}.${name}=\${${expr}}`;
+  });
+
+  // Convert JSX children expressions: >{expr}< → >${expr}<
+  code = code.replace(/>\s*\{([^}]+)\}\s*</g, '>${$1}<');
+
+  return importSection + code;
 }
