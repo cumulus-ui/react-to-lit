@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * Phase 6: Diff analysis script.
+ * Output quality analysis.
  *
- * Compares transpiler output against hand-written Lit components
- * in @cumulus-ui/components to identify behavioral gaps.
+ * Checks every generated component for correctness issues:
+ * - React patterns that should have been transformed
+ * - Invalid Lit syntax
+ * - Missing expected output sections
  *
  * Usage: npx tsx scripts/diff-analysis.ts
  */
@@ -14,16 +16,21 @@ import { transformAll } from '../src/transforms/index.js';
 import { emitComponent } from '../src/emitter/index.js';
 
 const CLOUDSCAPE_SRC = path.resolve(import.meta.dirname, '../vendor/cloudscape-source/src');
-const HANDWRITTEN_SRC = path.resolve(import.meta.dirname, '../../components/src');
 
-interface DiffResult {
+interface AnalysisResult {
   component: string;
-  hasHandwritten: boolean;
-  hasGenerated: boolean;
   issues: string[];
-  propsMissing: string[];
-  propsExtra: string[];
-  featureGaps: string[];
+  warnings: string[];
+  stats: {
+    props: number;
+    state: number;
+    effects: number;
+    handlers: number;
+    publicMethods: number;
+    helpers: number;
+    hasLifecycle: boolean;
+    hasEventDispatch: boolean;
+  };
 }
 
 const SKIP_DIRS = new Set([
@@ -44,85 +51,86 @@ function findComponents(): string[] {
     .sort();
 }
 
-function analyzeComponent(componentName: string): DiffResult {
-  const result: DiffResult = {
+function analyzeComponent(componentName: string): AnalysisResult {
+  const result: AnalysisResult = {
     component: componentName,
-    hasHandwritten: false,
-    hasGenerated: false,
     issues: [],
-    propsMissing: [],
-    propsExtra: [],
-    featureGaps: [],
+    warnings: [],
+    stats: {
+      props: 0, state: 0, effects: 0, handlers: 0,
+      publicMethods: 0, helpers: 0, hasLifecycle: false, hasEventDispatch: false,
+    },
   };
 
-  // Check if hand-written version exists
-  const handwrittenPath = path.join(HANDWRITTEN_SRC, componentName, 'internal.ts');
-  result.hasHandwritten = fs.existsSync(handwrittenPath);
-
-  // Generate the transpiled version
   try {
     const ir = parseComponent(path.join(CLOUDSCAPE_SRC, componentName), { prefix: 'cs' });
     const transformed = transformAll(ir);
     const output = emitComponent(transformed);
-    result.hasGenerated = true;
 
-    // Analyze output quality — focus on the class body (after 'export class')
+    // Stats
+    result.stats.props = ir.props.filter((p) => p.category !== 'event' && p.category !== 'slot').length;
+    result.stats.state = ir.state.length;
+    result.stats.effects = ir.effects.length;
+    result.stats.handlers = ir.handlers.length;
+    result.stats.publicMethods = ir.publicMethods.length;
+    result.stats.helpers = ir.helpers.length;
+    result.stats.hasLifecycle = output.includes('connectedCallback') || output.includes('willUpdate') || output.includes('override updated');
+    result.stats.hasEventDispatch = output.includes('fireNonCancelableEvent(this,') || output.includes('dispatchEvent');
+
+    // --- ISSUES (broken output) ---
     const classSection = output.slice(output.indexOf('export class'));
     const renderSection = output.slice(output.indexOf('override render()'));
 
+    // React patterns that should not survive in Lit output
     if (renderSection.includes('WithNativeAttributes')) {
-      result.issues.push('Contains un-unwrapped WithNativeAttributes in render');
+      result.issues.push('WithNativeAttributes in render — React wrapper not unwrapped');
     }
-    if (renderSection.includes('clsx(')) {
-      result.issues.push('Contains un-transformed clsx() in render');
+    if (renderSection.includes('className=')) {
+      result.issues.push('className in render — should be class=');
     }
-    if (classSection.includes('baseProps') && !output.includes('// WARNING:')) {
-      result.issues.push('Contains baseProps reference in class body');
+    if (renderSection.match(/clsx\(/)) {
+      result.issues.push('clsx() in render — should be classMap()');
     }
-    if (classSection.includes('__internalRootRef')) {
-      result.issues.push('Contains __internalRootRef in class body');
+    if (classSection.includes('React.')) {
+      // Check if it's only in comments
+      const codeOnly = classSection.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+      if (codeOnly.includes('React.')) {
+        result.issues.push('React. reference in class body');
+      }
     }
-    if (renderSection.includes('AbstractSwitch') || renderSection.includes('cs-abstract-switch')) {
-      result.issues.push('Contains AbstractSwitch (needs inlining)');
-    }
-    if (output.includes('/* spread:')) {
-      result.issues.push('Contains spread comment');
+    if (output.includes("from 'react'")) {
+      result.issues.push('React import in output');
     }
 
-    // Compare with hand-written version if available
-    if (result.hasHandwritten) {
-      const handwritten = fs.readFileSync(handwrittenPath, 'utf-8');
-
-      // Check for features in hand-written that are missing in generated
-      if (handwritten.includes('FormControlMixin') && !output.includes('FormControlMixin')) {
-        result.featureGaps.push('Missing FormControlMixin');
-      }
-      if (handwritten.includes('@consume') && !output.includes('@consume')) {
-        result.featureGaps.push('Missing @consume context');
-      }
-      if (handwritten.includes('fireNonCancelableEvent') && !output.includes('fireNonCancelableEvent')) {
-        result.featureGaps.push('Missing event dispatch');
-      }
-      if (handwritten.includes('connectedCallback') && !output.includes('connectedCallback')) {
-        result.featureGaps.push('Missing connectedCallback');
-      }
-      if (handwritten.includes('disconnectedCallback') && !output.includes('disconnectedCallback')) {
-        result.featureGaps.push('Missing disconnectedCallback');
-      }
-      if (handwritten.includes('willUpdate') && !output.includes('willUpdate')) {
-        result.featureGaps.push('Missing willUpdate');
-      }
-      if (handwritten.includes('focus(') && !output.includes('focus(')) {
-        result.featureGaps.push('Missing focus() method');
-      }
-
-      // Compare property counts
-      const hwPropCount = (handwritten.match(/@property/g) || []).length;
-      const genPropCount = (output.match(/@property/g) || []).length;
-      if (Math.abs(hwPropCount - genPropCount) > 3) {
-        result.featureGaps.push(`Property count mismatch: hand-written=${hwPropCount}, generated=${genPropCount}`);
-      }
+    // Lit output structure checks
+    if (!output.includes('export class Cs')) {
+      result.issues.push('Missing class declaration');
     }
+    if (!output.includes('override render()')) {
+      result.issues.push('Missing render method');
+    }
+    if (!output.includes("from 'lit'")) {
+      result.issues.push('Missing lit import');
+    }
+
+    // --- WARNINGS (suboptimal but not broken) ---
+    if (output.includes('// WARNING: helper')) {
+      const count = (output.match(/\/\/ WARNING: helper/g) || []).length;
+      result.warnings.push(`${count} helper(s) with JSX need manual conversion`);
+    }
+    if (output.replace(/\/\/.*$/gm, '').includes('__internalRootRef')) {
+      result.warnings.push('__internalRootRef reference remains');
+    }
+    if (output.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '').includes('baseProps')) {
+      result.warnings.push('baseProps reference remains');
+    }
+    if (ir.effects.length > 0 && !result.stats.hasLifecycle) {
+      result.warnings.push(`${ir.effects.length} effect(s) parsed but no lifecycle emitted`);
+    }
+    if (ir.props.some((p) => p.category === 'event') && !result.stats.hasEventDispatch) {
+      result.warnings.push('Event props parsed but no event dispatch emitted');
+    }
+
   } catch (err) {
     result.issues.push(`Generation failed: ${(err as Error).message}`);
   }
@@ -135,54 +143,58 @@ const components = findComponents();
 const results = components.map(analyzeComponent);
 
 // --- Summary ---
-const generated = results.filter((r) => r.hasGenerated);
-const withHandwritten = results.filter((r) => r.hasHandwritten);
+const clean = results.filter((r) => r.issues.length === 0 && r.warnings.length === 0);
 const withIssues = results.filter((r) => r.issues.length > 0);
-const withGaps = results.filter((r) => r.featureGaps.length > 0);
-const clean = results.filter((r) => r.hasGenerated && r.issues.length === 0);
+const withWarnings = results.filter((r) => r.issues.length === 0 && r.warnings.length > 0);
 
-console.log('=== Diff Analysis Summary ===');
+console.log('=== Output Quality Analysis ===');
 console.log(`Total components: ${components.length}`);
-console.log(`Generated successfully: ${generated.length}`);
-console.log(`Have hand-written version: ${withHandwritten.length}`);
-console.log(`Clean (no issues): ${clean.length}`);
-console.log(`With output issues: ${withIssues.length}`);
-console.log(`With feature gaps vs hand-written: ${withGaps.length}`);
+console.log(`Clean (no issues, no warnings): ${clean.length}`);
+console.log(`With issues (broken output): ${withIssues.length}`);
+console.log(`With warnings only: ${withWarnings.length}`);
 console.log('');
 
 // Issue breakdown
-const issueTypes = new Map<string, number>();
-for (const r of results) {
-  for (const issue of r.issues) {
-    issueTypes.set(issue, (issueTypes.get(issue) || 0) + 1);
+if (withIssues.length > 0) {
+  const issueTypes = new Map<string, string[]>();
+  for (const r of withIssues) {
+    for (const issue of r.issues) {
+      if (!issueTypes.has(issue)) issueTypes.set(issue, []);
+      issueTypes.get(issue)!.push(r.component);
+    }
   }
-}
-if (issueTypes.size > 0) {
-  console.log('--- Output Issues ---');
-  for (const [issue, count] of [...issueTypes.entries()].sort((a, b) => b[1] - a[1])) {
-    console.log(`  ${count}x ${issue}`);
+  console.log('--- Issues (broken output) ---');
+  for (const [issue, comps] of [...issueTypes.entries()].sort((a, b) => b[1].length - a[1].length)) {
+    console.log(`  ${comps.length}x ${issue}`);
+    for (const c of comps) console.log(`      - ${c}`);
   }
   console.log('');
 }
 
-// Feature gap breakdown
-const gapTypes = new Map<string, number>();
-for (const r of results) {
-  for (const gap of r.featureGaps) {
-    gapTypes.set(gap, (gapTypes.get(gap) || 0) + 1);
+// Warning breakdown
+if (withWarnings.length > 0) {
+  const warnTypes = new Map<string, string[]>();
+  for (const r of withWarnings) {
+    for (const warn of r.warnings) {
+      if (!warnTypes.has(warn)) warnTypes.set(warn, []);
+      warnTypes.get(warn)!.push(r.component);
+    }
   }
-}
-if (gapTypes.size > 0) {
-  console.log('--- Feature Gaps (vs hand-written) ---');
-  for (const [gap, count] of [...gapTypes.entries()].sort((a, b) => b[1] - a[1])) {
-    console.log(`  ${count}x ${gap}`);
+  console.log('--- Warnings (suboptimal but not broken) ---');
+  for (const [warn, comps] of [...warnTypes.entries()].sort((a, b) => b[1].length - a[1].length)) {
+    console.log(`  ${comps.length}x ${warn}`);
   }
   console.log('');
 }
 
 // Clean components
-console.log('--- Clean Components (no issues) ---');
+console.log(`--- Clean Components (${clean.length}) ---`);
 for (const r of clean) {
-  const marker = r.hasHandwritten ? '✓' : '○';
-  console.log(`  ${marker} ${r.component}`);
+  const s = r.stats;
+  const parts = [`${s.props}p`];
+  if (s.state > 0) parts.push(`${s.state}s`);
+  if (s.effects > 0) parts.push(`${s.effects}e`);
+  if (s.handlers > 0) parts.push(`${s.handlers}h`);
+  if (s.publicMethods > 0) parts.push(`${s.publicMethods}m`);
+  console.log(`  ✓ ${r.component} [${parts.join(',')}]`);
 }

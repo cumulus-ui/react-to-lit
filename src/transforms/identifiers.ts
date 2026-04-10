@@ -54,11 +54,15 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
     body: rewriter(m.body),
   }));
 
+  // Transform body preamble
+  const bodyPreamble = ir.bodyPreamble.map(rewriter);
+
   return {
     ...ir,
     handlers,
     effects,
     publicMethods,
+    bodyPreamble,
   };
 }
 

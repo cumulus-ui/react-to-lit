@@ -75,6 +75,7 @@ export const cloudscapeComponentRegistry: ComponentRegistry = {
   'AnalyticsFunnelSubStep': '__UNWRAP__',
   'AnalyticsFunnelStep': '__UNWRAP__',
   'FocusLock': '__UNWRAP__',
+  'React.Fragment': '__UNWRAP__',
 };
 
 // ---------------------------------------------------------------------------

@@ -144,11 +144,11 @@ function parseClsxArgs(argsStr: string): string {
     }
 
     // Variable reference (e.g., baseProps.className) — skip Cloudscape internal
-    if (trimmed.includes('baseProps.className') || trimmed.includes('props.className')) {
+    if (trimmed.includes('baseProps') || trimmed.includes('props.className')) {
       continue;
     }
 
-    // Unknown pattern — pass through
+    // Unknown pattern — pass through as comment
     entries.push(`/* ${trimmed} */`);
   }
 

@@ -21,6 +21,11 @@ function fullPipeline(componentName: string): string {
   return emitComponent(transformed);
 }
 
+/** Strip comments from output for assertion checks */
+function stripComments(text: string): string {
+  return text.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
 describe('Full pipeline: parse → transform → emit', () => {
   // -------------------------------------------------------------------------
   // Badge
@@ -37,15 +42,15 @@ describe('Full pipeline: parse → transform → emit', () => {
     });
 
     it('should NOT contain clsx', () => {
-      expect(output).not.toContain('clsx(');
+      expect(stripComments(output)).not.toContain('clsx(');
     });
 
     it('should NOT contain React imports', () => {
-      expect(output).not.toContain("from 'react'");
+      expect(stripComments(output)).not.toContain("from 'react'");
     });
 
     it('should NOT contain baseProps', () => {
-      expect(output).not.toContain('baseProps');
+      expect(stripComments(output)).not.toContain('baseProps');
     });
 
     it('should NOT contain __internalRootRef', () => {

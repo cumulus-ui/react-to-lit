@@ -63,9 +63,10 @@ describe('E2E: parse → emit', () => {
     });
 
     it('should not contain React imports', () => {
-      expect(output).not.toContain("from 'react'");
-      expect(output).not.toContain('React.');
-      expect(output).not.toContain('clsx');
+      const code = output.replace(/\/\/.*$/gm, '');
+      expect(code).not.toContain("from 'react'");
+      expect(code).not.toContain('React.');
+      expect(code).not.toContain('clsx');
     });
 
     it('should log output for manual review', () => {

@@ -114,7 +114,12 @@ export function parseComponent(
   // 7. Parse JSX template
   const template = parseJSXFromBody(component.body, sourceFile);
 
-  // 8. Extract helper functions (file-level, outside the component)
+  // 8. Extract body preamble (code between hooks/handlers and return)
+  const bodyPreamble = ts.isBlock(component.body)
+    ? extractBodyPreamble(component.body, sourceFile)
+    : [];
+
+  // 9. Extract helper functions (file-level, outside the component)
   const implFile = internalFile ?? indexFile;
   const helpers = extractHelpers(implFile, component.name);
 
@@ -152,6 +157,7 @@ export function parseComponent(
     styleImport,
     publicMethods: hookResult.publicMethods,
     helpers,
+    bodyPreamble,
     forwardRef: component.forwardRef,
   };
 }
@@ -208,6 +214,82 @@ function deriveTagName(componentName: string, prefix: string): string {
     .toLowerCase();
 
   return prefix ? `${prefix}-${kebab}` : kebab;
+}
+
+// ---------------------------------------------------------------------------
+// Body preamble extraction
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract statements from the component body that are between hook calls
+ * and the return statement. These are typically variable assignments,
+ * object builds, and conditional logic.
+ */
+function extractBodyPreamble(
+  body: ts.Block,
+  sourceFile: ts.SourceFile,
+): string[] {
+  const preamble: string[] = [];
+  let pastHooks = false;
+
+  for (const stmt of body.statements) {
+    // Skip return statements
+    if (ts.isReturnStatement(stmt)) break;
+
+    // Detect hook calls and handler declarations (already captured elsewhere)
+    if (isHookCallStatement(stmt) || isHandlerDeclaration(stmt)) {
+      pastHooks = true;
+      continue;
+    }
+
+    // After hooks: capture the preamble code
+    if (pastHooks) {
+      const text = sourceFile.text.slice(stmt.getStart(sourceFile), stmt.getEnd());
+      // Skip Cloudscape infrastructure
+      if (text.includes('applyDisplayName') || text.includes('getBaseProps')) continue;
+      if (text.includes('checkSafeUrl')) continue;
+      if (text.includes('useBaseComponent')) continue;
+      preamble.push(text);
+    }
+  }
+
+  return preamble;
+}
+
+function isHookCallStatement(stmt: ts.Statement): boolean {
+  // Variable declaration with hook call
+  if (ts.isVariableStatement(stmt)) {
+    for (const decl of stmt.declarationList.declarations) {
+      if (decl.initializer && ts.isCallExpression(decl.initializer)) {
+        const callee = decl.initializer.expression;
+        if (ts.isIdentifier(callee) && callee.text.startsWith('use')) return true;
+        if (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && callee.expression.text === 'React') return true;
+      }
+    }
+  }
+  // Expression statement with hook call
+  if (ts.isExpressionStatement(stmt) && ts.isCallExpression(stmt.expression)) {
+    const callee = stmt.expression.expression;
+    if (ts.isIdentifier(callee) && callee.text.startsWith('use')) return true;
+  }
+  return false;
+}
+
+function isHandlerDeclaration(stmt: ts.Statement): boolean {
+  if (ts.isVariableStatement(stmt)) {
+    for (const decl of stmt.declarationList.declarations) {
+      if (decl.initializer && (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))) {
+        return true;
+      }
+      // Hook calls are also handler-like
+      if (decl.initializer && ts.isCallExpression(decl.initializer)) {
+        const callee = decl.initializer.expression;
+        if (ts.isIdentifier(callee) && callee.text.startsWith('use')) return true;
+      }
+    }
+  }
+  if (ts.isFunctionDeclaration(stmt)) return true;
+  return false;
 }
 
 // ---------------------------------------------------------------------------

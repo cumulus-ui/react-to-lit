@@ -64,6 +64,9 @@ export interface ComponentIR {
   /** Helper functions defined in the same file but outside the component */
   helpers: HelperIR[];
 
+  /** Unprocessed body statements between hooks and return (preamble code) */
+  bodyPreamble: string[];
+
   /** Whether the original component used React.forwardRef */
   forwardRef: boolean;
 }

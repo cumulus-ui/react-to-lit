@@ -55,11 +55,16 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
       : e.deps,
   }));
 
-  // Clean helpers — remove helpers that are Cloudscape infrastructure
-  const helpers = ir.helpers.filter((h) => {
-    const infraNames = new Set(['applyDisplayName', 'getBaseProps', 'checkSafeUrl']);
-    return !infraNames.has(h.name);
-  });
+  // Clean helpers — remove infrastructure and clean source
+  const helpers = ir.helpers
+    .filter((h) => {
+      const infraNames = new Set(['applyDisplayName', 'getBaseProps', 'checkSafeUrl']);
+      return !infraNames.has(h.name);
+    })
+    .map((h) => ({
+      ...h,
+      source: cleanHandlerBody(h.source),
+    }));
 
   // Clean template — remove Cloudscape-specific attributes
   const template = cleanTemplate(ir.template);
@@ -84,11 +89,16 @@ function cleanHandlerBody(body: string): string {
   // Remove: const baseProps = getBaseProps(rest);
   result = result.replace(/const\s+baseProps\s*=\s*getBaseProps\([^)]*\)\s*;?\s*/g, '');
 
+  // Remove: {...baseProps} spread in JSX
+  result = result.replace(/\{\s*\.\.\.baseProps\s*\}\s*\n?\s*/g, '');
+  // Remove baseProps.className references
+  result = result.replace(/\bbaseProps\.className\b,?\s*/g, '');
+
   // Remove: checkSafeUrl('Button', href);
   result = result.replace(/checkSafeUrl\([^)]*\)\s*;?\s*/g, '');
 
   // Remove __internalRootRef references
-  result = result.replace(/\b__internalRootRef\b/g, 'undefined /* __internalRootRef removed */');
+  result = result.replace(/\b__internalRootRef\b/g, 'null');
   result = result.replace(/const\s+mergedRef\s*=\s*useMergeRefs\([^)]*\)\s*;?\s*/g, '');
 
   // Remove: const { __internalRootRef } = useBaseComponent(...);

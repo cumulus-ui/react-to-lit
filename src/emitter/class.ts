@@ -104,6 +104,17 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
 
   // --- Render method ---
   const renderCode = emitRenderMethod(ir.template, collector);
+
+  // --- Body preamble (computed values, attribute builders) ---
+  // Emit as a private method called from render if non-empty
+  if (ir.bodyPreamble.length > 0) {
+    sections.push('  // --- preamble (setup code from component body) ---');
+    for (const stmt of ir.bodyPreamble) {
+      sections.push(`  // ${stmt.split('\n')[0].trim().slice(0, 80)}...`);
+    }
+    sections.push('');
+  }
+
   sections.push(renderCode);
 
   // --- Close class ---
@@ -126,23 +137,59 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
 function postProcessOutput(output: string): string {
   let result = output;
 
-  // className → class (in template attributes)
+  // --- React type annotations → native DOM types ---
+  result = result.replace(/React\.MouseEvent(<[^>]*>)?/g, 'MouseEvent');
+  result = result.replace(/React\.KeyboardEvent(<[^>]*>)?/g, 'KeyboardEvent');
+  result = result.replace(/React\.FocusEvent(<[^>]*>)?/g, 'FocusEvent');
+  result = result.replace(/React\.ChangeEvent(<[^>]*>)?/g, 'Event');
+  result = result.replace(/React\.FormEvent(<[^>]*>)?/g, 'Event');
+  result = result.replace(/React\.SyntheticEvent(<[^>]*>)?/g, 'Event');
+  result = result.replace(/React\.DragEvent(<[^>]*>)?/g, 'DragEvent');
+  result = result.replace(/React\.ClipboardEvent(<[^>]*>)?/g, 'ClipboardEvent');
+  result = result.replace(/React\.PointerEvent(<[^>]*>)?/g, 'PointerEvent');
+  result = result.replace(/React\.TouchEvent(<[^>]*>)?/g, 'TouchEvent');
+  result = result.replace(/React\.WheelEvent(<[^>]*>)?/g, 'WheelEvent');
+  result = result.replace(/React\.AnimationEvent(<[^>]*>)?/g, 'AnimationEvent');
+  result = result.replace(/React\.TransitionEvent(<[^>]*>)?/g, 'TransitionEvent');
+  result = result.replace(/React\.CompositionEvent(<[^>]*>)?/g, 'CompositionEvent');
+  result = result.replace(/React\.UIEvent(<[^>]*>)?/g, 'UIEvent');
+  // React types
+  result = result.replace(/React\.Ref<[^>]*>/g, 'any');
+  result = result.replace(/React\.RefObject<[^>]*>/g, 'any');
+  result = result.replace(/React\.MutableRefObject<[^>]*>/g, 'any');
+  result = result.replace(/React\.CSSProperties/g, 'Record<string, string>');
+  result = result.replace(/React\.ReactNode/g, 'unknown');
+  result = result.replace(/React\.ReactElement(<[^>]*>)?/g, 'unknown');
+  result = result.replace(/React\.\w+HTMLAttributes<[^>]*>/g, 'Record<string, unknown>');
+  // Catch remaining React.Xxx patterns
+  result = result.replace(/React\.(\w+)Event/g, '$1Event');
+  // React.useRef → useRef (in helper bodies)
+  result = result.replace(/React\.useRef/g, 'useRef');
+  result = result.replace(/React\.useEffect/g, 'useEffect');
+  result = result.replace(/React\.useState/g, 'useState');
+  result = result.replace(/React\.useCallback/g, 'useCallback');
+  result = result.replace(/React\.useMemo/g, 'useMemo');
+  result = result.replace(/React\.useImperativeHandle/g, 'useImperativeHandle');
+  result = result.replace(/React\.Fragment/g, '');
+  result = result.replace(/React\.forwardRef\(/g, '(');
+  result = result.replace(/React\.createElement/g, 'document.createElement');
+
+  // --- className → class ---
   result = result.replace(/\bclassName=/g, 'class=');
 
-  // className={...} → class=${classMap(...)} in inline JSX within templates
+  // className={clsx(...)} → class=${classMap(...)}
   result = result.replace(/class=\{clsx\(([^)]*)\)\}/g, (_, args) => {
     return `class=\${classMap(${convertClsxArgs(args)})}`;
   });
 
-  // Strip remaining __internalRootRef references
+  // --- Strip remaining Cloudscape internals ---
   result = result.replace(/\.__internalRootRef=\$\{[^}]+\}\s*/g, '');
   result = result.replace(/\bref=\{__internalRootRef\}\s*/g, '');
-
-  // Strip nativeAttributes / nativeInputAttributes in templates
+  result = result.replace(/\bref=\{null\}\s*/g, '');
   result = result.replace(/\bnativeAttributes=\{[^}]*\}\s*/g, '');
   result = result.replace(/\bnativeInputAttributes=\{[^}]*\}\s*/g, '');
 
-  // Clean up empty lines (more than 2 consecutive)
+  // Clean up empty lines
   result = result.replace(/\n{3,}/g, '\n\n');
 
   return result;

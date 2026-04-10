@@ -54,6 +54,9 @@ export function transformEvents(ir: ComponentIR): ComponentIR {
     body: rewrite(m.body),
   }));
 
+  // Transform body preamble
+  const bodyPreamble = ir.bodyPreamble.map(rewrite);
+
   // Transform template expressions
   const template = rewriteTemplateEvents(ir.template, eventProps);
 
@@ -63,6 +66,7 @@ export function transformEvents(ir: ComponentIR): ComponentIR {
     ...effects.map((e) => e.body),
     ...helpers.map((h) => h.source),
     ...publicMethods.map((m) => m.body),
+    ...bodyPreamble,
   ].join('\n');
 
   const needsEventImport = allCode.includes('fireNonCancelableEvent(this,');
@@ -81,6 +85,7 @@ export function transformEvents(ir: ComponentIR): ComponentIR {
     effects,
     helpers,
     publicMethods,
+    bodyPreamble,
     template,
     imports,
   };
