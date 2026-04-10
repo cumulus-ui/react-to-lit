@@ -20,9 +20,10 @@ import { findComponent } from './component.js';
 import { extractProps } from './props.js';
 import { extractHooks } from './hooks.js';
 import { parseJSXFromBody } from './jsx.js';
-import { extractHandlers, extractHelpers, collectLocalVariables } from './utils.js';
+import { extractHandlers, extractHelpers } from './utils.js';
 import type { HookRegistry } from '../hooks/registry.js';
 import { createHookRegistry } from '../hooks/registry.js';
+import { transformJsxToLit } from './jsx-transform.js';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -63,7 +64,7 @@ export function parseComponent(
   }
 
   // 2. Parse source files
-  const indexFile = parseFile(indexPath);
+  let indexFile = parseFile(indexPath);
   let internalFile = internalPath ? parseFile(internalPath) : undefined;
 
   // 2b. If internal.tsx is a factory wrapper (createWidgetized*), fall back to implementation.tsx
@@ -73,6 +74,13 @@ export function parseComponent(
       internalPath = implPath;
       internalFile = parseFile(implPath);
     }
+  }
+
+  // 2c. Transform JSX → html`` tagged templates BEFORE IR extraction
+  // This handles JSX in ALL contexts: render return, handlers, helpers, ternaries, .map(), etc.
+  indexFile = transformJsxToLit(indexFile);
+  if (internalFile) {
+    internalFile = transformJsxToLit(internalFile);
   }
 
   // 3. Find and merge component function
@@ -113,7 +121,7 @@ export function parseComponent(
 
   // 6b. Collect local variable names for scope-aware identifier rewriting
   const localVariables = ts.isBlock(component.body)
-    ? collectLocalVariables(component.body)
+    ? collectLocalVars(component.body)
     : new Set<string>();
 
   // 7. Parse JSX template
@@ -220,6 +228,32 @@ function deriveTagName(componentName: string, prefix: string): string {
     .toLowerCase();
 
   return prefix ? `${prefix}-${kebab}` : kebab;
+}
+
+// ---------------------------------------------------------------------------
+// Local variable collection
+// ---------------------------------------------------------------------------
+
+function collectLocalVars(body: ts.Block): Set<string> {
+  const vars = new Set<string>();
+  for (const stmt of body.statements) {
+    if (ts.isVariableStatement(stmt)) {
+      for (const decl of stmt.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name)) {
+          vars.add(decl.name.text);
+        } else if (ts.isObjectBindingPattern(decl.name)) {
+          for (const el of decl.name.elements) {
+            if (ts.isIdentifier(el.name)) vars.add(el.name.text);
+          }
+        } else if (ts.isArrayBindingPattern(decl.name)) {
+          for (const el of decl.name.elements) {
+            if (ts.isBindingElement(el) && ts.isIdentifier(el.name)) vars.add(el.name.text);
+          }
+        }
+      }
+    }
+  }
+  return vars;
 }
 
 // ---------------------------------------------------------------------------

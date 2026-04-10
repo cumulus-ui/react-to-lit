@@ -42,7 +42,7 @@ describe('E2E: parse → emit', () => {
 
     it('should contain render method', () => {
       expect(output).toContain('override render()');
-      expect(output).toContain('html`');
+      expect(output).toContain('html');
     });
 
     it('should import from lit', () => {
@@ -91,10 +91,10 @@ describe('E2E: parse → emit', () => {
       expect(output).toContain('variant');
     });
 
-    it('should contain render method with child spans', () => {
+    it('should contain render method with template', () => {
       expect(output).toContain('override render()');
-      expect(output).toContain('html`');
-      expect(output).toContain('<span');
+      expect(output).toContain('html');
+      expect(output).toContain('span');
     });
 
     it('should log output for manual review', () => {

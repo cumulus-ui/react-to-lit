@@ -52,6 +52,22 @@ function parseExpression(
     return parseExpression(expr.expression, sourceFile);
   }
 
+  // Handle html`` tagged template expressions (from JSX transformer)
+  // These are already valid Lit templates — emit as raw expression
+  if (ts.isTaggedTemplateExpression(expr)) {
+    const tag = expr.tag;
+    if (ts.isIdentifier(tag) && tag.text === 'html') {
+      // The entire html`` expression becomes the template
+      // We emit it as a raw expression that the emitter outputs directly
+      return {
+        kind: 'expression',
+        attributes: [],
+        children: [],
+        expression: getNodeText(expr, sourceFile),
+      };
+    }
+  }
+
   // JSX Element: <div>...</div>
   if (ts.isJsxElement(expr)) {
     return parseJsxElement(expr, sourceFile);

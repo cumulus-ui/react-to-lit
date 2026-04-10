@@ -20,10 +20,18 @@ export function emitRenderMethod(
   template: TemplateNodeIR,
   collector: ImportCollector,
 ): string {
-  const body = emitNodeInline(template, collector, 4);
   const lines: string[] = [];
   lines.push('  override render() {');
-  lines.push(`    return html\`\n${body}\n    \`;`);
+
+  // If the template is a single expression containing html`...` (from JSX transformer),
+  // emit it directly without wrapping in another html``
+  if (template.kind === 'expression' && template.expression?.startsWith('html')) {
+    lines.push(`    return ${template.expression};`);
+  } else {
+    const body = emitNodeInline(template, collector, 4);
+    lines.push(`    return html\`\n${body}\n    \`;`);
+  }
+
   lines.push('  }');
   return lines.join('\n');
 }

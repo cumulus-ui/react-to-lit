@@ -120,16 +120,16 @@ export function extractHelpers(
 }
 
 /**
- * Check if source text contains JSX syntax.
+ * Check if source text contains raw JSX syntax (not html`` templates or type generics).
  */
 function containsJSX(source: string): boolean {
-  // Look for JSX patterns: <Component, </Component, <div className=, />
-  return (
-    /<[A-Z][a-zA-Z]+[\s>\/]/.test(source) ||
-    /<\/[A-Z]/.test(source) ||
-    /\bclassName\s*[={]/.test(source) ||
-    /<[a-z]+\s+[a-zA-Z]+=\{/.test(source)
-  );
+  // className= is a definitive JSX indicator
+  if (/\bclassName\s*[={]/.test(source)) return true;
+  // JSX closing tag: </Component>
+  if (/<\/[A-Z][a-zA-Z]+>/.test(source)) return true;
+  // JSX self-closing with attributes: <Component prop=
+  if (/<[A-Z][a-zA-Z]+\s+\w+\s*=/.test(source)) return true;
+  return false;
 }
 
 // ---------------------------------------------------------------------------
