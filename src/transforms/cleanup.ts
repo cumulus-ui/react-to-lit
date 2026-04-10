@@ -44,11 +44,15 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
     body: cleanHandlerBody(h.body),
   }));
 
-  // Clean effect bodies
+  // Clean effect bodies and deps
   const effects = ir.effects.map((e) => ({
     ...e,
     body: cleanHandlerBody(e.body),
     cleanup: e.cleanup ? cleanHandlerBody(e.cleanup) : undefined,
+    // Remove __internalRootRef from effect dependency lists
+    deps: Array.isArray(e.deps)
+      ? e.deps.filter((d) => !d.includes('__internalRootRef'))
+      : e.deps,
   }));
 
   // Clean helpers — remove helpers that are Cloudscape infrastructure
@@ -82,6 +86,10 @@ function cleanHandlerBody(body: string): string {
 
   // Remove: checkSafeUrl('Button', href);
   result = result.replace(/checkSafeUrl\([^)]*\)\s*;?\s*/g, '');
+
+  // Remove __internalRootRef references
+  result = result.replace(/\b__internalRootRef\b/g, 'undefined /* __internalRootRef removed */');
+  result = result.replace(/const\s+mergedRef\s*=\s*useMergeRefs\([^)]*\)\s*;?\s*/g, '');
 
   // Remove: const { __internalRootRef } = useBaseComponent(...);
   result = result.replace(/const\s+\{[^}]*\}\s*=\s*useBaseComponent\([^)]*\)\s*;?\s*/g, '');

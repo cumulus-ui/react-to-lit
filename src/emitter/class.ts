@@ -113,5 +113,73 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   const importsStr = collector.emit();
   const bodyStr = sections.join('\n');
 
-  return `${importsStr}\n\n${bodyStr}\n`;
+  const raw = `${importsStr}\n\n${bodyStr}\n`;
+
+  // Final text-based cleanup for any remaining React patterns
+  return postProcessOutput(raw);
+}
+
+// ---------------------------------------------------------------------------
+// Post-processing (text-level cleanup)
+// ---------------------------------------------------------------------------
+
+function postProcessOutput(output: string): string {
+  let result = output;
+
+  // className → class (in template attributes)
+  result = result.replace(/\bclassName=/g, 'class=');
+
+  // className={...} → class=${classMap(...)} in inline JSX within templates
+  result = result.replace(/class=\{clsx\(([^)]*)\)\}/g, (_, args) => {
+    return `class=\${classMap(${convertClsxArgs(args)})}`;
+  });
+
+  // Strip remaining __internalRootRef references
+  result = result.replace(/\.__internalRootRef=\$\{[^}]+\}\s*/g, '');
+  result = result.replace(/\bref=\{__internalRootRef\}\s*/g, '');
+
+  // Strip nativeAttributes / nativeInputAttributes in templates
+  result = result.replace(/\bnativeAttributes=\{[^}]*\}\s*/g, '');
+  result = result.replace(/\bnativeInputAttributes=\{[^}]*\}\s*/g, '');
+
+  // Clean up empty lines (more than 2 consecutive)
+  result = result.replace(/\n{3,}/g, '\n\n');
+
+  return result;
+}
+
+/**
+ * Simple clsx args → classMap object conversion for text-level cleanup.
+ */
+function convertClsxArgs(args: string): string {
+  // If it's already an object literal, return as-is
+  if (args.trim().startsWith('{')) return args;
+
+  const parts = args.split(',').map(p => p.trim()).filter(Boolean);
+  const entries: string[] = [];
+
+  for (const part of parts) {
+    // styles.foo → 'foo': true
+    const dotMatch = part.match(/^styles\.(\w+)$/);
+    if (dotMatch) {
+      entries.push(`'${dotMatch[1]}': true`);
+      continue;
+    }
+    // styles['foo'] → 'foo': true
+    const bracketMatch = part.match(/^styles\['([^']+)'\]$/);
+    if (bracketMatch) {
+      entries.push(`'${bracketMatch[1]}': true`);
+      continue;
+    }
+    // condition && styles.foo → 'foo': condition
+    const condMatch = part.match(/^(.+?)\s*&&\s*styles[.[]'?(\w+)'?\]?$/);
+    if (condMatch) {
+      entries.push(`'${condMatch[2]}': ${condMatch[1]}`);
+      continue;
+    }
+    // Pass through anything else
+    entries.push(`/* ${part} */`);
+  }
+
+  return `{ ${entries.join(', ')} }`;
 }
