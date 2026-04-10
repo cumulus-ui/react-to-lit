@@ -101,9 +101,10 @@ function cleanHandlerBody(body: string): string {
   // Remove: checkSafeUrl('Button', href);
   result = result.replace(/checkSafeUrl\([^)]*\)\s*;?\s*/g, '');
 
-  // Remove __internalRootRef from destructuring patterns and other references
+  // Remove __internalRootRef as object property value (must run BEFORE destructuring removal)
+  result = result.replace(/,?\s*\w+:\s*__internalRootRef\b[^,}\n]*/g, '');
+  // Remove __internalRootRef in destructuring: `{ __internalRootRef, ...rest }`
   result = result.replace(/,?\s*__internalRootRef\s*,?/g, (match) => {
-    // If it has commas on both sides, keep one comma
     if (match.startsWith(',') && match.endsWith(',')) return ',';
     return '';
   });
