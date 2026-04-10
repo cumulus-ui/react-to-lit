@@ -213,6 +213,33 @@ function postProcessOutput(output: string): string {
   result = result.replace(/\bnativeAttributes=\{[^}]*\}\s*/g, '');
   result = result.replace(/\bnativeInputAttributes=\{[^}]*\}\s*/g, '');
 
+  // --- Convert PascalCase React components to kebab-case custom elements ---
+  // <InternalFoo → <cs-foo, </InternalFoo → </cs-foo
+  result = result.replace(/<(\/?)Internal([A-Z]\w*)/g, (_, slash, name) => {
+    const kebab = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+    return `<${slash}cs-${kebab}`;
+  });
+  // <Dropdown → <cs-dropdown, etc. (only for known component-like PascalCase tags)
+  result = result.replace(/<(\/?)(Dropdown|OptionsList|ButtonDropdown|TokenGroup|RadioButton|Tooltip|LiveRegion|SpaceBetween|FormField|ExpandableSection)\b/g, (_, slash, name) => {
+    const kebab = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+    return `<${slash}cs-${kebab}`;
+  });
+
+  // --- Convert styles.xxx to plain class names (only in code, not imports) ---
+  // Split into import section and code section to avoid mangling import paths
+  const importEnd = result.lastIndexOf("import ");
+  const importEndLine = result.indexOf('\n', result.indexOf(';', importEnd));
+  if (importEndLine > 0) {
+    const importSection = result.slice(0, importEndLine + 1);
+    let codeSection = result.slice(importEndLine + 1);
+    codeSection = codeSection.replace(/\bstyles\.(\w+)\b/g, "'$1'");
+    codeSection = codeSection.replace(/\bstyles\['([^']+)'\]/g, "'$1'");
+    codeSection = codeSection.replace(/\bstyles\["([^"]+)"\]/g, "'$1'");
+    // Preserve template literals: styles[`foo-${bar}`] → `foo-${bar}`
+    codeSection = codeSection.replace(/\bstyles\[(`[^`]+`)\]/g, '$1');
+    result = importSection + codeSection;
+  }
+
   // Clean up empty lines
   result = result.replace(/\n{3,}/g, '\n\n');
 

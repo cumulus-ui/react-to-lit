@@ -178,6 +178,18 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   collector.addNamed('./styles.js', 'componentStyles');
   collector.addNamed('./styles.js', 'sharedStyles');
 
+  // PropertyValues for willUpdate
+  const hasDepEffects = ir.effects.some((e) => Array.isArray(e.deps));
+  if (hasDepEffects) {
+    collector.addType('lit', 'PropertyValues');
+  }
+
+  // fireNonCancelableEvent for event dispatch
+  const hasEventProps = ir.props.some((p) => p.category === 'event');
+  if (hasEventProps) {
+    collector.addNamed('../internal/events.js', 'fireNonCancelableEvent');
+  }
+
   // Mixin imports
   for (const mixin of ir.mixins) {
     if (mixin === 'FormControlMixin') {
