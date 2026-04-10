@@ -106,13 +106,17 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   const renderCode = emitRenderMethod(ir.template, collector);
 
   // --- Body preamble (computed values, attribute builders) ---
-  // Emit as a private method called from render if non-empty
   if (ir.bodyPreamble.length > 0) {
-    sections.push('  // --- preamble (setup code from component body) ---');
-    for (const stmt of ir.bodyPreamble) {
-      sections.push(`  // ${stmt.split('\n')[0].trim().slice(0, 80)}...`);
+    const preambleCode = ir.bodyPreamble
+      // Skip lines that are purely Cloudscape infrastructure
+      .filter((s) => !s.includes('getBaseProps') && !s.includes('applyDisplayName'))
+      .join('\n    ');
+    if (preambleCode.trim()) {
+      sections.push(`  private _renderSetup() {`);
+      sections.push(`    ${preambleCode}`);
+      sections.push(`  }`);
+      sections.push('');
     }
-    sections.push('');
   }
 
   sections.push(renderCode);

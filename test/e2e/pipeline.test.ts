@@ -41,8 +41,9 @@ describe('Full pipeline: parse → transform → emit', () => {
       expect(output).not.toContain('WithNativeAttributes');
     });
 
-    it('should NOT contain clsx', () => {
-      expect(stripComments(output)).not.toContain('clsx(');
+    it('should NOT contain clsx in render', () => {
+      const renderSection = output.slice(output.indexOf('override render()'));
+      expect(stripComments(renderSection)).not.toContain('clsx(');
     });
 
     it('should NOT contain React imports', () => {

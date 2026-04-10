@@ -69,6 +69,9 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
   // Clean template — remove Cloudscape-specific attributes
   const template = cleanTemplate(ir.template);
 
+  // Clean body preamble
+  const bodyPreamble = ir.bodyPreamble.map(cleanHandlerBody);
+
   return {
     ...ir,
     props,
@@ -76,6 +79,7 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
     effects,
     helpers,
     template,
+    bodyPreamble,
   };
 }
 
