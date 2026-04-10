@@ -114,12 +114,12 @@ interface RawComponentInFile {
 function findComponentInFile(sourceFile: ts.SourceFile): RawComponentInFile | null {
   // Strategy 1: export default function Foo(props) { ... }
   for (const stmt of sourceFile.statements) {
-    if (ts.isFunctionDeclaration(stmt) && hasExportDefault(stmt)) {
+    if (ts.isFunctionDeclaration(stmt) && hasExportDefault(stmt) && stmt.body) {
       const name = stmt.name?.text ?? 'Unknown';
       return {
         name,
         forwardRef: false,
-        body: stmt.body!,
+        body: stmt.body,
         parameters: stmt.parameters,
         propsTypeName: extractPropsTypeName(stmt.parameters),
       };
@@ -127,7 +127,6 @@ function findComponentInFile(sourceFile: ts.SourceFile): RawComponentInFile | nu
   }
 
   // Strategy 2: const Foo = React.forwardRef<Ref, Props>((...) => { ... })
-  // or: const Foo = React.forwardRef(function Foo(...) { ... })
   for (const stmt of sourceFile.statements) {
     if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
@@ -145,84 +144,133 @@ function findComponentInFile(sourceFile: ts.SourceFile): RawComponentInFile | nu
     }
   }
 
-  // Strategy 4: export default function(props) { ... } (unnamed)
-  for (const stmt of sourceFile.statements) {
-    if (ts.isExportAssignment(stmt) && !stmt.isExportEquals) {
-      if (ts.isFunctionExpression(stmt.expression) || ts.isArrowFunction(stmt.expression)) {
-        return {
-          name: 'Unknown',
-          forwardRef: false,
-          body: ts.isBlock(stmt.expression.body)
-            ? stmt.expression.body
-            : stmt.expression.body,
-          parameters: stmt.expression.parameters,
-          propsTypeName: extractPropsTypeName(stmt.expression.parameters),
-        };
-      }
-    }
+  // Strategy 4: export default <Identifier> — resolve to function/arrow/forwardRef in same file
+  const defaultExport = sourceFile.statements.find(
+    (s) => ts.isExportAssignment(s) && !(s as ts.ExportAssignment).isExportEquals,
+  ) as ts.ExportAssignment | undefined;
+
+  if (defaultExport && ts.isIdentifier(defaultExport.expression)) {
+    const exportedName = defaultExport.expression.text;
+    const resolved = resolveIdentifier(exportedName, sourceFile);
+    if (resolved) return resolved;
   }
 
-  // Strategy 5: Look for a function that matches the filename pattern
+  // Strategy 5: For internal.tsx or implementation.tsx — look for the "main" export
   const fileName = sourceFile.fileName.split('/').pop()?.replace(/\.(tsx?|jsx?)$/, '');
-  if (fileName === 'internal') {
-    // Find the last exported function or the default export
+  if (fileName === 'internal' || fileName === 'implementation') {
+    // Look for exported function declarations (with any name)
     for (const stmt of sourceFile.statements) {
-      if (ts.isFunctionDeclaration(stmt) && stmt.name) {
+      if (ts.isFunctionDeclaration(stmt) && stmt.name && stmt.body) {
+        const hasExport = ts.getModifiers(stmt)?.some(
+          (m) => m.kind === ts.SyntaxKind.ExportKeyword,
+        );
+        if (hasExport) {
+          return {
+            name: stmt.name.text,
+            forwardRef: false,
+            body: stmt.body,
+            parameters: stmt.parameters,
+            propsTypeName: extractPropsTypeName(stmt.parameters),
+          };
+        }
+      }
+    }
+
+    // Look for export const InternalFoo = arrow/forwardRef
+    for (const stmt of sourceFile.statements) {
+      if (ts.isVariableStatement(stmt)) {
+        const hasExport = ts.getModifiers(stmt)?.some(
+          (m) => m.kind === ts.SyntaxKind.ExportKeyword,
+        );
+        if (!hasExport) continue;
+
+        for (const decl of stmt.declarationList.declarations) {
+          if (!ts.isIdentifier(decl.name) || !decl.initializer) continue;
+          const name = decl.name.text;
+
+          // const InternalFoo = React.forwardRef(...)
+          const fwdResult = extractFromForwardRef(decl, sourceFile);
+          if (fwdResult) return fwdResult;
+
+          // const InternalFoo = (props) => { ... }
+          if (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer)) {
+            const fn = decl.initializer;
+            return {
+              name,
+              forwardRef: false,
+              body: ts.isBlock(fn.body) ? fn.body : fn.body,
+              parameters: fn.parameters,
+              propsTypeName: extractPropsTypeName(fn.parameters),
+            };
+          }
+        }
+      }
+    }
+
+    // Look for function declarations (non-export-default)
+    for (const stmt of sourceFile.statements) {
+      if (ts.isFunctionDeclaration(stmt) && stmt.name && stmt.body) {
         const name = stmt.name.text;
         if (name.startsWith('Internal') || name === 'default') {
           return {
             name,
             forwardRef: false,
-            body: stmt.body!,
+            body: stmt.body,
             parameters: stmt.parameters,
             propsTypeName: extractPropsTypeName(stmt.parameters),
           };
-        }
-      }
-    }
-
-    // Check for: const InternalFoo = React.forwardRef(...)
-    for (const stmt of sourceFile.statements) {
-      if (ts.isVariableStatement(stmt)) {
-        for (const decl of stmt.declarationList.declarations) {
-          if (ts.isIdentifier(decl.name) && decl.name.text.startsWith('Internal')) {
-            const result = extractFromForwardRef(decl, sourceFile);
-            if (result) return result;
-          }
-        }
-      }
-    }
-
-    // Last resort: find any function with an export default at the bottom
-    const defaultExport = sourceFile.statements.find(
-      (s) => ts.isExportAssignment(s) && !s.isExportEquals,
-    ) as ts.ExportAssignment | undefined;
-
-    if (defaultExport && ts.isIdentifier(defaultExport.expression)) {
-      const exportedName = defaultExport.expression.text;
-      // Find the matching function declaration or variable
-      for (const stmt of sourceFile.statements) {
-        if (ts.isFunctionDeclaration(stmt) && stmt.name?.text === exportedName) {
-          return {
-            name: exportedName,
-            forwardRef: false,
-            body: stmt.body!,
-            parameters: stmt.parameters,
-            propsTypeName: extractPropsTypeName(stmt.parameters),
-          };
-        }
-        if (ts.isVariableStatement(stmt)) {
-          for (const decl of stmt.declarationList.declarations) {
-            if (ts.isIdentifier(decl.name) && decl.name.text === exportedName) {
-              const result = extractFromForwardRef(decl, sourceFile);
-              if (result) return result;
-            }
-          }
         }
       }
     }
   }
 
+  return null;
+}
+
+/**
+ * Resolve a named identifier to its function/arrow/forwardRef declaration.
+ */
+function resolveIdentifier(
+  name: string,
+  sourceFile: ts.SourceFile,
+): RawComponentInFile | null {
+  for (const stmt of sourceFile.statements) {
+    // function Foo(...) { ... }
+    if (ts.isFunctionDeclaration(stmt) && stmt.name?.text === name && stmt.body) {
+      return {
+        name,
+        forwardRef: false,
+        body: stmt.body,
+        parameters: stmt.parameters,
+        propsTypeName: extractPropsTypeName(stmt.parameters),
+      };
+    }
+
+    // const Foo = React.forwardRef(...) or const Foo = (...) => { ... }
+    if (ts.isVariableStatement(stmt)) {
+      for (const decl of stmt.declarationList.declarations) {
+        if (!ts.isIdentifier(decl.name) || decl.name.text !== name) continue;
+        if (!decl.initializer) continue;
+
+        // Try forwardRef first
+        const fwdResult = extractFromForwardRef(decl, sourceFile);
+        if (fwdResult) return fwdResult;
+
+        // Arrow function or function expression (also unwrap type assertions)
+        const unwrapped = unwrapTypeAssertions(decl.initializer);
+        if (ts.isArrowFunction(unwrapped) || ts.isFunctionExpression(unwrapped)) {
+          const fn = unwrapped;
+          return {
+            name,
+            forwardRef: false,
+            body: ts.isBlock(fn.body) ? fn.body : fn.body,
+            parameters: fn.parameters,
+            propsTypeName: extractPropsTypeName(fn.parameters),
+          };
+        }
+      }
+    }
+  }
   return null;
 }
 
@@ -236,7 +284,20 @@ function extractFromForwardRef(
 ): RawComponentInFile | null {
   if (!ts.isIdentifier(decl.name) || !decl.initializer) return null;
   const name = decl.name.text;
-  return extractFromForwardRefExpression(decl.initializer, name, sourceFile);
+  // Unwrap type assertions: React.forwardRef(...) as FooType
+  const expr = unwrapTypeAssertions(decl.initializer);
+  return extractFromForwardRefExpression(expr, name, sourceFile);
+}
+
+/**
+ * Unwrap AsExpression and TypeAssertionExpression wrappers.
+ * Handles: React.forwardRef(...) as FooType
+ */
+function unwrapTypeAssertions(expr: ts.Expression): ts.Expression {
+  if (ts.isAsExpression(expr)) return unwrapTypeAssertions(expr.expression);
+  if (ts.isTypeAssertionExpression(expr)) return unwrapTypeAssertions(expr.expression);
+  if (ts.isParenthesizedExpression(expr)) return unwrapTypeAssertions(expr.expression);
+  return expr;
 }
 
 function extractFromForwardRefExpression(

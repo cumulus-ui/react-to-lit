@@ -9,7 +9,7 @@
  * - Analytics metadata
  * - checkSafeUrl calls
  */
-import type { ComponentIR } from '../ir/types.js';
+import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
 
 // ---------------------------------------------------------------------------
 // Props to remove
@@ -33,6 +33,8 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
   const props = ir.props.filter((p) => {
     if (p.name.startsWith('__')) return false;
     if (REMOVE_PROPS.has(p.name)) return false;
+    // Remove 'style' prop from Cloudscape theming (not CSS style)
+    if (p.name === 'style' && !p.default) return false;
     return true;
   });
 
@@ -55,12 +57,16 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
     return !infraNames.has(h.name);
   });
 
+  // Clean template — remove Cloudscape-specific attributes
+  const template = cleanTemplate(ir.template);
+
   return {
     ...ir,
     props,
     handlers,
     effects,
     helpers,
+    template,
   };
 }
 
@@ -90,4 +96,79 @@ function cleanHandlerBody(body: string): string {
   result = result.replace(/\[DATA_ATTR_FUNNEL_VALUE\]\s*:\s*\w+,?\s*/g, '');
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Template cleanup
+// ---------------------------------------------------------------------------
+
+/** Attribute names to remove from template elements */
+const REMOVE_ATTRS = new Set([
+  'ref',
+  'componentName',
+  'nativeAttributes',
+  'nativeInputAttributes',
+  'nativeButtonAttributes',
+  'nativeAnchorAttributes',
+  'skipWarnings',
+]);
+
+/** Attribute name prefixes to remove */
+const REMOVE_ATTR_PREFIXES = ['__', 'data-analytics'];
+
+function cleanTemplate(node: TemplateNodeIR): TemplateNodeIR {
+  // Remove Cloudscape-specific attributes
+  const cleanedAttrs = node.attributes.filter((attr) => {
+    if (REMOVE_ATTRS.has(attr.name)) return false;
+    if (attr.name.startsWith('.') && REMOVE_ATTRS.has(attr.name.slice(1))) return false;
+    if (REMOVE_ATTR_PREFIXES.some((p) => attr.name.startsWith(p))) return false;
+    if (attr.name.startsWith('.__')) return false;
+
+    // Remove spread of baseProps
+    if (attr.kind === 'spread') {
+      const expr = typeof attr.value === 'string' ? attr.value : attr.value.expression;
+      if (expr.includes('baseProps') || expr.includes('analyticsMetadata') || expr.includes('performanceMarkAttributes')) {
+        return false;
+      }
+    }
+
+    // Remove attributes that reference __internalRootRef
+    if (typeof attr.value !== 'string') {
+      const expr = attr.value.expression;
+      if (expr.includes('__internalRootRef') || expr.includes('__internalRoot')) return false;
+    }
+
+    return true;
+  });
+
+  // Clean attribute expressions
+  const cleanedAttrValues = cleanedAttrs.map((attr) => cleanAttribute(attr));
+
+  // Recurse into children
+  const cleanedChildren = node.children.map(cleanTemplate);
+
+  return {
+    ...node,
+    attributes: cleanedAttrValues,
+    children: cleanedChildren,
+    condition: node.condition
+      ? {
+          ...node.condition,
+          alternate: node.condition.alternate ? cleanTemplate(node.condition.alternate) : undefined,
+        }
+      : undefined,
+  };
+}
+
+function cleanAttribute(attr: AttributeIR): AttributeIR {
+  if (typeof attr.value === 'string') return attr;
+
+  let expr = attr.value.expression;
+
+  // Remove baseProps.className from clsx args
+  expr = expr.replace(/\bbaseProps\.className\b,?\s*/g, '');
+  // Remove trailing comma if it became the last arg
+  expr = expr.replace(/,\s*\)/, ')');
+
+  return { ...attr, value: { expression: expr } };
 }

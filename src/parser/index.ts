@@ -56,7 +56,7 @@ export function parseComponent(
 
   // 1. Locate source files
   const indexPath = resolveSourceFile(componentDir, 'index');
-  const internalPath = resolveSourceFile(componentDir, 'internal');
+  let internalPath = resolveSourceFile(componentDir, 'internal');
 
   if (!indexPath) {
     throw new Error(`No index.tsx or index.ts found in ${componentDir}`);
@@ -64,7 +64,16 @@ export function parseComponent(
 
   // 2. Parse source files
   const indexFile = parseFile(indexPath);
-  const internalFile = internalPath ? parseFile(internalPath) : undefined;
+  let internalFile = internalPath ? parseFile(internalPath) : undefined;
+
+  // 2b. If internal.tsx is a factory wrapper (createWidgetized*), fall back to implementation.tsx
+  if (internalFile && isFactoryWrapper(internalFile)) {
+    const implPath = resolveSourceFile(componentDir, 'implementation');
+    if (implPath) {
+      internalPath = implPath;
+      internalFile = parseFile(implPath);
+    }
+  }
 
   // 3. Find and merge component function
   const component = findComponent(indexFile, internalFile);
@@ -106,6 +115,9 @@ export function parseComponent(
     ? './styles.css.js'
     : undefined;
 
+  // 12. Detect mixins (FormControlMixin)
+  const mixins = detectMixins(implFile, props);
+
   return {
     name: componentName,
     tagName,
@@ -118,7 +130,7 @@ export function parseComponent(
     template,
     computedValues: hookResult.computedValues,
     controllers: hookResult.controllers,
-    mixins: [],
+    mixins,
     contexts: hookResult.contexts,
     imports: [],
     styleImport,
@@ -180,6 +192,61 @@ function deriveTagName(componentName: string, prefix: string): string {
     .toLowerCase();
 
   return prefix ? `${prefix}-${kebab}` : kebab;
+}
+
+// ---------------------------------------------------------------------------
+// Factory wrapper detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if a source file is a factory wrapper (e.g., createWidgetized*).
+ * These files typically just re-export from a factory and have no function body.
+ */
+function isFactoryWrapper(sourceFile: ts.SourceFile): boolean {
+  const text = sourceFile.text;
+  return text.includes('createWidgetized') || text.includes('createLoadableComponent');
+}
+
+// ---------------------------------------------------------------------------
+// Mixin detection
+// ---------------------------------------------------------------------------
+
+/** Interfaces that indicate form participation */
+const FORM_INTERFACES = new Set([
+  'FormFieldControlProps',
+  'BaseCheckboxProps',
+  'BaseInputProps',
+]);
+
+/**
+ * Detect mixins needed based on source file imports and prop analysis.
+ */
+function detectMixins(
+  sourceFile: ts.SourceFile,
+  props: import('../ir/types.js').PropIR[],
+): string[] {
+  const mixins: string[] = [];
+  const sourceText = sourceFile.text;
+
+  // Check if the source file references form-related interfaces/contexts
+  const hasFormFieldContext = sourceText.includes('useFormFieldContext') ||
+    sourceText.includes('FormFieldControlProps');
+
+  const hasFormProps = props.some((p) =>
+    p.name === 'name' || p.name === 'controlId',
+  ) && props.some((p) => p.name === 'disabled');
+
+  // Check for base interfaces that imply form participation
+  const hasFormInterface = FORM_INTERFACES.has('') || // placeholder
+    sourceText.includes('FormFieldControlProps') ||
+    sourceText.includes('BaseCheckboxProps') ||
+    sourceText.includes('BaseInputProps');
+
+  if (hasFormFieldContext || (hasFormProps && hasFormInterface)) {
+    mixins.push('FormControlMixin');
+  }
+
+  return mixins;
 }
 
 // ---------------------------------------------------------------------------

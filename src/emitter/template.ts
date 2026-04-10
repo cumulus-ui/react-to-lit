@@ -1,7 +1,9 @@
 /**
  * Template emission.
  *
- * Converts TemplateNodeIR into Lit html`` tagged template strings.
+ * Converts TemplateNodeIR into a Lit html`` tagged template string.
+ * Uses a single html`` at the render() level; children are emitted
+ * as raw template content (not nested html`` calls).
  */
 import type {
   TemplateNodeIR,
@@ -18,183 +20,160 @@ export function emitRenderMethod(
   template: TemplateNodeIR,
   collector: ImportCollector,
 ): string {
+  const body = emitNodeInline(template, collector, 4);
   const lines: string[] = [];
   lines.push('  override render() {');
-  lines.push(`    return ${emitNode(template, collector, 4)};`);
+  lines.push(`    return html\`\n${body}\n    \`;`);
   lines.push('  }');
   return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------
-// Node emission (recursive)
+// Inline node emission (no wrapping html``)
 // ---------------------------------------------------------------------------
 
-function emitNode(
+/**
+ * Emit a node as inline template content (within a parent html``).
+ * Children are recursively emitted inline.
+ */
+function emitNodeInline(
   node: TemplateNodeIR,
   collector: ImportCollector,
   indent: number,
 ): string {
+  const pad = ' '.repeat(indent);
+
   // Handle conditional wrapping
   if (node.condition) {
-    return emitConditional(node, collector, indent);
+    return emitConditionalInline(node, collector, indent);
   }
 
   // Handle loop wrapping
   if (node.loop) {
-    return emitLoop(node, collector, indent);
+    return emitLoopInline(node, collector, indent);
   }
 
   switch (node.kind) {
     case 'element':
-      return emitElement(node, collector, indent);
     case 'component':
-      return emitComponent(node, collector, indent);
+      return emitElementInline(node, collector, indent);
     case 'fragment':
-      return emitFragment(node, collector, indent);
+      return emitFragmentInline(node, collector, indent);
     case 'text':
-      return JSON.stringify(node.expression ?? '');
+      return `${pad}${node.expression ?? ''}`;
     case 'expression':
-      return `\${${node.expression}}`;
+      return `${pad}\${${node.expression}}`;
     case 'slot':
-      return emitSlot(node);
+      return emitSlotInline(node, indent);
     default:
-      return `/* unknown node kind: ${node.kind} */`;
+      return `${pad}/* unknown node kind: ${node.kind} */`;
   }
 }
 
 // ---------------------------------------------------------------------------
-// Element emission
+// Element emission (inline)
 // ---------------------------------------------------------------------------
 
-function emitElement(
+function emitElementInline(
   node: TemplateNodeIR,
   collector: ImportCollector,
   indent: number,
 ): string {
+  const pad = ' '.repeat(indent);
   const tag = node.tag!;
   const attrs = emitAttributes(node.attributes, collector);
   const attrStr = attrs ? ' ' + attrs : '';
 
   if (node.children.length === 0) {
-    return `html\`<${tag}${attrStr}></${tag}>\``;
+    return `${pad}<${tag}${attrStr}></${tag}>`;
   }
 
-  const pad = ' '.repeat(indent);
   const childStr = node.children
-    .map((child) => `${pad}  ${emitNode(child, collector, indent + 2)}`)
+    .map((child) => emitNodeInline(child, collector, indent + 2))
     .join('\n');
 
-  return `html\`\n${pad}<${tag}${attrStr}>\n${childStr}\n${pad}</${tag}>\n${pad}\``;
+  return `${pad}<${tag}${attrStr}>\n${childStr}\n${pad}</${tag}>`;
 }
 
 // ---------------------------------------------------------------------------
-// Component emission
+// Fragment emission (inline)
 // ---------------------------------------------------------------------------
 
-function emitComponent(
+function emitFragmentInline(
   node: TemplateNodeIR,
   collector: ImportCollector,
   indent: number,
 ): string {
-  // Components will be resolved to custom element tags by the transform phase.
-  // For now, emit as-is with the component tag name.
-  const tag = node.tag!;
-  const attrs = emitAttributes(node.attributes, collector);
-  const attrStr = attrs ? ' ' + attrs : '';
+  if (node.children.length === 0) return '';
 
-  if (node.children.length === 0) {
-    return `html\`<${tag}${attrStr}></${tag}>\``;
-  }
-
-  const pad = ' '.repeat(indent);
-  const childStr = node.children
-    .map((child) => `${pad}  ${emitNode(child, collector, indent + 2)}`)
+  return node.children
+    .map((child) => emitNodeInline(child, collector, indent))
     .join('\n');
-
-  return `html\`\n${pad}<${tag}${attrStr}>\n${childStr}\n${pad}</${tag}>\n${pad}\``;
 }
 
 // ---------------------------------------------------------------------------
-// Fragment emission
+// Slot emission (inline)
 // ---------------------------------------------------------------------------
 
-function emitFragment(
-  node: TemplateNodeIR,
-  collector: ImportCollector,
-  indent: number,
-): string {
-  if (node.children.length === 0) {
-    return `html\`\``;
-  }
-
-  if (node.children.length === 1) {
-    return emitNode(node.children[0], collector, indent);
-  }
-
+function emitSlotInline(node: TemplateNodeIR, indent: number): string {
   const pad = ' '.repeat(indent);
-  const childStr = node.children
-    .map((child) => `${pad}  ${emitNode(child, collector, indent + 2)}`)
-    .join('\n');
-
-  return `html\`\n${childStr}\n${pad}\``;
-}
-
-// ---------------------------------------------------------------------------
-// Slot emission
-// ---------------------------------------------------------------------------
-
-function emitSlot(node: TemplateNodeIR): string {
   const nameAttr = node.attributes.find((a) => a.name === 'name');
   if (nameAttr && typeof nameAttr.value === 'string') {
-    return `html\`<slot name="${nameAttr.value}"></slot>\``;
+    return `${pad}<slot name="${nameAttr.value}"></slot>`;
   }
-  return `html\`<slot></slot>\``;
+  return `${pad}<slot></slot>`;
 }
 
 // ---------------------------------------------------------------------------
-// Conditional emission
+// Conditional emission (inline)
 // ---------------------------------------------------------------------------
 
-function emitConditional(
+function emitConditionalInline(
   node: TemplateNodeIR,
   collector: ImportCollector,
   indent: number,
 ): string {
+  const pad = ' '.repeat(indent);
   collector.addLit('nothing');
 
-  // Make a copy without the condition to emit the node itself
+  // Make a copy without the condition to emit the inner node
   const innerNode = { ...node, condition: undefined };
-  const consequent = emitNode(innerNode, collector, indent);
+  const consequent = emitNodeInline(innerNode, collector, indent + 2);
 
   if (node.condition!.kind === 'and') {
-    return `\${${node.condition!.expression} ? ${consequent} : nothing}`;
+    return `${pad}\${${node.condition!.expression}\n${pad}  ? html\`\n${consequent}\n${pad}  \`\n${pad}  : nothing}`;
   }
 
   // Ternary
   const alternate = node.condition!.alternate
-    ? emitNode(node.condition!.alternate, collector, indent)
-    : 'nothing';
+    ? emitNodeInline(node.condition!.alternate, collector, indent + 2)
+    : `${' '.repeat(indent + 2)}nothing`;
 
-  return `\${${node.condition!.expression}\n      ? ${consequent}\n      : ${alternate}}`;
+  const altIsSimple = !node.condition!.alternate;
+  const altContent = altIsSimple
+    ? 'nothing'
+    : `html\`\n${alternate}\n${pad}  \``;
+
+  return `${pad}\${${node.condition!.expression}\n${pad}  ? html\`\n${consequent}\n${pad}  \`\n${pad}  : ${altContent}}`;
 }
 
 // ---------------------------------------------------------------------------
-// Loop emission
+// Loop emission (inline)
 // ---------------------------------------------------------------------------
 
-function emitLoop(
+function emitLoopInline(
   node: TemplateNodeIR,
   collector: ImportCollector,
   indent: number,
 ): string {
+  const pad = ' '.repeat(indent);
   const { iterable, variable, index } = node.loop!;
   const params = index ? `${variable}, ${index}` : variable;
 
-  // Make a copy without the loop to emit the node itself
   const innerNode = { ...node, loop: undefined };
-  const body = emitNode(innerNode, collector, indent + 2);
+  const body = emitNodeInline(innerNode, collector, indent + 2);
 
-  return `\${${iterable}.map((${params}) => ${body})}`;
+  return `${pad}\${${iterable}.map((${params}) => html\`\n${body}\n${pad}\`)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -230,19 +209,17 @@ function emitAttribute(
       return `?${attr.name}=\${${getExpression(attr.value)}}`;
 
     case 'event': {
-      // Convert React event name to Lit: onClick → @click
       const litEventName = reactEventToLit(attr.name);
       return `${litEventName}=\${${getExpression(attr.value)}}`;
     }
 
     case 'classMap': {
       collector.addDirective('lit/directives/class-map.js', 'classMap');
-      // The expression is the raw clsx call — will be transformed in Phase 3
       return `class=\${classMap(${getExpression(attr.value)})}`;
     }
 
     case 'spread':
-      // Spreads need to be handled differently in Lit
+      // Spreads are not directly supported in Lit — emit as comment
       return `/* spread: ${getExpression(attr.value)} */`;
 
     default:
@@ -265,7 +242,6 @@ function getExpression(value: string | DynamicValueIR): string {
  */
 function reactEventToLit(name: string): string {
   if (!name.startsWith('on')) return `@${name}`;
-  // Remove 'on' prefix and lowercase
   const eventName = name.slice(2).toLowerCase();
   return `@${eventName}`;
 }

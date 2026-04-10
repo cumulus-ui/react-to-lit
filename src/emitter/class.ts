@@ -34,9 +34,14 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   sections.push(`const hostStyles = css\`:host { display: block; }\`;`);
   sections.push('');
 
-  // --- Helpers ---
+  // --- Helpers (only emit non-JSX helpers) ---
   for (const helper of ir.helpers) {
-    sections.push(helper.source);
+    // Skip helpers that contain JSX — they need manual transformation
+    if (helper.source.includes('/>') || helper.source.includes('</')) {
+      sections.push(`// TODO: transform helper '${helper.name}' (contains JSX)`);
+    } else {
+      sections.push(helper.source);
+    }
     sections.push('');
   }
 
