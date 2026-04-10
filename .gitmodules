@@ -1,0 +1,3 @@
+[submodule "vendor/cloudscape-source"]
+	path = vendor/cloudscape-source
+	url = https://github.com/cumulus-ui/cloudscape-source
