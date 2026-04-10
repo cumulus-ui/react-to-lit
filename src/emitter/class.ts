@@ -311,8 +311,8 @@ function convertRemainingJsx(output: string): string {
   // Remove ref={...} attributes (already handled by cleanup but catch stragglers)
   code = code.replace(/\s+ref=\{[^}]*\}/g, '');
 
-  // Remove {...spread} JSX attributes
-  code = code.replace(/\n\s*\{\.\.\.\w[^}]*\}\s*\n/g, '\n');
+  // Remove {...spread} JSX attributes (including multiline)
+  code = code.replace(/\n\s*\{\.\.\.[\s\S]*?\}\s*(?=\n\s*[<>/])/g, '\n');
 
   // Convert JSX expression attributes: prop={expr} → .prop=${expr}
   // Only match inside what looks like an element tag (after < and before > or />)
@@ -336,6 +336,35 @@ function convertRemainingJsx(output: string): string {
 
   // Convert JSX children expressions: >{expr}< → >${expr}<
   code = code.replace(/>\s*\{([^}]+)\}\s*</g, '>${$1}<');
+
+  // Wrap .map() callback bodies containing Lit elements in html``
+  code = code.replace(
+    /\.map\((\([^)]*\))\s*=>\s*\(\s*\n(\s*<)/g,
+    '.map($1 => html`\n$2',
+  );
+  // Close html`` at the end of .map() callbacks
+  code = code.replace(
+    /(<\/cs-[\w-]+>)\s*\n(\s*)\)\)/g,
+    '$1\n$2`)',
+  );
+
+  // Wrap return (<cs-xxx...) patterns in handlers with html``
+  code = code.replace(
+    /return\s*\(\s*\n(\s*<cs-)/g,
+    'return html`\n$1',
+  );
+  // Also handle return (<div... patterns
+  code = code.replace(
+    /return\s*\(\s*\n(\s*<[a-z])/g,
+    'return html`\n$1',
+  );
+  // Close the html`` at the matching closing paren for return(...) patterns
+  // Handles: </cs-xxx>\n    ); → </cs-xxx>\n    `;
+  //          />\n    ); → />\n    `;
+  code = code.replace(
+    /((?:<\/(?:cs-[\w-]+|div|span|button|a|input|label|ul|li|nav|section|form|textarea|select|table|tr|td|th)>|\/?>))\s*\n(\s*)\);/g,
+    '$1\n$2`;',
+  );
 
   return importSection + code;
 }
