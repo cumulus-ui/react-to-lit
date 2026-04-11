@@ -107,10 +107,9 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
     return rewriteWithMorph(quick, memberMap, ir.localVariables);
   };
 
-  // Transform handlers
+  // Transform handlers (body only — params are declarations, not references)
   const handlers = ir.handlers.map((h) => ({
     ...h,
-    params: astRewrite(h.params),
     body: astRewrite(h.body),
   }));
 
@@ -304,7 +303,15 @@ function rewriteWithMorph(
     }
   });
 
-  const allLocals = new Set([...componentLocalVars, ...bodyLocals]);
+  // Component-level locals that are also class members should get this. prefix.
+  // But body-level locals (parameters, let/const in this specific code block)
+  // shadow the class member — don't rewrite those.
+  const allLocals = new Set([...bodyLocals]);
+  for (const local of componentLocalVars) {
+    if (!memberMap.has(local)) {
+      allLocals.add(local);
+    }
+  }
 
   // Find identifiers to rewrite
   const replacements: Array<{ start: number; end: number; replacement: string }> = [];
