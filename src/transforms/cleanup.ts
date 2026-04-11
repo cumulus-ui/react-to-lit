@@ -33,8 +33,6 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
   const props = ir.props.filter((p) => {
     if (p.name.startsWith('__')) return false;
     if (REMOVE_PROPS.has(p.name)) return false;
-    // Remove 'style' prop from Cloudscape theming (not CSS style)
-    if (p.name === 'style' && !p.default) return false;
     return true;
   });
 
