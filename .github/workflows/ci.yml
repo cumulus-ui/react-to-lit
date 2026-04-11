@@ -36,3 +36,12 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Gate 2 — tsc on generated output
+        run: npm run gate2
+
+      - name: Gate 3 — structural validation
+        run: npm run gate3
+
+      - name: Quality analysis
+        run: npx tsx scripts/diff-analysis.ts

@@ -14,7 +14,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
-    "gate2": "tsx scripts/gate2-typecheck.ts"
+    "gate2": "tsx scripts/gate2-typecheck.ts",
+    "gate3": "tsx scripts/gate3-structure.ts",
+    "analyze": "tsx scripts/diff-analysis.ts"
   },
   "dependencies": {
     "commander": "^13.1.0",

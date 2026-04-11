@@ -166,21 +166,56 @@ function parseClsxArgs(argsStr: string): string {
       continue;
     }
 
-    // Conditional: condition && styles.className
+    // Conditional: condition && styles.className (or ternary/array variants)
     if (trimmed.includes(' && ')) {
-      const parts = trimmed.split(' && ');
-      if (parts.length === 2) {
-        const condition = parts[0].trim();
-        const rawClass = parts[1].trim();
-        const className = stripStylesPrefix(rawClass);
-        if (className === rawClass && rawClass.startsWith('styles[')) {
-          const varExpr = rawClass.slice(7, -1);
-          entries.push(`[${varExpr}]: ${condition}`);
+      // Split on first ' && ' only (condition may contain && but class part won't)
+      const andIdx = trimmed.indexOf(' && ');
+      const condition = trimmed.slice(0, andIdx).trim();
+      const rawClass = trimmed.slice(andIdx + 4).trim();
+
+      // Array-wrapped class: condition && [styles['xxx']] or [styles[`xxx`]]
+      if (rawClass.startsWith('[') && rawClass.endsWith(']') && rawClass.includes('styles')) {
+        const inner = rawClass.slice(1, -1).trim();
+        const className = stripStylesPrefix(inner);
+        if (className.includes('${')) {
+          entries.push(`[\`${className}\`]: ${condition}`);
+        } else if (className !== inner) {
+          entries.push(`'${className}': ${condition}`);
         } else {
-          entries.push(`${quoteClassName(className)}: ${condition}`);
+          entries.push(`/* ${trimmed} */`);
         }
         continue;
       }
+
+      // Ternary: condition && (expr ? styles['a'] : styles['b'])
+      if (rawClass.startsWith('(') && rawClass.endsWith(')')) {
+        const inner = rawClass.slice(1, -1).trim();
+        const ternaryMatch = inner.match(/^(.+?)\s*\?\s*(styles[\[.][^\s:]+)\s*:\s*(styles[\[.][^\s)]+)$/);
+        if (ternaryMatch) {
+          const [, ternCond, styleA, styleB] = ternaryMatch;
+          const classA = stripStylesPrefix(styleA.trim());
+          const classB = stripStylesPrefix(styleB.trim());
+          // Emit as: condition && ternCond → classA, condition && !ternCond → classB
+          entries.push(`'${classA}': ${condition} && ${ternCond.trim()}`);
+          entries.push(`'${classB}': ${condition} && !(${ternCond.trim()})`);
+          continue;
+        }
+      }
+
+      // Simple: condition && styles.xxx
+      const className = stripStylesPrefix(rawClass);
+      if (className !== rawClass) {
+        entries.push(`${quoteClassName(className)}: ${condition}`);
+        continue;
+      }
+      if (rawClass.startsWith('styles[')) {
+        const varExpr = rawClass.slice(7, -1);
+        entries.push(`[${varExpr}]: ${condition}`);
+        continue;
+      }
+      // Fallback for unrecognized && patterns
+      entries.push(`/* ${trimmed} */`);
+      continue;
     }
 
     // Static class: styles.root or styles['class-name']
