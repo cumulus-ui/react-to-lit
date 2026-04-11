@@ -34,8 +34,16 @@ export function kebabToPascal(str: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Event name derivation
+// Event naming
 // ---------------------------------------------------------------------------
+
+/**
+ * Check if a prop name is a React event handler.
+ * Follows the React convention: `onXxx` where X is uppercase.
+ */
+export function isEventProp(name: string): boolean {
+  return /^on[A-Z]/.test(name);
+}
 
 /**
  * Convert React event prop name to Lit template event binding name.
@@ -51,4 +59,36 @@ export function toLitEventName(reactPropName: string): string {
  */
 export function toCustomEventName(reactPropName: string): string {
   return reactPropName.charAt(2).toLowerCase() + reactPropName.slice(3);
+}
+
+// ---------------------------------------------------------------------------
+// React → HTML attribute mapping
+// ---------------------------------------------------------------------------
+
+/** React attribute names that differ from their HTML equivalents. */
+const REACT_TO_HTML_ATTRS: Record<string, string> = {
+  className: 'class',
+  htmlFor: 'for',
+  tabIndex: 'tabindex',
+  autoFocus: 'autofocus',
+  readOnly: 'readonly',
+};
+
+/**
+ * Convert a React attribute name to its HTML equivalent.
+ * Returns the HTML name if different, or the original name unchanged.
+ */
+export function reactAttrToHtml(name: string): string {
+  return REACT_TO_HTML_ATTRS[name] ?? name;
+}
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+/**
+ * Escape a string for use in a RegExp.
+ */
+export function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

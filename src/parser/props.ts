@@ -12,7 +12,7 @@ import type { PropIR } from '../ir/types.js';
 import { getNodeText, parseFile } from './program.js';
 import type { RawComponent } from './component.js';
 import { SKIP_PROPS, SKIP_PREFIXES } from '../cloudscape-config.js';
-import { camelToKebab } from '../naming.js';
+import { camelToKebab, isEventProp } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Main extraction
@@ -231,10 +231,6 @@ function classifyProp(
 // ---------------------------------------------------------------------------
 // Classification helpers
 // ---------------------------------------------------------------------------
-
-function isEventProp(name: string): boolean {
-  return /^on[A-Z]/.test(name);
-}
 
 function isSlotProp(name: string, typeText: string): boolean {
   if (name === 'children') return true;

@@ -15,7 +15,7 @@
  * Scans all code: handlers, effects, helpers, and template expressions.
  */
 import type { ComponentIR, HandlerIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
-import { toCustomEventName } from '../naming.js';
+import { toCustomEventName, escapeRegex } from '../naming.js';
 import { walkTemplate } from '../template-walker.js';
 
 // ---------------------------------------------------------------------------
@@ -242,12 +242,4 @@ function rewriteTemplateEvents(
       return rewritten !== expr ? rewritten : undefined;
     },
   });
-}
-
-// ---------------------------------------------------------------------------
-// Utilities
-// ---------------------------------------------------------------------------
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

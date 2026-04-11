@@ -14,6 +14,7 @@ import type {
 } from '../ir/types.js';
 import { getNodeText } from './program.js';
 import { getBooleanAttributes, getHtmlTagNames } from '../standards.js';
+import { isEventProp } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Main entry
@@ -216,7 +217,7 @@ function parseJsxAttribute(
     }
 
     // Detect event handlers: onClick, onFocus, etc.
-    if (isEventAttributeName(name)) {
+    if (isEventProp(name)) {
       return {
         name,
         value: { expression: exprText },
@@ -431,10 +432,6 @@ function getTagName(tagName: ts.JsxTagNameExpression, sourceFile: ts.SourceFile)
 
 function isHtmlTag(tag: string): boolean {
   return getHtmlTagNames().has(tag);
-}
-
-function isEventAttributeName(name: string): boolean {
-  return /^on[A-Z]/.test(name);
 }
 
 function isBooleanAttributeName(name: string): boolean {

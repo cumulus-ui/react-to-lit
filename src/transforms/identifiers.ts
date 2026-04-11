@@ -19,6 +19,7 @@ import type {
 } from '../ir/types.js';
 import { getGlobalNames } from '../standards.js';
 import { walkTemplate } from '../template-walker.js';
+import { escapeRegex } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Member map — all identifiers that should map to class members
@@ -165,7 +166,7 @@ function rewriteQuickPatterns(text: string, ir: ComponentIR): string {
   for (const s of ir.state) {
     const setter = s.setter;
     const field = `_${s.name}`;
-    const pattern = new RegExp(`\\b${esc(setter)}\\(`, 'g');
+    const pattern = new RegExp(`\\b${escapeRegex(setter)}\\(`, 'g');
     let match;
     while ((match = pattern.exec(result)) !== null) {
       const start = match.index;
@@ -182,7 +183,7 @@ function rewriteQuickPatterns(text: string, ir: ComponentIR): string {
   // fooRef.current → this._fooRef
   for (const r of ir.refs) {
     result = result.replace(
-      new RegExp(`\\b${esc(r.name)}\\.current\\b`, 'g'),
+      new RegExp(`\\b${escapeRegex(r.name)}\\.current\\b`, 'g'),
       `this._${r.name}`,
     );
   }
@@ -418,10 +419,6 @@ function rewriteTemplateNode(
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
-
-function esc(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 function findMatchingParen(text: string, openPos: number): number {
   let depth = 0;

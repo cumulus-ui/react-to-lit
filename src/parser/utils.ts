@@ -148,7 +148,7 @@ function containsJSX(source: string): boolean {
 // Utilities
 // ---------------------------------------------------------------------------
 
-function isHookCall(expr: ts.Expression): boolean {
+export function isHookCall(expr: ts.Expression): boolean {
   if (!ts.isCallExpression(expr)) return false;
   const callee = expr.expression;
   if (ts.isIdentifier(callee) && callee.text.startsWith('use')) return true;

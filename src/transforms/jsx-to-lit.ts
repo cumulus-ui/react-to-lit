@@ -11,7 +11,7 @@
 import ts from 'typescript';
 import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES } from '../cloudscape-config.js';
 import { getBooleanAttributes, getHtmlTagNames } from '../standards.js';
-import { pascalToKebab, toLitEventName } from '../naming.js';
+import { pascalToKebab, toLitEventName, isEventProp, reactAttrToHtml } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Component name mapping
@@ -296,7 +296,7 @@ function emitAttribute(
     }
 
     // Event handlers: onXxx → @xxx
-    if (/^on[A-Z]/.test(name)) {
+    if (isEventProp(name)) {
       const eventName = toLitEventName(name);
       builder.appendStatic(` @${eventName}=`);
       builder.addExpression(visitedExpr);
@@ -318,13 +318,7 @@ function emitAttribute(
 }
 
 function mapAttributeName(name: string): string | null {
-  // React → HTML name mapping
-  if (name === 'className') return 'class';
-  if (name === 'htmlFor') return 'for';
-  if (name === 'tabIndex') return 'tabindex';
-  if (name === 'autoFocus') return 'autofocus';
-  if (name === 'readOnly') return 'readonly';
-  return name;
+  return reactAttrToHtml(name);
 }
 
 // ---------------------------------------------------------------------------

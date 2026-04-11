@@ -20,11 +20,12 @@ import { findComponent } from './component.js';
 import { extractProps } from './props.js';
 import { extractHooks } from './hooks.js';
 import { parseJSXFromBody } from './jsx.js';
-import { extractHandlers, extractHelpers } from './utils.js';
+import { extractHandlers, extractHelpers, isHookCall } from './utils.js';
 import type { HookRegistry } from '../hooks/registry.js';
 import { createHookRegistry } from '../hooks/registry.js';
 import { transformJsxToLit } from './jsx-transform.js';
 import { pascalToKebab } from '../naming.js';
+import { INFRA_FUNCTIONS } from '../cloudscape-config.js';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -316,8 +317,7 @@ function extractBodyPreamble(
     if (pastHooks) {
       const text = sourceFile.text.slice(stmt.getStart(sourceFile), stmt.getEnd());
       // Skip Cloudscape infrastructure
-      if (text.includes('applyDisplayName') || text.includes('getBaseProps')) continue;
-      if (text.includes('checkSafeUrl')) continue;
+      if ([...INFRA_FUNCTIONS].some(fn => text.includes(fn))) continue;
       if (text.includes('useBaseComponent')) continue;
 
       // Check if this is a variable containing a template (html`...`)
@@ -354,17 +354,12 @@ function isHookCallStatement(stmt: ts.Statement): boolean {
   // Variable declaration with hook call
   if (ts.isVariableStatement(stmt)) {
     for (const decl of stmt.declarationList.declarations) {
-      if (decl.initializer && ts.isCallExpression(decl.initializer)) {
-        const callee = decl.initializer.expression;
-        if (ts.isIdentifier(callee) && callee.text.startsWith('use')) return true;
-        if (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && callee.expression.text === 'React') return true;
-      }
+      if (decl.initializer && isHookCall(decl.initializer)) return true;
     }
   }
   // Expression statement with hook call
-  if (ts.isExpressionStatement(stmt) && ts.isCallExpression(stmt.expression)) {
-    const callee = stmt.expression.expression;
-    if (ts.isIdentifier(callee) && callee.text.startsWith('use')) return true;
+  if (ts.isExpressionStatement(stmt) && isHookCall(stmt.expression)) {
+    return true;
   }
   return false;
 }
