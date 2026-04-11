@@ -20,6 +20,7 @@ import type {
 import { getGlobalNames } from '../standards.js';
 import { walkTemplate } from '../template-walker.js';
 import { escapeRegex } from '../naming.js';
+import { findMatchingParen } from '../text-utils.js';
 
 // ---------------------------------------------------------------------------
 // Member map — all identifiers that should map to class members
@@ -447,29 +448,4 @@ function rewriteTemplateNode(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Utilities
-// ---------------------------------------------------------------------------
 
-function findMatchingParen(text: string, openPos: number): number {
-  let depth = 0;
-  let i = openPos;
-  while (i < text.length) {
-    const ch = text[i];
-    if (ch === "'" || ch === '"' || ch === '`') {
-      const quote = ch;
-      i++;
-      while (i < text.length) {
-        if (text[i] === '\\') { i += 2; continue; }
-        if (text[i] === quote) break;
-        i++;
-      }
-      i++;
-      continue;
-    }
-    if (ch === '(') depth++;
-    else if (ch === ')') { depth--; if (depth === 0) return i; }
-    i++;
-  }
-  return -1;
-}

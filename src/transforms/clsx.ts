@@ -12,6 +12,7 @@
  */
 import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
 import { walkTemplate } from '../template-walker.js';
+import { findMatchingParen, findTopLevel, splitTopLevel } from '../text-utils.js';
 
 // ---------------------------------------------------------------------------
 // Main transform — accepts full ComponentIR
@@ -135,7 +136,7 @@ function parseClsxArgs(argsStr: string): string {
   const entries: string[] = [];
 
   // Split top-level arguments (not inside braces or parens)
-  const args = splitTopLevel(argsStr);
+  const args = splitTopLevel(argsStr, ',');
 
   for (const arg of args) {
     const trimmed = arg.trim();
@@ -144,7 +145,7 @@ function parseClsxArgs(argsStr: string): string {
     // Object literal: { [styles.disabled]: isDisabled }
     if (trimmed.startsWith('{')) {
       const inner = trimmed.slice(1, -1).trim();
-      const pairs = splitTopLevel(inner);
+      const pairs = splitTopLevel(inner, ',');
       for (const pair of pairs) {
         const entry = parseObjectEntry(pair.trim());
         if (entry) entries.push(entry);
@@ -246,7 +247,7 @@ function parseClsxArgs(argsStr: string): string {
  * E.g.: [styles.disabled]: isNotInteractive
  */
 function parseObjectEntry(entry: string): string | null {
-  const colonIdx = findTopLevelColon(entry);
+  const colonIdx = findTopLevel(entry, ':');
   if (colonIdx === -1) return null;
 
   const key = entry.slice(0, colonIdx).trim();
@@ -310,7 +311,7 @@ function replaceClsxCallsInText(text: string): string {
 
     // Find the matching closing paren
     const argsStart = idx + 5; // after 'clsx('
-    const closeIdx = findMatchingParen(result, argsStart - 1);
+    const closeIdx = findMatchingParen(result, argsStart - 1, { allBrackets: true });
     if (closeIdx === -1) {
       // Can't find matching paren — skip this occurrence
       searchFrom = argsStart;
@@ -352,49 +353,6 @@ function replaceStylesInText(text: string): string {
   return result;
 }
 
-/**
- * Find the index of the closing paren that matches the open paren at `openIdx`.
- */
-function findMatchingParen(text: string, openIdx: number): number {
-  let depth = 0;
-  for (let i = openIdx; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === '(' || ch === '{' || ch === '[') depth++;
-    if (ch === ')' || ch === '}' || ch === ']') {
-      depth--;
-      if (depth === 0) return i;
-    }
-    // Skip string literals
-    if (ch === "'" || ch === '"') {
-      const quote = ch;
-      i++;
-      while (i < text.length && text[i] !== quote) {
-        if (text[i] === '\\') i++; // skip escaped chars
-        i++;
-      }
-    }
-    // Skip template literals
-    if (ch === '`') {
-      i++;
-      while (i < text.length && text[i] !== '`') {
-        if (text[i] === '\\') i++;
-        if (text[i] === '$' && i + 1 < text.length && text[i + 1] === '{') {
-          // Skip template expression — count braces
-          i += 2;
-          let braceDepth = 1;
-          while (i < text.length && braceDepth > 0) {
-            if (text[i] === '{') braceDepth++;
-            if (text[i] === '}') braceDepth--;
-            if (braceDepth > 0) i++;
-          }
-        }
-        i++;
-      }
-    }
-  }
-  return -1;
-}
-
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
@@ -433,56 +391,3 @@ function stripStylesPrefix(expr: string): string {
   return expr;
 }
 
-/**
- * Split a string by commas, but only at the top level
- * (not inside braces, brackets, or parentheses).
- */
-function splitTopLevel(str: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let depth = 0;
-
-  for (let i = 0; i < str.length; i++) {
-    const ch = str[i];
-    if (ch === '{' || ch === '[' || ch === '(') depth++;
-    if (ch === '}' || ch === ']' || ch === ')') depth--;
-    if (ch === ',' && depth === 0) {
-      result.push(current);
-      current = '';
-    } else {
-      current += ch;
-    }
-  }
-
-  if (current.trim()) result.push(current);
-  return result;
-}
-
-/**
- * Find the first colon at the top level (not inside brackets/braces).
- */
-function findTopLevelColon(str: string): number {
-  let depth = 0;
-  let inTemplate = false;
-  let templateBraceDepth = 0;
-  for (let i = 0; i < str.length; i++) {
-    const ch = str[i];
-    if (ch === '`') {
-      inTemplate = !inTemplate;
-      continue;
-    }
-    if (inTemplate) {
-      if (ch === '$' && str[i + 1] === '{') {
-        templateBraceDepth++;
-        i++; // skip '{'
-      } else if (ch === '}' && templateBraceDepth > 0) {
-        templateBraceDepth--;
-      }
-      continue;
-    }
-    if (ch === '{' || ch === '[' || ch === '(') depth++;
-    if (ch === '}' || ch === ']' || ch === ')') depth--;
-    if (ch === ':' && depth === 0) return i;
-  }
-  return -1;
-}

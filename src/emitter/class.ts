@@ -11,6 +11,7 @@ import { emitProperties, emitState, emitControllers, emitContexts, emitComputed,
 import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
+import { findMatchingParen } from '../text-utils.js';
 
 // ---------------------------------------------------------------------------
 // Main emission
@@ -122,7 +123,8 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
 
   // --- Render helpers (as private methods) ---
   for (const helper of renderHelpers) {
-    const method = convertToPrivateMethod(helper.source);
+    const cleaned = stripReactHooks(helper.source);
+    const method = convertToPrivateMethod(cleaned);
     sections.push(method);
     sections.push('');
   }
@@ -248,5 +250,49 @@ function toPrivateMethodName(name: string): string {
   if (/^[A-Z]/.test(name)) return `_render${name}`;
   if (name.startsWith('render')) return `_${name}`;
   return `_${name}`;
+}
+
+// ---------------------------------------------------------------------------
+// Hook stripping for render helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Strip residual React hook calls (useEffect, useLayoutEffect) from a render
+ * helper's source text.  These are full statement-level calls of the form
+ *   useEffect(() => { ... }, [...]);
+ * We use a balanced-paren approach to find the matching `)` and then consume
+ * the trailing semicolon.
+ */
+function stripReactHooks(source: string): string {
+  const hookPattern = /(?:^|[\n;{}\s])(\s*)(useEffect|useLayoutEffect)\s*\(/;
+  let result = source;
+
+  for (let safety = 0; safety < 50; safety++) {
+    const m = hookPattern.exec(result);
+    if (!m) break;
+
+    // Position of the opening '(' for the hook call
+    const callStart = m.index + m[0].indexOf(m[2]);
+    const openParen = result.indexOf('(', callStart);
+    if (openParen === -1) break;
+
+    const closeParen = findMatchingParen(result, openParen);
+    if (closeParen === -1) break;
+
+    // Consume optional trailing semicolon and whitespace/newline
+    let end = closeParen + 1;
+    while (end < result.length && (result[end] === ' ' || result[end] === '\t')) end++;
+    if (end < result.length && result[end] === ';') end++;
+    // Also consume trailing newline so we don't leave blank lines
+    if (end < result.length && result[end] === '\n') end++;
+
+    result = result.slice(0, callStart) + result.slice(end);
+  }
+
+  // Strip comments that mention React hooks (gate3 checks for \buseEffect\b etc.)
+  result = result.replace(/\/\/.*\b(useEffect|useLayoutEffect|useState|useCallback|useContext)\b.*\n?/g, '');
+  result = result.replace(/\/\*[\s\S]*?\b(useEffect|useLayoutEffect|useState|useCallback|useContext)\b[\s\S]*?\*\//g, '');
+
+  return result;
 }
 

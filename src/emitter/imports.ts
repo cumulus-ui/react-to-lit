@@ -205,6 +205,23 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   const interfaceName = `${ir.name}Props`;
   collector.addType('./interfaces.js', interfaceName);
 
+  // Transform-added imports (from ir.imports)
+  for (const imp of ir.imports) {
+    if (imp.isSideEffect) {
+      collector.addSideEffect(imp.moduleSpecifier);
+    } else if (imp.isTypeOnly && imp.namedImports) {
+      for (const name of imp.namedImports) {
+        collector.addType(imp.moduleSpecifier, name);
+      }
+    } else if (imp.defaultImport) {
+      collector.addDefault(imp.moduleSpecifier, imp.defaultImport);
+    } else if (imp.namedImports) {
+      for (const name of imp.namedImports) {
+        collector.addNamed(imp.moduleSpecifier, name);
+      }
+    }
+  }
+
   return collector;
 }
 

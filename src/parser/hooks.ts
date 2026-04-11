@@ -234,7 +234,7 @@ function processUseEffect(
   // Detect cleanup return
   let cleanup: string | undefined;
   if (ts.isBlock(effectFn.body)) {
-    const returnStmt = effectFn.body.statements.find(ts.isReturnStatement);
+    const returnStmt = Array.from(effectFn.body.statements).reverse().find(ts.isReturnStatement);
     if (returnStmt?.expression) {
       if (ts.isArrowFunction(returnStmt.expression) || ts.isFunctionExpression(returnStmt.expression)) {
         cleanup = ts.isBlock(returnStmt.expression.body)

@@ -134,7 +134,7 @@ function rewriteEventCalls(
     );
     result = result.replace(
       cancelablePattern,
-      `fireNonCancelableEvent(this, '${eventName}'`,
+      `fireCancelableEvent(this, '${eventName}'`,
     );
 
     // fireKeyboardEvent(propName, event) → fireNonCancelableEvent(this, 'eventName', event)
@@ -192,7 +192,7 @@ function rewriteEventCalls(
     );
     result = result.replace(
       controlledCancelable,
-      `fireNonCancelableEvent(this, '${eventName}'`,
+      `fireCancelableEvent(this, '${eventName}'`,
     );
 
     const controlledKeyboard = new RegExp(
