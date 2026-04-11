@@ -201,6 +201,9 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   const interfaceName = `${ir.name}Props`;
   collector.addType('./interfaces.js', interfaceName);
 
+  // Side-effect imports for custom elements found in template
+  collectCustomElementImports(ir.template, collector);
+
   return collector;
 }
 
@@ -227,8 +230,42 @@ function hasClassMap(node: import('../ir/types.js').TemplateNodeIR): boolean {
 }
 
 function hasIfDefined(node: import('../ir/types.js').TemplateNodeIR): boolean {
-  // TODO: detect ifDefined usage in attribute expressions
+  // Check attribute expressions for ifDefined usage
+  for (const attr of node.attributes) {
+    if (typeof attr.value !== 'string' && attr.value.expression.includes('ifDefined(')) {
+      return true;
+    }
+  }
+  // Recurse into children
+  for (const child of node.children) {
+    if (hasIfDefined(child)) return true;
+  }
   return false;
+}
+
+function collectCustomElementImports(
+  node: import('../ir/types.js').TemplateNodeIR,
+  collector: ImportCollector,
+): void {
+  if (node.kind === 'element' && node.tag && node.tag.includes('-')) {
+    const importPath = deriveImportPath(node.tag);
+    if (importPath) collector.addSideEffect(importPath);
+  }
+  for (const child of node.children) {
+    collectCustomElementImports(child, collector);
+  }
+  // Also check condition alternates
+  if (node.condition?.alternate) {
+    collectCustomElementImports(node.condition.alternate, collector);
+  }
+}
+
+function deriveImportPath(tagName: string): string | null {
+  // cs-icon → ../icon/index.js, cs-button-dropdown → ../button-dropdown/index.js
+  const parts = tagName.split('-');
+  if (parts.length < 2 || parts[0] !== 'cs') return null;
+  const componentName = parts.slice(1).join('-');
+  return `../${componentName}/index.js`;
 }
 
 // ---------------------------------------------------------------------------

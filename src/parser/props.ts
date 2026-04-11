@@ -196,6 +196,39 @@ function classifyProp(
     };
   }
 
+  // Array/object props (from default values or known names)
+  if (isArrayProp(name, defaultValue)) {
+    return {
+      name,
+      type: typeText,
+      default: defaultValue,
+      category: 'property',
+      attribute: false,
+    };
+  }
+
+  if (isObjectProp(name, defaultValue)) {
+    return {
+      name,
+      type: typeText,
+      default: defaultValue,
+      category: 'property',
+      attribute: false,
+    };
+  }
+
+  // Number props (from default values)
+  if (isNumberProp(defaultValue)) {
+    return {
+      name,
+      type: typeText,
+      default: defaultValue,
+      category: 'attribute',
+      attribute: needsExplicitAttribute(name) ? toKebabCase(name) : undefined,
+      litType: 'Number',
+    };
+  }
+
   // String/enum props (most common case)
   return {
     name,
@@ -233,6 +266,42 @@ function isBooleanProp(name: string, _typeText: string, defaultValue?: string): 
     'warning', 'required', 'ariaRequired', 'expandable', 'expanded',
   ]);
   return booleanNames.has(name);
+}
+
+// ---------------------------------------------------------------------------
+// Known array/object prop names (Cloudscape-specific but safe defaults)
+// ---------------------------------------------------------------------------
+
+const KNOWN_ARRAY_PROPS = new Set([
+  'options', 'items', 'columns', 'selectedOptions', 'selectedItems',
+  'filteringOptions', 'tokens', 'files', 'visibleColumns', 'columnDefinitions',
+  'breadcrumbs', 'links', 'steps', 'tabs', 'tags', 'actions', 'pages',
+  'segments', 'panes', 'tools', 'data', 'series', 'resources',
+]);
+
+const KNOWN_OBJECT_PROPS = new Set([
+  'selectedOption', 'selectedItem', 'activeHref', 'ariaLabels',
+  'i18nStrings', 'analyticsMetadata', 'filteringProperties',
+]);
+
+function isArrayProp(name: string, defaultValue?: string): boolean {
+  // Detect from default value: [] or [...]
+  if (defaultValue === '[]' || (defaultValue && defaultValue.startsWith('['))) return true;
+  // Detect from known prop names
+  return KNOWN_ARRAY_PROPS.has(name);
+}
+
+function isObjectProp(name: string, defaultValue?: string): boolean {
+  // Detect from default value: {} or {...}
+  if (defaultValue === '{}' || (defaultValue && defaultValue.startsWith('{'))) return true;
+  // Detect from known prop names
+  return KNOWN_OBJECT_PROPS.has(name);
+}
+
+function isNumberProp(defaultValue?: string): boolean {
+  if (!defaultValue) return false;
+  // Match numeric literals: 0, 1, 100, -1, 3.14, etc.
+  return /^-?\d+(\.\d+)?$/.test(defaultValue);
 }
 
 function isCancelableEventType(_typeText: string): boolean {
