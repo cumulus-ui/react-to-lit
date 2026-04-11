@@ -6,6 +6,7 @@
  */
 import type { TemplateNodeIR, AttributeIR } from '../ir/types.js';
 import { REMOVE_ATTRS } from '../cloudscape-config.js';
+import { walkTemplate } from '../template-walker.js';
 
 // ---------------------------------------------------------------------------
 // Main transform
@@ -15,26 +16,14 @@ import { REMOVE_ATTRS } from '../cloudscape-config.js';
  * Recursively unwrap WithNativeAttributes nodes in the template tree.
  */
 export function unwrapWithNativeAttributes(node: TemplateNodeIR): TemplateNodeIR {
-  // Check if this node IS a WithNativeAttributes component
-  if (node.kind === 'component' && node.tag === 'WithNativeAttributes') {
-    return unwrapNode(node);
-  }
-
-  // Recurse into children
-  const transformedChildren = node.children.map(unwrapWithNativeAttributes);
-
-  return {
-    ...node,
-    children: transformedChildren,
-    condition: node.condition
-      ? {
-          ...node.condition,
-          alternate: node.condition.alternate
-            ? unwrapWithNativeAttributes(node.condition.alternate)
-            : undefined,
-        }
-      : undefined,
-  };
+  return walkTemplate(node, {
+    node: (n) => {
+      if (n.kind === 'component' && n.tag === 'WithNativeAttributes') {
+        return unwrapNode(n);
+      }
+      return undefined; // keep as-is
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -53,24 +42,17 @@ function unwrapNode(node: TemplateNodeIR): TemplateNodeIR {
 
   const keptAttrs: AttributeIR[] = [];
   for (const attr of node.attributes) {
-    // Skip WNA internal props
     if (skipAttrs.has(attr.name)) continue;
-    // Skip spread of baseProps
     if (attr.kind === 'spread') continue;
-    // Skip ref bindings to __internalRootRef
     if (attr.name === 'ref' || attr.name === '.ref') continue;
-
     keptAttrs.push(attr);
   }
-
-  // Recurse into children
-  const transformedChildren = node.children.map(unwrapWithNativeAttributes);
 
   return {
     kind: 'element',
     tag,
     attributes: keptAttrs,
-    children: transformedChildren,
+    children: node.children, // walkTemplate handles child recursion
     condition: node.condition,
     loop: node.loop,
   };

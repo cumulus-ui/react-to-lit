@@ -108,14 +108,8 @@ function cleanHandlerBody(body: string): string {
   // Remove: [DATA_ATTR_FUNNEL_VALUE]: uniqueId
   result = result.replace(/\[DATA_ATTR_FUNNEL_VALUE\]\s*:\s*\w+,?\s*/g, '');
 
-  // Strip React type annotations: React.KeyboardEvent<Element> → KeyboardEvent
-  result = result.replace(/React\.\w+Event<[^>]+>/g, (match) => {
-    return match.replace(/^React\./, '').replace(/<[^>]+>$/, '');
-  });
-  // React.Ref<...> → any, React.RefObject<...> → any
-  result = result.replace(/React\.(Ref|RefObject|MutableRefObject)<[^>]+>/g, 'any');
-  // React.HTMLAttributes<...> → any
-  result = result.replace(/React\.\w+Attributes<[^>]+>/g, 'any');
+  // Note: React type annotations (React.XxxEvent, React.Ref, etc.) are
+  // handled by the cleanup-react-types transform — not duplicated here.
 
   return result;
 }
