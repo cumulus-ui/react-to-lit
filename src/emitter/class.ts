@@ -10,6 +10,7 @@ import { emitProperties, emitState, emitControllers, emitContexts, emitComputed,
 import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
+import { getBooleanAttributes } from '../standards.js';
 
 // ---------------------------------------------------------------------------
 // Main emission
@@ -576,7 +577,7 @@ function convertRemainingJsx(output: string): string {
     // Skip class= (already converted by classMap)
     if (name === 'class') return match;
     // Boolean attributes
-    if (/^(disabled|checked|readOnly|readonly|required|hidden|indeterminate|open|multiple|selected)$/.test(name)) {
+    if (getBooleanAttributes().has(name)) {
       return `${ws}?${name}=\${${expr}}`;
     }
     // Event handlers: onXxx → @xxx

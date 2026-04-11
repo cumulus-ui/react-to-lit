@@ -10,34 +10,7 @@ import fs from 'node:fs';
 import type { PropIR } from '../ir/types.js';
 import { getNodeText, parseFile } from './program.js';
 import type { RawComponent } from './component.js';
-
-// ---------------------------------------------------------------------------
-// Props to skip (Cloudscape internal infrastructure)
-// ---------------------------------------------------------------------------
-
-const SKIP_PROPS = new Set([
-  '__internalRootRef',
-  '__injectAnalyticsComponentMetadata',
-  '__animate',
-  '__size',
-  '__display',
-  '__iconClass',
-  '__focusable',
-  '__title',
-  '__emitPerformanceMarks',
-  '__skipNativeAttributesWarnings',
-  '__inheritFormFieldProps',
-  'nativeAttributes',
-  'nativeInputAttributes',
-  'nativeButtonAttributes',
-  'nativeAnchorAttributes',
-  'analyticsAction',
-  'analyticsMetadata',
-  '__analyticsMetadata',
-]);
-
-/** Props that should be skipped if they start with these prefixes */
-const SKIP_PREFIXES = ['__'];
+import { SKIP_PROPS, SKIP_PREFIXES } from '../cloudscape-config.js';
 
 // ---------------------------------------------------------------------------
 // Event handler type names

@@ -17,6 +17,7 @@ import type {
   ComponentIR,
   TemplateNodeIR,
 } from '../ir/types.js';
+import { getGlobalNames } from '../standards.js';
 
 // ---------------------------------------------------------------------------
 // Member map — all identifiers that should map to class members
@@ -65,26 +66,8 @@ function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
   return map;
 }
 
-// Names that must NEVER be rewritten (globals, Lit, DOM, keywords)
-const GLOBAL_NAMES = new Set([
-  'true', 'false', 'null', 'undefined', 'void', 'NaN', 'Infinity',
-  'event', 'index', 'item', 'key', 'error', 'target', 'result',
-  'Array', 'Object', 'String', 'Number', 'Boolean', 'Math', 'Date',
-  'Map', 'Set', 'Promise', 'JSON', 'Error', 'RegExp', 'Symbol',
-  'WeakMap', 'WeakSet', 'Proxy', 'Reflect', 'BigInt',
-  'console', 'document', 'window', 'navigator', 'location',
-  'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval',
-  'requestAnimationFrame', 'cancelAnimationFrame', 'queueMicrotask',
-  'performance', 'fetch', 'structuredClone',
-  'CustomEvent', 'Event', 'EventTarget', 'Element', 'HTMLElement',
-  'Node', 'NodeList', 'ResizeObserver', 'MutationObserver',
-  'IntersectionObserver', 'DOMRect', 'KeyboardEvent', 'MouseEvent',
-  'FocusEvent', 'PointerEvent', 'TouchEvent', 'DragEvent',
-  'html', 'css', 'svg', 'nothing', 'LitElement', 'PropertyValues',
-  'classMap', 'ifDefined', 'repeat', 'guard', 'cache', 'live',
-  'styleMap', 'unsafeHTML', 'unsafeSVG',
-  'props', 'state', 'super', 'this', 'arguments',
-]);
+// Global names — queried from TS compiler (ES2022 + DOM), not hardcoded.
+const GLOBAL_NAMES = getGlobalNames();
 
 // Shared ts-morph Project instance (reused across calls for performance)
 let _project: Project | undefined;

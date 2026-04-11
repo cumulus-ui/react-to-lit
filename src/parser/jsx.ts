@@ -13,6 +13,7 @@ import type {
   LoopIR,
 } from '../ir/types.js';
 import { getNodeText } from './program.js';
+import { getBooleanAttributes } from '../standards.js';
 
 // ---------------------------------------------------------------------------
 // Main entry
@@ -438,11 +439,7 @@ function isEventAttributeName(name: string): boolean {
 }
 
 function isBooleanAttributeName(name: string): boolean {
-  const booleanAttrs = new Set([
-    'disabled', 'checked', 'readOnly', 'readonly', 'required', 'hidden',
-    'autoFocus', 'autofocus', 'multiple', 'selected', 'open',
-  ]);
-  return booleanAttrs.has(name);
+  return getBooleanAttributes().has(name);
 }
 
 function isPropertyBinding(name: string): boolean {

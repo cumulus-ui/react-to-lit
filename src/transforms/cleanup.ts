@@ -10,19 +10,7 @@
  * - checkSafeUrl calls
  */
 import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
-
-// ---------------------------------------------------------------------------
-// Props to remove
-// ---------------------------------------------------------------------------
-
-const REMOVE_PROPS = new Set([
-  'nativeAttributes',
-  'nativeInputAttributes',
-  'nativeButtonAttributes',
-  'nativeAnchorAttributes',
-  'analyticsAction',
-  'analyticsMetadata',
-]);
+import { SKIP_PROPS, REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, INFRA_FUNCTIONS } from '../cloudscape-config.js';
 
 // ---------------------------------------------------------------------------
 // Main transform
@@ -32,7 +20,7 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
   // Remove internal props
   const props = ir.props.filter((p) => {
     if (p.name.startsWith('__')) return false;
-    if (REMOVE_PROPS.has(p.name)) return false;
+    if (SKIP_PROPS.has(p.name)) return false;
     return true;
   });
 
@@ -56,8 +44,7 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
   // Clean helpers — remove infrastructure and clean source
   const helpers = ir.helpers
     .filter((h) => {
-      const infraNames = new Set(['applyDisplayName', 'getBaseProps', 'checkSafeUrl']);
-      return !infraNames.has(h.name);
+      return !INFRA_FUNCTIONS.has(h.name);
     })
     .map((h) => ({
       ...h,
@@ -135,20 +122,6 @@ function cleanHandlerBody(body: string): string {
 // ---------------------------------------------------------------------------
 // Template cleanup
 // ---------------------------------------------------------------------------
-
-/** Attribute names to remove from template elements */
-const REMOVE_ATTRS = new Set([
-  'ref',
-  'componentName',
-  'nativeAttributes',
-  'nativeInputAttributes',
-  'nativeButtonAttributes',
-  'nativeAnchorAttributes',
-  'skipWarnings',
-]);
-
-/** Attribute name prefixes to remove */
-const REMOVE_ATTR_PREFIXES = ['__', 'data-analytics'];
 
 function cleanTemplate(node: TemplateNodeIR): TemplateNodeIR {
   // Remove Cloudscape-specific attributes

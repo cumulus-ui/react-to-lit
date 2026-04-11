@@ -9,6 +9,8 @@
  * Runs BEFORE IR extraction so all downstream code operates on JSX-free source.
  */
 import ts from 'typescript';
+import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES } from '../cloudscape-config.js';
+import { getBooleanAttributes } from '../standards.js';
 
 // ---------------------------------------------------------------------------
 // Component name mapping
@@ -79,15 +81,6 @@ const UNWRAP_COMPONENTS = new Set([
   'Suspense',
   'StrictMode',
 ]);
-
-/** Attributes to remove from output */
-const REMOVE_ATTRS = new Set([
-  'key', 'ref', 'nativeAttributes', 'nativeInputAttributes',
-  'nativeButtonAttributes', 'componentName', 'skipWarnings',
-]);
-
-/** Attributes that are Cloudscape infrastructure */
-const REMOVE_ATTR_PREFIXES = ['__', 'data-analytics'];
 
 // ---------------------------------------------------------------------------
 // The transformer factory
@@ -310,7 +303,7 @@ function emitAttribute(
     }
 
     // Boolean attributes
-    if (/^(disabled|checked|readOnly|readonly|required|hidden|indeterminate|open|multiple|selected)$/.test(litName)) {
+    if (getBooleanAttributes().has(litName)) {
       builder.appendStatic(` ?${litName}=`);
       builder.addExpression(visitedExpr);
       return;

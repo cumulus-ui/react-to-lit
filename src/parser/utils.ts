@@ -4,6 +4,7 @@
 import ts from 'typescript';
 import { getNodeText } from './program.js';
 import type { HandlerIR, HelperIR } from '../ir/types.js';
+import { INFRA_FUNCTIONS } from '../cloudscape-config.js';
 
 // ---------------------------------------------------------------------------
 // Handler extraction (event handlers defined in the function body)
@@ -173,13 +174,7 @@ function isSignificantFunction(fn: ts.ArrowFunction | ts.FunctionExpression): bo
 }
 
 function isCloudscapeInfraFunction(name: string): boolean {
-  const infraFunctions = new Set([
-    'applyDisplayName',
-    'getBaseProps',
-    'getAnalyticsMetadataProps',
-    'checkSafeUrl',
-  ]);
-  return infraFunctions.has(name);
+  return INFRA_FUNCTIONS.has(name);
 }
 
 /**

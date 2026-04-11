@@ -3,42 +3,17 @@
  *
  * Produces @property() and @state() declarations from PropIR and StateIR.
  */
-import { Project, ts } from 'ts-morph';
 import type { PropIR, StateIR, ControllerIR, ContextIR, ComputedIR, RefIR } from '../ir/types.js';
+import { getHtmlElementProps } from '../standards.js';
 
 // ---------------------------------------------------------------------------
 // Native DOM properties — queried from TypeScript's DOM lib, not hardcoded.
-//
-// Any property that exists on HTMLElement needs `override` when redeclared
-// on a LitElement subclass. We ask the compiler directly.
 // ---------------------------------------------------------------------------
-
-let _htmlElementProps: Set<string> | undefined;
-
-function getHtmlElementProps(): Set<string> {
-  if (_htmlElementProps) return _htmlElementProps;
-
-  const project = new Project({
-    compilerOptions: {
-      target: ts.ScriptTarget.ESNext,
-      lib: ['lib.dom.d.ts', 'lib.es2022.d.ts'],
-    },
-  });
-
-  const sf = project.createSourceFile('__dom.ts',
-    'const __el: HTMLElement = null as any;');
-  const decl = sf.getVariableDeclaration('__el')!;
-  const type = project.getTypeChecker().getTypeAtLocation(decl);
-
-  _htmlElementProps = new Set(type.getProperties().map(p => p.getName()));
-  project.removeSourceFile(sf);
-  return _htmlElementProps;
-}
 
 /**
  * Check if a prop needs `override` — i.e., it already exists on HTMLElement.
- * Only applies to simple types (string, boolean, number) — complex types
- * like `ariaLabels: { ... }` are component-specific, not native.
+ * Only applies when the prop is an attribute (not property-only with attribute: false),
+ * since property-only bindings don't conflict with DOM reflections.
  */
 function needsOverride(prop: PropIR): boolean {
   if (prop.category === 'property' && prop.attribute === false) return false;

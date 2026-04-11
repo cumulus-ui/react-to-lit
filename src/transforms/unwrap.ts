@@ -5,6 +5,7 @@
  * This transform replaces the wrapper with a plain element using the tag prop value.
  */
 import type { TemplateNodeIR, AttributeIR } from '../ir/types.js';
+import { REMOVE_ATTRS } from '../cloudscape-config.js';
 
 // ---------------------------------------------------------------------------
 // Main transform
@@ -48,10 +49,7 @@ function unwrapNode(node: TemplateNodeIR): TemplateNodeIR {
     : 'div';
 
   // Filter out WithNativeAttributes-specific props
-  const skipAttrs = new Set([
-    'tag', 'componentName', 'nativeAttributes', 'ref',
-    'skipWarnings', '__internalRootRef',
-  ]);
+  const skipAttrs = new Set([...REMOVE_ATTRS, 'tag']);
 
   const keptAttrs: AttributeIR[] = [];
   for (const attr of node.attributes) {
