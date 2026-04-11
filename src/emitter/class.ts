@@ -34,8 +34,11 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   sections.push(`const hostStyles = css\`:host { display: block; }\`;`);
   sections.push('');
 
-  // --- Helpers ---
-  for (const helper of ir.helpers) {
+  // --- Helpers (utility only — render helpers go inside the class) ---
+  const utilityHelpers = ir.helpers.filter(h => !isRenderHelper(h.source));
+  const renderHelpers = ir.helpers.filter(h => isRenderHelper(h.source));
+
+  for (const helper of utilityHelpers) {
     sections.push(helper.source);
     sections.push('');
   }
@@ -104,6 +107,13 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
     sections.push(handlerCode);
   }
 
+  // --- Render helpers (as private methods) ---
+  for (const helper of renderHelpers) {
+    const method = convertToPrivateMethod(helper.source);
+    sections.push(method);
+    sections.push('');
+  }
+
   // --- Render method ---
   const renderCode = emitRenderMethod(ir.template, collector);
 
@@ -124,6 +134,296 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
 
   // Final text-based cleanup for any remaining React patterns
   return postProcessOutput(raw);
+}
+
+// ---------------------------------------------------------------------------
+// Render helper detection and conversion
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if a helper function contains template rendering (html`` tagged templates).
+ */
+function isRenderHelper(source: string): boolean {
+  return source.includes('html`') || source.includes('html `');
+}
+
+/**
+ * Convert a standalone function to a private class method.
+ *
+ * Uses brace-counting to robustly find the function body, handling complex
+ * TypeScript signatures with generics, destructuring, and default values.
+ */
+function convertToPrivateMethod(source: string): string {
+  // Strip export/export default
+  let s = source.replace(/^\s*export\s+default\s+/, '').replace(/^\s*export\s+/, '');
+
+  // Extract function name
+  let name: string | undefined;
+
+  // Pattern: function NAME<...>(...) { ... }
+  const funcNameMatch = s.match(/^function\s+([a-zA-Z_$][\w$]*)/);
+  if (funcNameMatch) {
+    name = funcNameMatch[1];
+    const methodName = toPrivateMethodName(name);
+
+    // Find the first '{' that starts the function body (brace-counted)
+    const bodyStart = findFunctionBodyStart(s, funcNameMatch[0].length);
+    if (bodyStart >= 0) {
+      // Extract params: everything between the first '(' and its matching ')' after the name
+      const paramsStart = s.indexOf('(', funcNameMatch[0].length);
+      const paramsEnd = findMatchingParen(s, paramsStart);
+      const params = paramsStart >= 0 && paramsEnd >= 0
+        ? s.slice(paramsStart + 1, paramsEnd)
+        : '';
+      const body = s.slice(bodyStart);
+      return `  private ${methodName}(${params}) ${body.replace(/\s*$/, '')}`;
+    }
+  }
+
+  // Pattern: const NAME = ... (arrow function or other)
+  const constNameMatch = s.match(/^(?:const|let|var)\s+([a-zA-Z_$][\w$]*)/);
+  if (constNameMatch) {
+    name = constNameMatch[1];
+    const methodName = toPrivateMethodName(name);
+
+    // Find the assignment '=' (not ==, ===, =>, !=, <=, >=)
+    // This separates the type annotation from the value
+    const assignIdx = findAssignmentOperator(s, constNameMatch[0].length);
+
+    if (assignIdx >= 0) {
+      const valueStr = s.slice(assignIdx + 1).trimStart();
+
+      // Check if the value is an arrow function
+      const arrowIdx = findArrowOperator(valueStr);
+      if (arrowIdx >= 0) {
+        // Extract params: find the '(' before '=>', then its matching ')'
+        const paramsEnd = findLastParenBefore(valueStr, arrowIdx);
+        const paramsStart = paramsEnd >= 0 ? findMatchingParenReverse(valueStr, paramsEnd) : -1;
+        let params: string;
+        if (paramsStart >= 0 && paramsEnd >= 0) {
+          params = valueStr.slice(paramsStart + 1, paramsEnd);
+        } else {
+          // Single param without parens: size => ...
+          const singleParam = valueStr.slice(0, arrowIdx).trim();
+          params = singleParam;
+        }
+
+        const afterArrow = valueStr.slice(arrowIdx + 2).trimStart();
+        if (afterArrow.startsWith('{')) {
+          // Arrow with block body: => { ... }
+          const body = afterArrow.replace(/;?\s*$/, '');
+          return `  private ${methodName}(${params}) ${body}`;
+        } else {
+          // Arrow with expression body: => expr
+          const expr = afterArrow.replace(/;?\s*$/, '');
+          return `  private ${methodName}(${params}) { return ${expr}; }`;
+        }
+      }
+
+      // Non-function const with html`` (e.g. object literal)
+      const value = valueStr.replace(/;?\s*$/, '');
+      return `  private get ${methodName}() { return ${value}; }`;
+    }
+  }
+
+  // Fallback: emit as-is with a comment (indented for class body)
+  return `  // TODO: convert render helper to private method\n  ${s.replace(/\n/g, '\n  ')}`;
+}
+
+/**
+ * Find the opening '{' of a function body, skipping generics and params.
+ * Returns the index of '{' or -1.
+ */
+function findFunctionBodyStart(s: string, startIdx: number): number {
+  let depth = 0; // tracks <>, (), []
+  let parenDepth = 0;
+  let angleDepth = 0;
+  let inString = false;
+  let stringChar = '';
+
+  for (let i = startIdx; i < s.length; i++) {
+    const ch = s[i];
+    const prev = i > 0 ? s[i - 1] : '';
+
+    if (inString) {
+      if (ch === stringChar && prev !== '\\') inString = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      inString = true;
+      stringChar = ch;
+      continue;
+    }
+
+    if (ch === '(') parenDepth++;
+    else if (ch === ')') parenDepth--;
+    else if (ch === '<') angleDepth++;
+    else if (ch === '>') angleDepth = Math.max(0, angleDepth - 1);
+
+    if (ch === '{' && parenDepth === 0 && angleDepth === 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Find the matching closing ')' for a '(' at the given index.
+ * Handles nested parens and strings.
+ */
+function findMatchingParen(s: string, openIdx: number): number {
+  if (openIdx < 0 || s[openIdx] !== '(') return -1;
+  let depth = 0;
+  let inString = false;
+  let stringChar = '';
+
+  for (let i = openIdx; i < s.length; i++) {
+    const ch = s[i];
+    const prev = i > 0 ? s[i - 1] : '';
+
+    if (inString) {
+      if (ch === stringChar && prev !== '\\') inString = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      inString = true;
+      stringChar = ch;
+      continue;
+    }
+
+    if (ch === '(') depth++;
+    else if (ch === ')') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Find the assignment '=' operator in a const/let/var declaration,
+ * skipping type annotations, strings, and nested structures.
+ * Does NOT match ==, ===, =>, !=, <=, >=.
+ */
+function findAssignmentOperator(s: string, startIdx: number): number {
+  let inString = false;
+  let stringChar = '';
+  let parenDepth = 0;
+  let angleDepth = 0;
+
+  for (let i = startIdx; i < s.length; i++) {
+    const ch = s[i];
+    const prev = i > 0 ? s[i - 1] : '';
+    const next = i < s.length - 1 ? s[i + 1] : '';
+
+    if (inString) {
+      if (ch === stringChar && prev !== '\\') inString = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      inString = true;
+      stringChar = ch;
+      continue;
+    }
+
+    if (ch === '(') parenDepth++;
+    else if (ch === ')') parenDepth--;
+    else if (ch === '<') angleDepth++;
+    else if (ch === '>') angleDepth = Math.max(0, angleDepth - 1);
+
+    // Match '=' that is NOT part of ==, ===, =>, !=, <=, >=
+    if (ch === '=' && parenDepth === 0 && angleDepth === 0) {
+      if (next === '=' || next === '>') continue; // ==, ===, =>
+      if (prev === '!' || prev === '<' || prev === '>') continue; // !=, <=, >=
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Find the '=>' operator in a string, skipping strings and nested structures.
+ */
+function findArrowOperator(s: string): number {
+  let inString = false;
+  let stringChar = '';
+  let parenDepth = 0;
+  let braceDepth = 0;
+
+  for (let i = 0; i < s.length - 1; i++) {
+    const ch = s[i];
+    const prev = i > 0 ? s[i - 1] : '';
+
+    if (inString) {
+      if (ch === stringChar && prev !== '\\') inString = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      inString = true;
+      stringChar = ch;
+      continue;
+    }
+
+    if (ch === '(') parenDepth++;
+    else if (ch === ')') parenDepth--;
+    else if (ch === '{') braceDepth++;
+    else if (ch === '}') braceDepth--;
+
+    // Only match '=>' at the top level (not inside parens or braces)
+    // but we DO want to match after the main params paren closes
+    if (ch === '=' && s[i + 1] === '>' && parenDepth === 0 && braceDepth === 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Find the last ')' before the given index.
+ */
+function findLastParenBefore(s: string, beforeIdx: number): number {
+  for (let i = beforeIdx - 1; i >= 0; i--) {
+    if (s[i] === ')') return i;
+  }
+  return -1;
+}
+
+/**
+ * Find the matching '(' for a ')' at the given index, scanning backwards.
+ */
+function findMatchingParenReverse(s: string, closeIdx: number): number {
+  if (closeIdx < 0 || s[closeIdx] !== ')') return -1;
+  let depth = 0;
+  // Simple reverse scan — doesn't handle strings but good enough for param lists
+  for (let i = closeIdx; i >= 0; i--) {
+    if (s[i] === ')') depth++;
+    else if (s[i] === '(') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Convert a function name to a private method name.
+ * - "renderFoo" → "_renderFoo"
+ * - "Foo" → "_renderFoo"
+ * - "fooBar" → "_fooBar"
+ */
+function toPrivateMethodName(name: string): string {
+  // Already starts with underscore
+  if (name.startsWith('_')) return name;
+  // PascalCase (starts with uppercase) → _renderFoo
+  if (/^[A-Z]/.test(name)) {
+    return `_render${name}`;
+  }
+  // Already starts with "render"
+  if (name.startsWith('render')) {
+    return `_${name}`;
+  }
+  // camelCase → _camelCase
+  return `_${name}`;
 }
 
 // ---------------------------------------------------------------------------

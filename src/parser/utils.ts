@@ -69,8 +69,9 @@ export function extractHandlers(
 
 /**
  * Extract top-level helper functions that are not the main component.
- * Only extracts PURE utility functions (no JSX). Functions containing
- * JSX are React sub-components that need separate transpilation.
+ * Includes both utility functions and render helpers (functions with html`` templates).
+ * The JSX pre-transform has already converted JSX to html`` tagged templates before
+ * this runs. Only functions with unconverted JSX (no html``) are still filtered out.
  */
 export function extractHelpers(
   sourceFile: ts.SourceFile,
@@ -85,10 +86,18 @@ export function extractHelpers(
       if (name === componentFunctionName) continue;
       if (name === 'default') continue;
       if (isCloudscapeInfraFunction(name)) continue;
+      if (isComponentImplementation(name, componentFunctionName)) continue;
+
+      // Skip default exports (the main component is often export default function InternalXxx)
+      const isDefaultExport = stmt.modifiers?.some(
+        m => m.kind === ts.SyntaxKind.DefaultKeyword,
+      );
+      if (isDefaultExport) continue;
 
       const source = getNodeText(stmt, sourceFile);
-      // Skip functions containing JSX — they're sub-components
-      if (containsJSX(source)) continue;
+      // Allow all helpers through — JSX pre-transform has already converted JSX to html``
+      // Any remaining React patterns will be cleaned up by post-processing
+      if (containsJSX(source) && !source.includes('html`') && !source.includes('html `')) continue;
 
       helpers.push({ name, source });
     }
@@ -100,6 +109,7 @@ export function extractHelpers(
         const name = decl.name.text;
         if (name === componentFunctionName) continue;
         if (isCloudscapeInfraFunction(name)) continue;
+        if (isComponentImplementation(name, componentFunctionName)) continue;
 
         if (
           ts.isArrowFunction(decl.initializer) ||
@@ -107,8 +117,9 @@ export function extractHelpers(
           ts.isObjectLiteralExpression(decl.initializer)
         ) {
           const source = getNodeText(stmt, sourceFile);
-          // Skip functions containing JSX
-          if (containsJSX(source)) continue;
+          // Allow all helpers through — JSX pre-transform has already converted JSX to html``
+          // Any remaining React patterns will be cleaned up by post-processing
+          if (containsJSX(source) && !source.includes('html`') && !source.includes('html `')) continue;
 
           helpers.push({ name, source });
         }
@@ -169,6 +180,18 @@ function isCloudscapeInfraFunction(name: string): boolean {
     'checkSafeUrl',
   ]);
   return infraFunctions.has(name);
+}
+
+/**
+ * Check if a function name looks like the main component implementation.
+ * Matches patterns like:
+ * - InternalXxx for component Xxx
+ * - XxxImplementation for component Xxx
+ */
+function isComponentImplementation(name: string, componentName: string): boolean {
+  if (name === `Internal${componentName}`) return true;
+  if (name === `${componentName}Implementation`) return true;
+  return false;
 }
 
 // ---------------------------------------------------------------------------
