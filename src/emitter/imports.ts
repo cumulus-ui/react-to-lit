@@ -129,6 +129,9 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   if (ir.state.length > 0) {
     collector.addDecorator('state');
   }
+  if (ir.refs.some((r) => r.isDom)) {
+    collector.addDecorator('query');
+  }
 
   // nothing (for conditional rendering)
   if (hasConditionalRendering(ir.template)) {
@@ -144,7 +147,7 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   }
 
   // ifDefined directive
-  if (hasIfDefined(ir.template)) {
+  if (hasIfDefined(ir.template) || hasIfDefinedInCodeBodies(ir)) {
     collector.addDirective('lit/directives/if-defined.js', 'ifDefined');
   }
 
@@ -241,7 +244,28 @@ function hasClassMapInCodeBodies(ir: ComponentIR): boolean {
 }
 
 function hasIfDefined(node: import('../ir/types.js').TemplateNodeIR): boolean {
-  // TODO: detect ifDefined usage in attribute expressions
+  for (const attr of node.attributes) {
+    if (typeof attr.value === 'object' && attr.value.expression.includes('ifDefined(')) return true;
+    if (typeof attr.value === 'string' && attr.value.includes('ifDefined(')) return true;
+  }
+  if (node.expression && node.expression.includes('ifDefined(')) return true;
+  for (const child of node.children) {
+    if (hasIfDefined(child)) return true;
+  }
+  return false;
+}
+
+function hasIfDefinedInCodeBodies(ir: ComponentIR): boolean {
+  const check = (text: string) => text.includes('ifDefined(');
+  for (const h of ir.handlers) { if (check(h.body)) return true; }
+  for (const e of ir.effects) {
+    if (check(e.body)) return true;
+    if (e.cleanup && check(e.cleanup)) return true;
+  }
+  for (const h of ir.helpers) { if (check(h.source)) return true; }
+  for (const s of ir.bodyPreamble) { if (check(s)) return true; }
+  for (const m of ir.publicMethods) { if (check(m.body)) return true; }
+  for (const c of ir.computedValues) { if (check(c.expression)) return true; }
   return false;
 }
 

@@ -88,7 +88,7 @@ export function parseComponent(
 
   // 4. Extract props
   const sourceFile = component.sourceFile;
-  const props = extractProps(component, sourceFile);
+  const props = extractProps(component, sourceFile, componentDir);
 
   // 5. Extract hooks from the implementation body
   const hookResult = ts.isBlock(component.body)

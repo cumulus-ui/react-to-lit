@@ -3,7 +3,7 @@
  *
  * Produces @property() and @state() declarations from PropIR and StateIR.
  */
-import type { PropIR, StateIR, ControllerIR, ContextIR, ComputedIR } from '../ir/types.js';
+import type { PropIR, StateIR, ControllerIR, ContextIR, ComputedIR, RefIR } from '../ir/types.js';
 
 // ---------------------------------------------------------------------------
 // HTML element built-in properties that need 'override'
@@ -165,4 +165,30 @@ function getTypeAnnotation(prop: PropIR): string {
     default:
       return prop.type && prop.type !== 'unknown' ? `: ${prop.type}` : '';
   }
+}
+
+// ---------------------------------------------------------------------------
+// Ref emission
+// ---------------------------------------------------------------------------
+
+export function emitRefs(refs: RefIR[]): string {
+  const lines: string[] = [];
+
+  for (const ref of refs) {
+    if (ref.isDom) {
+      const selectorId = camelToKebab(ref.name.replace(/Ref$/, ''));
+      const type = ref.type || 'HTMLElement';
+      lines.push(`  @query('#${selectorId}') private _${ref.name}!: ${type};`);
+    } else {
+      const type = ref.type ? `: { current: ${ref.type} | null }` : '';
+      lines.push(`  private _${ref.name}${type} = { current: ${ref.initialValue} };`);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+function camelToKebab(str: string): string {
+  return str.replace(/([A-Z])/g, '-$1').toLowerCase();
 }

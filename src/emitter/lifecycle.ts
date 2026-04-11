@@ -27,9 +27,11 @@ export function emitLifecycle(effects: EffectIR[]): string {
 
   // Group effects by kind
   const mountEffects = uniqueEffects.filter((e) => e.deps === 'empty' && !e.isLayout);
+  const layoutMountEffects = uniqueEffects.filter((e) => e.isLayout && e.deps === 'empty');
   const everyRenderEffects = uniqueEffects.filter((e) => e.deps === 'none');
-  const depEffects = uniqueEffects.filter((e) => Array.isArray(e.deps));
-  const layoutEffects = uniqueEffects.filter((e) => e.isLayout);
+  const depEffects = uniqueEffects.filter((e) => Array.isArray(e.deps) && !e.isLayout);
+  const layoutDepEffects = uniqueEffects.filter((e) => e.isLayout && Array.isArray(e.deps));
+  const layoutNoDepsEffects = uniqueEffects.filter((e) => e.isLayout && e.deps === 'none');
   const cleanupEffects = uniqueEffects.filter((e) => e.cleanup);
 
   // connectedCallback — mount-only effects
@@ -38,6 +40,22 @@ export function emitLifecycle(effects: EffectIR[]): string {
     lines.push('    super.connectedCallback();');
     for (const effect of mountEffects) {
       if (mountEffects.length > 1) {
+        lines.push('    {');
+        lines.push(indentBody(effect.body, 6));
+        lines.push('    }');
+      } else {
+        lines.push(indentBody(effect.body, 4));
+      }
+    }
+    lines.push('  }');
+    lines.push('');
+  }
+
+  // firstUpdated — layout mount effects (isLayout + empty deps)
+  if (layoutMountEffects.length > 0) {
+    lines.push('  override firstUpdated(): void {');
+    for (const effect of layoutMountEffects) {
+      if (layoutMountEffects.length > 1) {
         lines.push('    {');
         lines.push(indentBody(effect.body, 6));
         lines.push('    }');
@@ -62,10 +80,11 @@ export function emitLifecycle(effects: EffectIR[]): string {
   }
 
   // willUpdate — dependency-tracked effects
-  if (depEffects.length > 0) {
+  const allDepEffects = [...depEffects, ...layoutDepEffects];
+  if (allDepEffects.length > 0) {
     lines.push('  override willUpdate(changed: PropertyValues): void {');
     lines.push('    super.willUpdate(changed);');
-    for (const effect of depEffects) {
+    for (const effect of allDepEffects) {
       const deps = effect.deps as string[];
       const condition = deps
         .map((d) => `changed.has('${d}')`)
@@ -78,12 +97,11 @@ export function emitLifecycle(effects: EffectIR[]): string {
     lines.push('');
   }
 
-  // updated — every-render effects and layout effects
-  const updatedEffects = [...everyRenderEffects, ...layoutEffects];
+  // updated — every-render effects and layout effects without deps
+  const updatedEffects = [...everyRenderEffects, ...layoutNoDepsEffects];
   if (updatedEffects.length > 0) {
     lines.push('  override updated(): void {');
     for (const effect of updatedEffects) {
-      // Wrap each effect in a block scope to avoid variable name collisions
       if (updatedEffects.length > 1) {
         lines.push('    {');
         lines.push(indentBody(effect.body, 6));

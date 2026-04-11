@@ -6,7 +6,7 @@
  */
 import type { ComponentIR } from '../ir/types.js';
 import { collectImports } from './imports.js';
-import { emitProperties, emitState, emitControllers, emitContexts, emitComputed } from './properties.js';
+import { emitProperties, emitState, emitControllers, emitContexts, emitComputed, emitRefs } from './properties.js';
 import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
@@ -75,6 +75,12 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   const stateCode = emitState(ir.state);
   if (stateCode.trim()) {
     sections.push(stateCode);
+  }
+
+  // --- Refs ---
+  const refsCode = emitRefs(ir.refs);
+  if (refsCode.trim()) {
+    sections.push(refsCode);
   }
 
   // --- Controllers ---
