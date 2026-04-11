@@ -315,13 +315,16 @@ function isNumberProp(defaultValue?: string): boolean {
   return /^-?\d+(\.\d+)?$/.test(defaultValue);
 }
 
-function isCancelableEventType(_typeText: string): boolean {
-  // Will be refined when we have full type resolution
-  return false;
+function isCancelableEventType(typeText: string): boolean {
+  return typeText.includes('CancelableEventHandler')
+    && !typeText.includes('NonCancelableEventHandler');
 }
 
-function extractEventDetailType(_typeText: string): string | undefined {
-  return undefined;
+function extractEventDetailType(typeText: string): string | undefined {
+  // NonCancelableEventHandler<AlertProps.ChangeDetail> → AlertProps.ChangeDetail
+  // CancelableEventHandler<BaseKeyDetail> → BaseKeyDetail
+  const match = typeText.match(/(?:Non)?CancelableEventHandler<(.+?)>/);
+  return match?.[1] || undefined;
 }
 
 function shouldSkipProp(name: string): boolean {
