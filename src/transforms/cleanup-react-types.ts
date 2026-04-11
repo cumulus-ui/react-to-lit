@@ -81,6 +81,7 @@ export function cleanupReactTypes(ir: ComponentIR): ComponentIR {
     ...ir,
     handlers: ir.handlers.map(h => ({
       ...h,
+      params: replaceReactTypes(h.params),
       body: replaceReactTypes(h.body),
       returnType: h.returnType ? replaceReactTypes(h.returnType) : undefined,
     })),
