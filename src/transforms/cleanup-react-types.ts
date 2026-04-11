@@ -32,10 +32,18 @@ const REACT_EXCEPTIONS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 function replaceReactTypes(text: string): string {
-  if (!text.includes('React.')) return text;
+  let result = text;
+
+  // Bare React hooks in helper bodies → web equivalent
+  // useRef<T>(value) → { current: value }
+  if (result.includes('useRef')) {
+    result = result.replace(/useRef<[^>]*>\(([^)]*)\)/g, '{ current: $1 }');
+    result = result.replace(/useRef\(([^)]*)\)/g, '{ current: $1 }');
+  }
+
+  if (!result.includes('React.')) return result;
 
   const domGlobals = getGlobalNames();
-  let result = text;
 
   // 1. Apply explicit exceptions first
   for (const [from, to] of Object.entries(REACT_EXCEPTIONS)) {

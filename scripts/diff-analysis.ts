@@ -125,10 +125,11 @@ function analyzeComponent(componentName: string): AnalysisResult {
     }
     if (ir.props.some((p) => p.category === 'event') && !result.stats.hasEventDispatch) {
       // Only warn if the component has no child elements that could
-      // dispatch events on its behalf (custom elements or native form elements)
+      // dispatch events on its behalf
       const hasChildComponents = /<cs-[\w-]+/.test(output);
       const hasNativeFormElements = /<(input|textarea|select|button)\b/.test(output);
-      if (!hasChildComponents && !hasNativeFormElements) {
+      const hasQueryDecorators = /@query\(/.test(output);
+      if (!hasChildComponents && !hasNativeFormElements && !hasQueryDecorators) {
         result.warnings.push('Event props parsed but no event dispatch emitted');
       }
     }
