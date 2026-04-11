@@ -14,7 +14,7 @@
  *
  * Scans all code: handlers, effects, helpers, and template expressions.
  */
-import type { ComponentIR, HandlerIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
+import type { ComponentIR, TemplateNodeIR } from '../ir/types.js';
 import { toCustomEventName, escapeRegex } from '../naming.js';
 import { walkTemplate } from '../template-walker.js';
 

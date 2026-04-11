@@ -5,7 +5,7 @@
  * a deduplicated, sorted import block.
  */
 import type { ComponentIR } from '../ir/types.js';
-import { someInTemplate, templateHasExpression } from '../template-walker.js';
+import { someInTemplate } from '../template-walker.js';
 
 // ---------------------------------------------------------------------------
 // Import collector
