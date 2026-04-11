@@ -8,7 +8,7 @@
  *   - function: (node) => TemplateNodeIR — full template replacement
  */
 import type { TemplateNodeIR, AttributeIR } from '../ir/types.js';
-import { toTagName } from '../naming.js';
+
 
 // ---------------------------------------------------------------------------
 // Registry types
@@ -150,59 +150,6 @@ function buildAbstractSwitch(node: TemplateNodeIR): TemplateNodeIR {
 // ---------------------------------------------------------------------------
 
 export const cloudscapeComponentRegistry: ComponentRegistry = {
-  // Core components — simple tag mapping
-  'InternalIcon': toTagName('Icon'),
-  'Icon': toTagName('Icon'),
-  'InternalSpinner': toTagName('Spinner'),
-  'Spinner': toTagName('Spinner'),
-  'InternalButton': toTagName('Button'),
-  'Button': toTagName('Button'),
-  'InternalInput': toTagName('Input'),
-  'Input': toTagName('Input'),
-  'InternalCheckbox': toTagName('Checkbox'),
-  'Checkbox': toTagName('Checkbox'),
-  'InternalStatusIndicator': toTagName('StatusIndicator'),
-  'StatusIndicator': toTagName('StatusIndicator'),
-  'InternalLink': toTagName('Link'),
-  'Link': toTagName('Link'),
-  'InternalAlert': toTagName('Alert'),
-  'Alert': toTagName('Alert'),
-  'InternalLiveRegion': toTagName('LiveRegion'),
-  'LiveRegion': toTagName('LiveRegion'),
-  'Tooltip': toTagName('Tooltip'),
-  'InternalStatusIcon': toTagName('StatusIcon'),
-  'CheckboxIcon': toTagName('CheckboxIcon'),
-  'InternalBox': toTagName('Box'),
-  'InternalHeader': toTagName('Header'),
-  'InternalSelect': toTagName('Select'),
-  'InternalAutosuggest': toTagName('Autosuggest'),
-  'InternalMultiselect': toTagName('Multiselect'),
-  'InternalTokenGroup': toTagName('TokenGroup'),
-  'InternalFileDropzone': toTagName('FileDropzone'),
-  'InternalFormField': toTagName('FormField'),
-  'InternalExpandableSection': toTagName('ExpandableSection'),
-  'InternalColumnLayout': toTagName('ColumnLayout'),
-  'InternalTextarea': toTagName('Textarea'),
-  'InternalDateInput': toTagName('DateInput'),
-  'InternalTimeInput': toTagName('TimeInput'),
-  'InternalPopover': toTagName('Popover'),
-  'InternalToggle': toTagName('Toggle'),
-  'InternalRadioGroup': toTagName('RadioGroup'),
-  'InternalBreadcrumbGroup': toTagName('BreadcrumbGroup'),
-  'InternalCalendar': toTagName('Calendar'),
-  'InternalButtonDropdown': toTagName('ButtonDropdown'),
-  'InternalSpaceBetween': toTagName('SpaceBetween'),
-  'InternalTable': toTagName('Table'),
-  'InternalCards': toTagName('Cards'),
-  'InternalContainer': toTagName('Container'),
-  'InternalContainerAsSubstep': toTagName('Container'),
-  'InternalItemCard': toTagName('ItemCard'),
-  'InternalGrid': toTagName('Grid'),
-  'InternalTabs': toTagName('Tabs'),
-  'InternalPagination': toTagName('Pagination'),
-  'ToggleIcon': toTagName('ToggleIcon'),
-  'RadioIcon': toTagName('RadioIcon'),
-
   // Template replacements — function-based
   'AbstractSwitch': buildAbstractSwitch,
 
