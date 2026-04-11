@@ -10,6 +10,7 @@ import { transformEvents } from './events.js';
 import { rewriteIdentifiers } from './identifiers.js';
 import { resolveComponentReferences, type ComponentRegistry, cloudscapeComponentRegistry } from './components.js';
 import { removeCloudscapeInternals } from './cleanup.js';
+import { cleanupReactTypes } from './cleanup-react-types.js';
 import { transformSlots } from './slots.js';
 
 // ---------------------------------------------------------------------------
@@ -47,6 +48,9 @@ export function transformAll(
 
   // 1. Remove Cloudscape internals
   result = removeCloudscapeInternals(result);
+
+  // 1b. Replace React types with web platform equivalents
+  result = cleanupReactTypes(result);
 
   // 2. Unwrap WithNativeAttributes
   result = { ...result, template: unwrapWithNativeAttributes(result.template) };
@@ -94,4 +98,5 @@ export { rewriteIdentifiers } from './identifiers.js';
 export { resolveComponentReferences, cloudscapeComponentRegistry } from './components.js';
 export type { ComponentRegistry } from './components.js';
 export { removeCloudscapeInternals } from './cleanup.js';
+export { cleanupReactTypes } from './cleanup-react-types.js';
 export { transformSlots } from './slots.js';
