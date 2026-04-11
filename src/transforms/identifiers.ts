@@ -34,9 +34,9 @@ interface MemberMapping {
 function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
   const map = new Map<string, MemberMapping>();
 
-  // Props → this.propName
+  // Props → this.propName (including slots — they're still class members)
   for (const p of ir.props) {
-    if (p.category === 'slot' || p.category === 'event') continue;
+    if (p.category === 'event') continue; // event props are callbacks, not class members
     map.set(p.name, { member: p.name });
   }
 
