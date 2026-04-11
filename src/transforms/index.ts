@@ -71,8 +71,8 @@ export function transformAll(
   // 4. Slot detection
   result = transformSlots(result);
 
-  // 5. clsx → classMap
-  result = { ...result, template: transformClsx(result.template) };
+  // 5. clsx → classMap (template attributes + all IR text fields)
+  result = transformClsx(result);
 
   // 6. Event callbacks → CustomEvent dispatch
   result = transformEvents(result);

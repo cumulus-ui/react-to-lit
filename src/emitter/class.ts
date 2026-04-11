@@ -173,20 +173,14 @@ function postProcessOutput(output: string): string {
   // --- className → class ---
   result = result.replace(/\bclassName=/g, 'class=');
 
-  // className={clsx(...)} → class=${classMap(...)}
-  result = result.replace(/class=\{clsx\(([^)]*)\)\}/g, (_, args) => {
-    return `class=\${classMap(${convertClsxArgs(args)})}`;
-  });
-
-  // --- Clean up classMap objects ---
-  // Remove comment-only entries: { /* comment */, 'foo': true } → { 'foo': true }
+  // --- Clean up classMap objects (comment-only entries from transform) ---
   result = result.replace(/\/\*[^*]*\*\/\s*,?\s*/g, (match, offset) => {
-    const before = result.slice(Math.max(0, offset - 50), offset);
+    const before = result.slice(Math.max(0, offset - 200), offset);
     if (before.includes('classMap(') || before.includes("': ")) return '';
     return match;
   });
-  // Remove leading/trailing commas in objects: { , 'foo': true } → { 'foo': true }
   result = result.replace(/\{\s*,/g, '{');
+  result = result.replace(/,\s*,/g, ',');
   result = result.replace(/,\s*\}/g, ' }');
 
   // --- Convert remaining JSX in output to Lit syntax ---
@@ -227,63 +221,11 @@ function postProcessOutput(output: string): string {
   // component registry in the template IR. We do NOT convert in post-processing
   // because it would break raw JSX in helper function bodies.
 
-  // --- Convert styles.xxx to plain class names (only in code, not imports) ---
-  // Split into import section and code section to avoid mangling import paths
-  const importEnd = result.lastIndexOf("import ");
-  const importEndLine = result.indexOf('\n', result.indexOf(';', importEnd));
-  if (importEndLine > 0) {
-    const importSection = result.slice(0, importEndLine + 1);
-    let codeSection = result.slice(importEndLine + 1);
-    codeSection = codeSection.replace(/\bstyles\.(\w+)\b/g, "'$1'");
-    codeSection = codeSection.replace(/\bstyles\['([^']+)'\]/g, "'$1'");
-    codeSection = codeSection.replace(/\bstyles\["([^"]+)"\]/g, "'$1'");
-    // Preserve template literals: styles[`foo-${bar}`] → `foo-${bar}`
-    codeSection = codeSection.replace(/\bstyles\[(`[^`]+`)\]/g, '$1');
-    // Fix any single-quoted strings that contain ${} → backtick template literals
-    codeSection = codeSection.replace(/'([^']*\$\{[^']*)'(?=\s*[:\]}),])/g, '`$1`');
-    result = importSection + codeSection;
-  }
 
   // Clean up empty lines
   result = result.replace(/\n{3,}/g, '\n\n');
 
   return result;
-}
-
-/**
- * Simple clsx args → classMap object conversion for text-level cleanup.
- */
-function convertClsxArgs(args: string): string {
-  // If it's already an object literal, return as-is
-  if (args.trim().startsWith('{')) return args;
-
-  const parts = args.split(',').map(p => p.trim()).filter(Boolean);
-  const entries: string[] = [];
-
-  for (const part of parts) {
-    // styles.foo → 'foo': true
-    const dotMatch = part.match(/^styles\.(\w+)$/);
-    if (dotMatch) {
-      entries.push(`'${dotMatch[1]}': true`);
-      continue;
-    }
-    // styles['foo'] → 'foo': true
-    const bracketMatch = part.match(/^styles\['([^']+)'\]$/);
-    if (bracketMatch) {
-      entries.push(`'${bracketMatch[1]}': true`);
-      continue;
-    }
-    // condition && styles.foo → 'foo': condition
-    const condMatch = part.match(/^(.+?)\s*&&\s*styles[.[]'?(\w+)'?\]?$/);
-    if (condMatch) {
-      entries.push(`'${condMatch[2]}': ${condMatch[1]}`);
-      continue;
-    }
-    // Pass through anything else
-    entries.push(`/* ${part} */`);
-  }
-
-  return `{ ${entries.join(', ')} }`;
 }
 
 /**

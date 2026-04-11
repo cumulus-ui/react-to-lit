@@ -6,44 +6,96 @@
  *
  * Input:  clsx(styles.root, styles[`size-${size}`], { [styles.disabled]: isDisabled })
  * Output: { 'root': true, [`size-${this.size}`]: true, 'disabled': this.isDisabled }
+ *
+ * Processes BOTH template attributes AND all IR text fields (handler bodies,
+ * effect bodies, helpers, bodyPreamble, publicMethods, computed expressions).
  */
-import type { TemplateNodeIR, AttributeIR } from '../ir/types.js';
+import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
 
 // ---------------------------------------------------------------------------
-// Main transform
+// Main transform — accepts full ComponentIR
+// ---------------------------------------------------------------------------
+
+/**
+ * Transform clsx expressions and styles.xxx references across the entire IR.
+ *
+ * 1. Template attributes: clsx → classMap object (existing behavior)
+ * 2. All IR text fields: clsx() calls → classMap() calls, styles.xxx → 'xxx'
+ */
+export function transformClsx(ir: ComponentIR): ComponentIR {
+  return {
+    ...ir,
+    // Template tree — existing attribute-level conversion
+    template: transformClsxInTemplate(ir.template),
+    // Handler bodies
+    handlers: ir.handlers.map((h) => ({
+      ...h,
+      body: replaceClsxAndStylesInText(h.body),
+    })),
+    // Effect bodies and cleanup
+    effects: ir.effects.map((e) => ({
+      ...e,
+      body: replaceClsxAndStylesInText(e.body),
+      cleanup: e.cleanup ? replaceClsxAndStylesInText(e.cleanup) : e.cleanup,
+    })),
+    // Helper function sources
+    helpers: ir.helpers.map((h) => ({
+      ...h,
+      source: replaceClsxAndStylesInText(h.source),
+    })),
+    // Body preamble statements
+    bodyPreamble: ir.bodyPreamble.map(replaceClsxAndStylesInText),
+    // Public method bodies
+    publicMethods: ir.publicMethods.map((m) => ({
+      ...m,
+      body: replaceClsxAndStylesInText(m.body),
+    })),
+    // Computed value expressions
+    computedValues: ir.computedValues.map((c) => ({
+      ...c,
+      expression: replaceClsxAndStylesInText(c.expression),
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Template tree transform (existing behavior, renamed)
 // ---------------------------------------------------------------------------
 
 /**
  * Transform className attributes in the template tree,
  * converting clsx expressions to classMap-compatible expressions.
  */
-export function transformClsx(node: TemplateNodeIR): TemplateNodeIR {
+function transformClsxInTemplate(node: TemplateNodeIR): TemplateNodeIR {
   const transformedAttrs = node.attributes.map((attr) => {
     if (attr.kind === 'classMap' && typeof attr.value !== 'string') {
       return transformClassAttribute(attr);
     }
-    // Also handle any attribute expression containing clsx()
     if (typeof attr.value !== 'string' && attr.value.expression.includes('clsx(')) {
       return transformClassAttribute({ ...attr, kind: 'classMap' });
     }
-    // Transform className → class for any remaining className attributes
     if (attr.name === 'className') {
       return { ...attr, name: 'class', kind: attr.kind === 'classMap' ? 'classMap' as const : attr.kind };
     }
     return attr;
   });
 
-  const transformedChildren = node.children.map(transformClsx);
+  const transformedChildren = node.children.map(transformClsxInTemplate);
+
+  const transformedExpression = node.expression
+    ? replaceClsxAndStylesInText(node.expression)
+    : node.expression;
 
   return {
     ...node,
+    expression: transformedExpression,
     attributes: transformedAttrs,
     children: transformedChildren,
     condition: node.condition
       ? {
           ...node.condition,
           alternate: node.condition.alternate
-            ? transformClsx(node.condition.alternate)
+            ? transformClsxInTemplate(node.condition.alternate)
             : undefined,
         }
       : undefined,
@@ -119,24 +171,34 @@ function parseClsxArgs(argsStr: string): string {
       const parts = trimmed.split(' && ');
       if (parts.length === 2) {
         const condition = parts[0].trim();
-        const className = stripStylesPrefix(parts[1].trim());
-        entries.push(`${quoteClassName(className)}: ${condition}`);
+        const rawClass = parts[1].trim();
+        const className = stripStylesPrefix(rawClass);
+        if (className === rawClass && rawClass.startsWith('styles[')) {
+          const varExpr = rawClass.slice(7, -1);
+          entries.push(`[${varExpr}]: ${condition}`);
+        } else {
+          entries.push(`${quoteClassName(className)}: ${condition}`);
+        }
         continue;
       }
     }
 
     // Static class: styles.root or styles['class-name']
-    if (trimmed.startsWith('styles')) {
+    if (trimmed.startsWith('styles.')) {
       const className = stripStylesPrefix(trimmed);
       entries.push(`${quoteClassName(className)}: true`);
       continue;
     }
 
-    // Template literal in styles: styles[`variant-${variant}`]
-    if (trimmed.includes('styles[')) {
+    // Bracket access: styles[`variant-${v}`], styles['name'], styles[variable]
+    if (trimmed.startsWith('styles[')) {
       const className = stripStylesPrefix(trimmed);
       if (className.includes('${')) {
         entries.push(`[\`${className}\`]: true`);
+      } else if (className === trimmed) {
+        // stripStylesPrefix returned unchanged → dynamic variable like styles[size]
+        const varExpr = trimmed.slice(7, -1); // extract between styles[ and ]
+        entries.push(`[${varExpr}]: true`);
       } else {
         entries.push(`'${className}': true`);
       }
@@ -177,10 +239,140 @@ function parseObjectEntry(entry: string): string | null {
     if (className.includes('${')) {
       return `[\`${className}\`]: ${value}`;
     }
+    if (className === inner && inner.startsWith('styles[')) {
+      const varExpr = inner.slice(7, -1);
+      return `[${varExpr}]: ${value}`;
+    }
     return `'${className}': ${value}`;
   }
 
   return `${key}: ${value}`;
+}
+
+// ---------------------------------------------------------------------------
+// Text-level clsx() and styles.xxx replacement
+// ---------------------------------------------------------------------------
+
+/**
+ * Replace clsx() calls and styles.xxx references in arbitrary text.
+ *
+ * For code bodies (handlers, effects, helpers, etc.):
+ * - `clsx(styles.root, ...)` → `classMap({ 'root': true, ... })`
+ * - `styles.root` → `'root'`
+ * - `styles['button-disabled']` → `'button-disabled'`
+ * - `styles[\`variant-${v}\`]` → `` `variant-${v}` ``
+ */
+function replaceClsxAndStylesInText(text: string): string {
+  let result = text;
+
+  // 1. Replace clsx(...) calls with classMap({...})
+  result = replaceClsxCallsInText(result);
+
+  // 2. Replace styles.xxx references
+  result = replaceStylesInText(result);
+
+  return result;
+}
+
+/**
+ * Find and replace clsx(...) calls in text with classMap({...}).
+ *
+ * Uses balanced-paren matching to find the full clsx() call,
+ * then converts the arguments to a classMap object.
+ */
+function replaceClsxCallsInText(text: string): string {
+  let result = text;
+  let searchFrom = 0;
+
+  while (true) {
+    const idx = result.indexOf('clsx(', searchFrom);
+    if (idx === -1) break;
+
+    // Find the matching closing paren
+    const argsStart = idx + 5; // after 'clsx('
+    const closeIdx = findMatchingParen(result, argsStart - 1);
+    if (closeIdx === -1) {
+      // Can't find matching paren — skip this occurrence
+      searchFrom = argsStart;
+      continue;
+    }
+
+    const argsStr = result.slice(argsStart, closeIdx);
+    const classMapObj = parseClsxArgs(argsStr);
+    const replacement = `classMap(${classMapObj})`;
+
+    result = result.slice(0, idx) + replacement + result.slice(closeIdx + 1);
+    searchFrom = idx + replacement.length;
+  }
+
+  return result;
+}
+
+/**
+ * Replace styles.xxx / styles['xxx'] / styles[`xxx`] references in text.
+ *
+ * Shadow DOM doesn't need CSS module scoping, so:
+ * - styles.root → 'root'
+ * - styles['button-disabled'] → 'button-disabled'
+ * - styles[`variant-${v}`] → `variant-${v}`
+ */
+function replaceStylesInText(text: string): string {
+  let result = text;
+
+  // styles[`template-${expr}`] → `template-${expr}` (must come before styles.xxx)
+  result = result.replace(/\bstyles\[(`[^`]+`)\]/g, '$1');
+
+  // styles['class-name'] → 'class-name'
+  result = result.replace(/\bstyles\['([^']+)'\]/g, "'$1'");
+
+  result = result.replace(/\bstyles\["([^"]+)"\]/g, "'$1'");
+
+  result = result.replace(/\bstyles\.(\w+)\b/g, "'$1'");
+
+  return result;
+}
+
+/**
+ * Find the index of the closing paren that matches the open paren at `openIdx`.
+ */
+function findMatchingParen(text: string, openIdx: number): number {
+  let depth = 0;
+  for (let i = openIdx; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '(' || ch === '{' || ch === '[') depth++;
+    if (ch === ')' || ch === '}' || ch === ']') {
+      depth--;
+      if (depth === 0) return i;
+    }
+    // Skip string literals
+    if (ch === "'" || ch === '"') {
+      const quote = ch;
+      i++;
+      while (i < text.length && text[i] !== quote) {
+        if (text[i] === '\\') i++; // skip escaped chars
+        i++;
+      }
+    }
+    // Skip template literals
+    if (ch === '`') {
+      i++;
+      while (i < text.length && text[i] !== '`') {
+        if (text[i] === '\\') i++;
+        if (text[i] === '$' && i + 1 < text.length && text[i + 1] === '{') {
+          // Skip template expression — count braces
+          i += 2;
+          let braceDepth = 1;
+          while (i < text.length && braceDepth > 0) {
+            if (text[i] === '{') braceDepth++;
+            if (text[i] === '}') braceDepth--;
+            if (braceDepth > 0) i++;
+          }
+        }
+        i++;
+      }
+    }
+  }
+  return -1;
 }
 
 // ---------------------------------------------------------------------------

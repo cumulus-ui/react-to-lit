@@ -139,7 +139,7 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   // TODO: detect svg usage in template
 
   // classMap directive
-  if (hasClassMap(ir.template)) {
+  if (hasClassMap(ir.template) || hasClassMapInCodeBodies(ir)) {
     collector.addDirective('lit/directives/class-map.js', 'classMap');
   }
 
@@ -201,9 +201,6 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   const interfaceName = `${ir.name}Props`;
   collector.addType('./interfaces.js', interfaceName);
 
-  // Side-effect imports for custom elements found in template
-  collectCustomElementImports(ir.template, collector);
-
   return collector;
 }
 
@@ -229,43 +226,23 @@ function hasClassMap(node: import('../ir/types.js').TemplateNodeIR): boolean {
   return false;
 }
 
-function hasIfDefined(node: import('../ir/types.js').TemplateNodeIR): boolean {
-  // Check attribute expressions for ifDefined usage
-  for (const attr of node.attributes) {
-    if (typeof attr.value !== 'string' && attr.value.expression.includes('ifDefined(')) {
-      return true;
-    }
+function hasClassMapInCodeBodies(ir: ComponentIR): boolean {
+  const check = (text: string) => text.includes('classMap(');
+  for (const h of ir.handlers) { if (check(h.body)) return true; }
+  for (const e of ir.effects) {
+    if (check(e.body)) return true;
+    if (e.cleanup && check(e.cleanup)) return true;
   }
-  // Recurse into children
-  for (const child of node.children) {
-    if (hasIfDefined(child)) return true;
-  }
+  for (const h of ir.helpers) { if (check(h.source)) return true; }
+  for (const s of ir.bodyPreamble) { if (check(s)) return true; }
+  for (const m of ir.publicMethods) { if (check(m.body)) return true; }
+  for (const c of ir.computedValues) { if (check(c.expression)) return true; }
   return false;
 }
 
-function collectCustomElementImports(
-  node: import('../ir/types.js').TemplateNodeIR,
-  collector: ImportCollector,
-): void {
-  if (node.kind === 'element' && node.tag && node.tag.includes('-')) {
-    const importPath = deriveImportPath(node.tag);
-    if (importPath) collector.addSideEffect(importPath);
-  }
-  for (const child of node.children) {
-    collectCustomElementImports(child, collector);
-  }
-  // Also check condition alternates
-  if (node.condition?.alternate) {
-    collectCustomElementImports(node.condition.alternate, collector);
-  }
-}
-
-function deriveImportPath(tagName: string): string | null {
-  // cs-icon → ../icon/index.js, cs-button-dropdown → ../button-dropdown/index.js
-  const parts = tagName.split('-');
-  if (parts.length < 2 || parts[0] !== 'cs') return null;
-  const componentName = parts.slice(1).join('-');
-  return `../${componentName}/index.js`;
+function hasIfDefined(node: import('../ir/types.js').TemplateNodeIR): boolean {
+  // TODO: detect ifDefined usage in attribute expressions
+  return false;
 }
 
 // ---------------------------------------------------------------------------
