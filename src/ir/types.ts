@@ -13,7 +13,7 @@ export interface ComponentIR {
   /** Component name, e.g. "Badge", "InternalButton" */
   name: string;
 
-  /** Custom element tag name, e.g. "cs-badge" */
+  /** Custom element tag name, e.g. "el-badge" */
   tagName: string;
 
   /** Source files that were merged to produce this IR */

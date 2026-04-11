@@ -39,7 +39,6 @@ program
 program
   .option('-i, --input <path>', 'Input directory (component dir or source root)')
   .option('-o, --output <path>', 'Output directory or file')
-  .option('-p, --prefix <prefix>', 'Custom element prefix', 'cs')
   .option('-b, --batch', 'Batch mode: process all components in input directory')
   .option('-c, --component <name>', 'Process a single component from batch input')
   .option('--dry-run', 'Print output to stdout instead of writing files')
@@ -47,7 +46,6 @@ program
   .action(async (opts) => {
     const inputPath = path.resolve(opts.input);
     const outputPath = opts.output ? path.resolve(opts.output) : undefined;
-    const prefix = opts.prefix;
 
     if (opts.batch) {
       // Batch mode: process all component directories
@@ -60,13 +58,13 @@ program
           console.error(`Component '${opts.component}' not found in ${inputPath}`);
           process.exit(1);
         }
-        await processComponents(filtered, outputPath!, prefix, opts);
+        await processComponents(filtered, outputPath!, opts);
       } else {
-        await processComponents(components, outputPath!, prefix, opts);
+        await processComponents(components, outputPath!, opts);
       }
     } else {
       // Single component mode
-      await processSingle(inputPath, outputPath, prefix, opts);
+      await processSingle(inputPath, outputPath, opts);
     }
   });
 
@@ -79,11 +77,10 @@ program.parse();
 async function processSingle(
   inputPath: string,
   outputPath: string | undefined,
-  prefix: string,
   opts: { dryRun?: boolean; verbose?: boolean },
 ): Promise<void> {
   try {
-    const ir = parseComponent(inputPath, { prefix });
+    const ir = parseComponent(inputPath);
     const transformed = transformAll(ir);
     const output = emitComponent(transformed);
 
@@ -105,7 +102,6 @@ async function processSingle(
 async function processComponents(
   componentDirs: string[],
   outputRoot: string,
-  prefix: string,
   opts: { dryRun?: boolean; verbose?: boolean },
 ): Promise<void> {
   let succeeded = 0;
@@ -117,7 +113,7 @@ async function processComponents(
     const outputFile = path.join(outputRoot, componentName, 'internal.ts');
 
     try {
-      const ir = parseComponent(componentDir, { prefix });
+      const ir = parseComponent(componentDir);
       const transformed = transformAll(ir);
       const output = emitComponent(transformed);
 

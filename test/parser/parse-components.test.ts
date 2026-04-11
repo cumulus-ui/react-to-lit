@@ -18,16 +18,14 @@ describe('parseComponent', () => {
   // Badge — Pattern A: single index.tsx, no hooks
   // -------------------------------------------------------------------------
   describe('Badge', () => {
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), {
-      prefix: 'cs',
-    });
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'));
 
     it('should derive the correct component name', () => {
       expect(ir.name).toBe('Badge');
     });
 
     it('should derive the correct tag name', () => {
-      expect(ir.tagName).toBe('cs-badge');
+      expect(ir.tagName).toBe('el-badge');
     });
 
     it('should extract the color prop with default', () => {
@@ -80,16 +78,14 @@ describe('parseComponent', () => {
   // Spinner — Pattern B: wrapper + internal, no hooks
   // -------------------------------------------------------------------------
   describe('Spinner', () => {
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'spinner'), {
-      prefix: 'cs',
-    });
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'spinner'));
 
     it('should derive the correct component name', () => {
       expect(ir.name).toBe('Spinner');
     });
 
     it('should derive the correct tag name', () => {
-      expect(ir.tagName).toBe('cs-spinner');
+      expect(ir.tagName).toBe('el-spinner');
     });
 
     it('should extract size prop with default', () => {
@@ -128,16 +124,14 @@ describe('parseComponent', () => {
   // StatusIndicator — Pattern B with conditionals and sub-components
   // -------------------------------------------------------------------------
   describe('StatusIndicator', () => {
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'status-indicator'), {
-      prefix: 'cs',
-    });
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'status-indicator'));
 
     it('should derive the correct component name', () => {
       expect(ir.name).toBe('StatusIndicator');
     });
 
     it('should derive the correct tag name', () => {
-      expect(ir.tagName).toBe('cs-status-indicator');
+      expect(ir.tagName).toBe('el-status-indicator');
     });
 
     it('should extract type prop with default', () => {

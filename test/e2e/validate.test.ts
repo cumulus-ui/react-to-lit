@@ -37,7 +37,7 @@ function findComponents(): string[] {
 }
 
 function generate(componentName: string): string {
-  const ir = parseComponent(path.join(CLOUDSCAPE_SRC, componentName), { prefix: 'cs' });
+  const ir = parseComponent(path.join(CLOUDSCAPE_SRC, componentName));
   const transformed = transformAll(ir);
   return emitComponent(transformed);
 }

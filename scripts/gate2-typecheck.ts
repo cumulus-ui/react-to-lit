@@ -67,7 +67,7 @@ function generateAll(components: string[]): GeneratedComponent[] {
   const results: GeneratedComponent[] = [];
   for (const name of components) {
     try {
-      const ir = parseComponent(path.join(CLOUDSCAPE_SRC, name), { prefix: 'cs' });
+      const ir = parseComponent(path.join(CLOUDSCAPE_SRC, name), {});
       const transformed = transformAll(ir);
       const output = emitComponent(transformed);
       results.push({ name, output });

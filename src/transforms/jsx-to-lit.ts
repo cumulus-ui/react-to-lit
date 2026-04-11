@@ -11,64 +11,11 @@
 import ts from 'typescript';
 import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES } from '../cloudscape-config.js';
 import { getBooleanAttributes, getHtmlTagNames } from '../standards.js';
-import { pascalToKebab, toLitEventName, isEventProp, reactAttrToHtml } from '../naming.js';
+import { toTagName, toLitEventName, isEventProp, reactAttrToHtml } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Component name mapping
 // ---------------------------------------------------------------------------
-
-/** Map PascalCase React component names to kebab-case custom element tags */
-const COMPONENT_MAP: Record<string, string> = {
-  // Common Cloudscape internals
-  'InternalIcon': 'cs-icon',
-  'InternalSpinner': 'cs-spinner',
-  'InternalButton': 'cs-button',
-  'InternalInput': 'cs-input',
-  'InternalCheckbox': 'cs-checkbox',
-  'InternalLink': 'cs-link',
-  'InternalAlert': 'cs-alert',
-  'InternalBox': 'cs-box',
-  'InternalHeader': 'cs-header',
-  'InternalSelect': 'cs-select',
-  'InternalPopover': 'cs-popover',
-  'InternalToggle': 'cs-toggle',
-  'InternalFormField': 'cs-form-field',
-  'InternalExpandableSection': 'cs-expandable-section',
-  'InternalLiveRegion': 'cs-live-region',
-  'InternalTokenGroup': 'cs-token-group',
-  'InternalTextarea': 'cs-textarea',
-  'InternalDateInput': 'cs-date-input',
-  'InternalTimeInput': 'cs-time-input',
-  'InternalCalendar': 'cs-calendar',
-  'InternalRadioGroup': 'cs-radio-group',
-  'InternalBreadcrumbGroup': 'cs-breadcrumb-group',
-  'InternalButtonDropdown': 'cs-button-dropdown',
-  'InternalSpaceBetween': 'cs-space-between',
-  'InternalContainer': 'cs-container',
-  'InternalContainerAsSubstep': 'cs-container',
-  'InternalTable': 'cs-table',
-  'InternalCards': 'cs-cards',
-  'InternalTabs': 'cs-tabs',
-  'InternalPagination': 'cs-pagination',
-  'InternalGrid': 'cs-grid',
-  'InternalMultiselect': 'cs-multiselect',
-  'InternalAutosuggest': 'cs-autosuggest',
-  'InternalStatusIndicator': 'cs-status-indicator',
-  'InternalFileDropzone': 'cs-file-dropzone',
-  'InternalColumnLayout': 'cs-column-layout',
-};
-
-/** Single-word component names */
-const SINGLE_WORD_MAP: Record<string, string> = {
-  'Dropdown': 'cs-dropdown',
-  'Grid': 'cs-grid',
-  'Tile': 'cs-tile',
-  'Option': 'cs-option',
-  'Tag': 'cs-tag',
-  'Portal': 'cs-portal',
-  'Tooltip': 'cs-tooltip',
-  'LiveRegion': 'cs-live-region',
-};
 
 /** Components to unwrap (keep children, remove wrapper) */
 const UNWRAP_COMPONENTS = new Set([
@@ -362,22 +309,16 @@ function emitChildren(
 function resolveTagName(tagName: ts.JsxTagNameExpression): string {
   const original = getOriginalTagName(tagName);
 
-  // Check component maps
-  if (COMPONENT_MAP[original]) return COMPONENT_MAP[original];
-  if (SINGLE_WORD_MAP[original]) return SINGLE_WORD_MAP[original];
-
   // Native HTML tag (from DOM spec)
   if (getHtmlTagNames().has(original)) return original;
 
-  // PascalCase → cs-kebab-case for multi-word names
-  if (/^[A-Z]/.test(original)) {
-    // Skip TypeScript utility types and known non-components
-    if (/^(React|Fragment|Suspense|StrictMode)$/.test(original)) return '__unwrap__';
-    const kebab = pascalToKebab(original);
-    return `cs-${kebab}`;
-  }
+  // React builtins and wrappers to unwrap
+  if (UNWRAP_COMPONENTS.has(original)) return '__unwrap__';
 
-  // Unknown lowercase tag — pass through (could be a custom element like cs-icon)
+  // PascalCase component → el-kebab-name
+  if (/^[A-Z]/.test(original)) return toTagName(original);
+
+  // Lowercase (already a custom element tag) — pass through
   return original;
 }
 

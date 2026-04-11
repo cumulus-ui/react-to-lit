@@ -84,7 +84,7 @@ const REACT_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
 function checkComponent(name: string): CheckResult {
   let output = '';
   try {
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, name), { prefix: 'cs' });
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, name), {});
     const transformed = transformAll(ir);
     output = emitComponent(transformed);
   } catch (err) {

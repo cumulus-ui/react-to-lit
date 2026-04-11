@@ -24,7 +24,7 @@ import { extractHandlers, extractHelpers, isHookCall } from './utils.js';
 import type { HookRegistry } from '../hooks/registry.js';
 import { createHookRegistry } from '../hooks/registry.js';
 import { transformJsxToLit } from './jsx-transform.js';
-import { pascalToKebab } from '../naming.js';
+import { toTagName } from '../naming.js';
 import { INFRA_FUNCTIONS } from '../cloudscape-config.js';
 
 // ---------------------------------------------------------------------------
@@ -32,9 +32,6 @@ import { INFRA_FUNCTIONS } from '../cloudscape-config.js';
 // ---------------------------------------------------------------------------
 
 export interface ParseOptions {
-  /** Custom element prefix, e.g. "cs" → "cs-badge" */
-  prefix?: string;
-
   /** Custom hook registry overrides */
   hookMappings?: HookRegistry;
 
@@ -62,7 +59,6 @@ export function parseComponent(
   options: ParseOptions = {},
 ): ComponentIR {
   const hookRegistry = createHookRegistry(options.hookMappings);
-  const prefix = options.prefix ?? '';
 
   // Auto-detect declarationsDir from @cloudscape-design/components if not provided
   let declarationsDir = options.declarationsDir;
@@ -165,7 +161,7 @@ export function parseComponent(
 
   // 9. Derive component metadata
   const componentName = deriveComponentName(component.name, componentDir);
-  const tagName = deriveTagName(componentName, prefix);
+  const tagName = toTagName(componentName);
 
   // 10. Collect source files
   const sourceFiles: string[] = [path.basename(indexPath)];
@@ -241,18 +237,6 @@ function deriveComponentName(functionName: string, componentDir: string): string
   }
 
   return name;
-}
-
-/**
- * Derive the custom element tag name.
- * - "Badge" + prefix "cs" → "cs-badge"
- * - "StatusIndicator" + prefix "cs" → "cs-status-indicator"
- */
-function deriveTagName(componentName: string, prefix: string): string {
-  // PascalCase to kebab-case
-  const kebab = pascalToKebab(componentName);
-
-  return prefix ? `${prefix}-${kebab}` : kebab;
 }
 
 // ---------------------------------------------------------------------------

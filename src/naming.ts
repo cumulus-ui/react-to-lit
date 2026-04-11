@@ -83,6 +83,26 @@ export function reactAttrToHtml(name: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Component tag derivation
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive a custom element tag name from a React component name.
+ *
+ * Always produces `el-{kebab-name}` — a neutral, valid custom element tag.
+ * The `el-` prefix ensures the hyphen requirement and provides a uniform
+ * namespace that the consumer can remap (e.g., `el-button` → `cs-button`).
+ *
+ * - `InternalButton` → `el-internal-button`
+ * - `Button` → `el-button`
+ * - `Dropdown` → `el-dropdown`
+ * - `TabHeaderBar` → `el-tab-header-bar`
+ */
+export function toTagName(reactComponentName: string): string {
+  return `el-${pascalToKebab(reactComponentName)}`;
+}
+
+// ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
 

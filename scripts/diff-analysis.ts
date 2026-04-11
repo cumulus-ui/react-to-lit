@@ -63,7 +63,7 @@ function analyzeComponent(componentName: string): AnalysisResult {
   };
 
   try {
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, componentName), { prefix: 'cs' });
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, componentName), {});
     const transformed = transformAll(ir);
     const output = emitComponent(transformed);
 
@@ -126,7 +126,7 @@ function analyzeComponent(componentName: string): AnalysisResult {
     if (ir.props.some((p) => p.category === 'event') && !result.stats.hasEventDispatch) {
       // Only warn if the component has no child elements that could
       // dispatch events on its behalf
-      const hasChildComponents = /<cs-[\w-]+/.test(output);
+      const hasChildComponents = /<el-[\w-]+/.test(output);
       const hasNativeFormElements = /<(input|textarea|select|button)\b/.test(output);
       const hasQueryDecorators = /@query\(/.test(output);
       if (!hasChildComponents && !hasNativeFormElements && !hasQueryDecorators) {

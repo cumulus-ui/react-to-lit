@@ -17,7 +17,7 @@ const fail: Array<{ name: string; err: string }> = [];
 
 for (const name of dirs) {
   try {
-    const ir = parseComponent(path.join(SRC, name), { prefix: 'cs' });
+    const ir = parseComponent(path.join(SRC, name), {});
     const out = emitComponent(transformAll(ir));
     await transform(out, {
       loader: 'ts', format: 'esm', logLevel: 'silent',

@@ -18,7 +18,7 @@ describe('E2E: parse → emit', () => {
   // Badge
   // -------------------------------------------------------------------------
   describe('Badge', () => {
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { prefix: 'cs' });
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'));
     const output = emitComponent(ir);
 
     it('should produce non-empty output', () => {
@@ -79,7 +79,7 @@ describe('E2E: parse → emit', () => {
   // Spinner
   // -------------------------------------------------------------------------
   describe('Spinner', () => {
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'spinner'), { prefix: 'cs' });
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'spinner'));
     const output = emitComponent(ir);
 
     it('should contain class declaration', () => {
@@ -108,7 +108,7 @@ describe('E2E: parse → emit', () => {
   // StatusIndicator
   // -------------------------------------------------------------------------
   describe('StatusIndicator', () => {
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'status-indicator'), { prefix: 'cs' });
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'status-indicator'));
     const output = emitComponent(ir);
 
     it('should contain class declaration', () => {

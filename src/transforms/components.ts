@@ -3,11 +3,12 @@
  *
  * Resolves React component references in templates using a registry.
  * Registry entries can be:
- *   - string: simple tag replacement ('cs-icon')
+ *   - string: simple tag replacement ('el-icon')
  *   - '__UNWRAP__': keep children, discard wrapper
  *   - function: (node) => TemplateNodeIR — full template replacement
  */
 import type { TemplateNodeIR, AttributeIR } from '../ir/types.js';
+import { toTagName } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Registry types
@@ -150,57 +151,57 @@ function buildAbstractSwitch(node: TemplateNodeIR): TemplateNodeIR {
 
 export const cloudscapeComponentRegistry: ComponentRegistry = {
   // Core components — simple tag mapping
-  'InternalIcon': 'cs-icon',
-  'Icon': 'cs-icon',
-  'InternalSpinner': 'cs-spinner',
-  'Spinner': 'cs-spinner',
-  'InternalButton': 'cs-button',
-  'Button': 'cs-button',
-  'InternalInput': 'cs-input',
-  'Input': 'cs-input',
-  'InternalCheckbox': 'cs-checkbox',
-  'Checkbox': 'cs-checkbox',
-  'InternalStatusIndicator': 'cs-status-indicator',
-  'StatusIndicator': 'cs-status-indicator',
-  'InternalLink': 'cs-link',
-  'Link': 'cs-link',
-  'InternalAlert': 'cs-alert',
-  'Alert': 'cs-alert',
-  'InternalLiveRegion': 'cs-live-region',
-  'LiveRegion': 'cs-live-region',
-  'Tooltip': 'cs-tooltip',
-  'InternalStatusIcon': 'cs-status-icon',
-  'CheckboxIcon': 'cs-checkbox-icon',
-  'InternalBox': 'cs-box',
-  'InternalHeader': 'cs-header',
-  'InternalSelect': 'cs-select',
-  'InternalAutosuggest': 'cs-autosuggest',
-  'InternalMultiselect': 'cs-multiselect',
-  'InternalTokenGroup': 'cs-token-group',
-  'InternalFileDropzone': 'cs-file-dropzone',
-  'InternalFormField': 'cs-form-field',
-  'InternalExpandableSection': 'cs-expandable-section',
-  'InternalColumnLayout': 'cs-column-layout',
-  'InternalTextarea': 'cs-textarea',
-  'InternalDateInput': 'cs-date-input',
-  'InternalTimeInput': 'cs-time-input',
-  'InternalPopover': 'cs-popover',
-  'InternalToggle': 'cs-toggle',
-  'InternalRadioGroup': 'cs-radio-group',
-  'InternalBreadcrumbGroup': 'cs-breadcrumb-group',
-  'InternalCalendar': 'cs-calendar',
-  'InternalButtonDropdown': 'cs-button-dropdown',
-  'InternalSpaceBetween': 'cs-space-between',
-  'InternalTable': 'cs-table',
-  'InternalCards': 'cs-cards',
-  'InternalContainer': 'cs-container',
-  'InternalContainerAsSubstep': 'cs-container',
-  'InternalItemCard': 'cs-item-card',
-  'InternalGrid': 'cs-grid',
-  'InternalTabs': 'cs-tabs',
-  'InternalPagination': 'cs-pagination',
-  'ToggleIcon': 'cs-toggle-icon',
-  'RadioIcon': 'cs-radio-icon',
+  'InternalIcon': toTagName('Icon'),
+  'Icon': toTagName('Icon'),
+  'InternalSpinner': toTagName('Spinner'),
+  'Spinner': toTagName('Spinner'),
+  'InternalButton': toTagName('Button'),
+  'Button': toTagName('Button'),
+  'InternalInput': toTagName('Input'),
+  'Input': toTagName('Input'),
+  'InternalCheckbox': toTagName('Checkbox'),
+  'Checkbox': toTagName('Checkbox'),
+  'InternalStatusIndicator': toTagName('StatusIndicator'),
+  'StatusIndicator': toTagName('StatusIndicator'),
+  'InternalLink': toTagName('Link'),
+  'Link': toTagName('Link'),
+  'InternalAlert': toTagName('Alert'),
+  'Alert': toTagName('Alert'),
+  'InternalLiveRegion': toTagName('LiveRegion'),
+  'LiveRegion': toTagName('LiveRegion'),
+  'Tooltip': toTagName('Tooltip'),
+  'InternalStatusIcon': toTagName('StatusIcon'),
+  'CheckboxIcon': toTagName('CheckboxIcon'),
+  'InternalBox': toTagName('Box'),
+  'InternalHeader': toTagName('Header'),
+  'InternalSelect': toTagName('Select'),
+  'InternalAutosuggest': toTagName('Autosuggest'),
+  'InternalMultiselect': toTagName('Multiselect'),
+  'InternalTokenGroup': toTagName('TokenGroup'),
+  'InternalFileDropzone': toTagName('FileDropzone'),
+  'InternalFormField': toTagName('FormField'),
+  'InternalExpandableSection': toTagName('ExpandableSection'),
+  'InternalColumnLayout': toTagName('ColumnLayout'),
+  'InternalTextarea': toTagName('Textarea'),
+  'InternalDateInput': toTagName('DateInput'),
+  'InternalTimeInput': toTagName('TimeInput'),
+  'InternalPopover': toTagName('Popover'),
+  'InternalToggle': toTagName('Toggle'),
+  'InternalRadioGroup': toTagName('RadioGroup'),
+  'InternalBreadcrumbGroup': toTagName('BreadcrumbGroup'),
+  'InternalCalendar': toTagName('Calendar'),
+  'InternalButtonDropdown': toTagName('ButtonDropdown'),
+  'InternalSpaceBetween': toTagName('SpaceBetween'),
+  'InternalTable': toTagName('Table'),
+  'InternalCards': toTagName('Cards'),
+  'InternalContainer': toTagName('Container'),
+  'InternalContainerAsSubstep': toTagName('Container'),
+  'InternalItemCard': toTagName('ItemCard'),
+  'InternalGrid': toTagName('Grid'),
+  'InternalTabs': toTagName('Tabs'),
+  'InternalPagination': toTagName('Pagination'),
+  'ToggleIcon': toTagName('ToggleIcon'),
+  'RadioIcon': toTagName('RadioIcon'),
 
   // Template replacements — function-based
   'AbstractSwitch': buildAbstractSwitch,
@@ -323,6 +324,11 @@ function resolveNode(
 // ---------------------------------------------------------------------------
 
 function deriveImportPath(tagName: string): string | null {
+  // Tag format: el-{kebab-name} → strip 'el-' prefix to get component path
+  if (tagName.startsWith('el-')) {
+    const componentName = tagName.slice(3); // strip 'el-'
+    return `../${componentName}/index.js`;
+  }
   const parts = tagName.split('-');
   if (parts.length < 2) return null;
   const componentName = parts.slice(1).join('-');
