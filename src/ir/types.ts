@@ -70,6 +70,9 @@ export interface ComponentIR {
   /** Locally declared variable names (for scope-aware identifier rewriting) */
   localVariables: Set<string>;
 
+  /** Variable names from skipped/unknown hooks, emitted as private stub fields */
+  skippedHookVars: string[];
+
   /** Whether the original component used React.forwardRef */
   forwardRef: boolean;
 }

@@ -20,7 +20,7 @@ import { findComponent } from './component.js';
 import { extractProps } from './props.js';
 import { extractHooks } from './hooks.js';
 import { parseJSXFromBody } from './jsx.js';
-import { extractHandlers, extractHelpers, isHookCall } from './utils.js';
+import { extractHandlers, extractHelpers, isHookCall, collectBindingNames } from './utils.js';
 import type { HookRegistry } from '../hooks/registry.js';
 import { createHookRegistry } from '../hooks/registry.js';
 import { transformJsxToLit } from './jsx-transform.js';
@@ -195,6 +195,7 @@ export function parseComponent(
     helpers,
     bodyPreamble,
     localVariables,
+    skippedHookVars: hookResult.preservedVars,
     forwardRef: component.forwardRef,
   };
 }
@@ -248,17 +249,7 @@ function collectLocalVars(body: ts.Block): Set<string> {
   for (const stmt of body.statements) {
     if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
-        if (ts.isIdentifier(decl.name)) {
-          vars.add(decl.name.text);
-        } else if (ts.isObjectBindingPattern(decl.name)) {
-          for (const el of decl.name.elements) {
-            if (ts.isIdentifier(el.name)) vars.add(el.name.text);
-          }
-        } else if (ts.isArrayBindingPattern(decl.name)) {
-          for (const el of decl.name.elements) {
-            if (ts.isBindingElement(el) && ts.isIdentifier(el.name)) vars.add(el.name.text);
-          }
-        }
+        collectBindingNames(decl.name, vars);
       }
     }
   }

@@ -7,7 +7,7 @@
 import type { ComponentIR } from '../ir/types.js';
 import { Project, Node, ts } from 'ts-morph';
 import { collectImports } from './imports.js';
-import { emitProperties, emitState, emitControllers, emitContexts, emitComputed, emitRefs } from './properties.js';
+import { emitProperties, emitState, emitControllers, emitContexts, emitComputed, emitRefs, emitSkippedHookVars } from './properties.js';
 import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
@@ -88,6 +88,12 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   const controllerCode = emitControllers(ir.controllers);
   if (controllerCode.trim()) {
     sections.push(controllerCode);
+  }
+
+  // --- Skipped hook variable stubs ---
+  const skippedCode = emitSkippedHookVars(ir.skippedHookVars);
+  if (skippedCode.trim()) {
+    sections.push(skippedCode);
   }
 
   // --- Computed values (useMemo → getters) ---

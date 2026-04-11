@@ -254,7 +254,7 @@ export function collectLocalVariables(body: ts.Block): Set<string> {
   return locals;
 }
 
-function collectBindingNames(name: ts.BindingName, names: Set<string>): void {
+export function collectBindingNames(name: ts.BindingName, names: Set<string>): void {
   if (ts.isIdentifier(name)) {
     names.add(name.text);
   } else if (ts.isObjectBindingPattern(name)) {

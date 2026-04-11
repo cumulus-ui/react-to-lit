@@ -159,6 +159,20 @@ function getTypeAnnotation(prop: PropIR): string {
 }
 
 // ---------------------------------------------------------------------------
+// Skipped hook variable stubs
+// ---------------------------------------------------------------------------
+
+export function emitSkippedHookVars(vars: string[]): string {
+  if (vars.length === 0) return '';
+  const lines: string[] = [];
+  for (const name of vars) {
+    lines.push(`  private _${name}: any;`);
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // Ref emission
 // ---------------------------------------------------------------------------
 

@@ -18,6 +18,8 @@ import type {
 import { getNodeText } from './program.js';
 import type { HookRegistry } from '../hooks/registry.js';
 import { lookupHook } from '../hooks/registry.js';
+import { SKIP_PREFIXES } from '../cloudscape-config.js';
+import { collectBindingNames } from './utils.js';
 
 // ---------------------------------------------------------------------------
 // Result type
@@ -36,6 +38,8 @@ export interface HookExtractionResult {
   skipped: Array<{ name: string; reason: string }>;
   /** Hook calls that were not recognized */
   unknown: string[];
+  /** Variable names from skipped/unknown hooks that must be preserved */
+  preservedVars: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -58,6 +62,7 @@ export function extractHooks(
     contexts: [],
     skipped: [],
     unknown: [],
+    preservedVars: [],
   };
 
   if (!ts.isBlock(body)) return result;
@@ -128,6 +133,7 @@ function processHookCall(
     switch (mapping.action) {
       case 'skip':
         result.skipped.push({ name: hookName, reason: mapping.reason ?? 'configured to skip' });
+        if (decl) collectPreservedVars(decl, result.preservedVars);
         return;
       case 'controller':
         if (mapping.controller && decl) {
@@ -148,8 +154,9 @@ function processHookCall(
     }
   }
 
-  // Unknown hook
+  // Unknown hook — auto-skip and preserve result variables
   result.unknown.push(hookName);
+  if (decl) collectPreservedVars(decl, result.preservedVars);
 }
 
 // ---------------------------------------------------------------------------
@@ -444,6 +451,22 @@ function processContextHook(
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
+
+/**
+ * Extract variable names from a hook call's variable declaration and add
+ * them to the preservedVars list. Handles simple identifiers, object
+ * destructuring, and array destructuring patterns.
+ */
+function collectPreservedVars(decl: ts.VariableDeclaration, preservedVars: string[]): void {
+  const names = new Set<string>();
+  collectBindingNames(decl.name, names);
+  // Filter out Cloudscape infrastructure variables (e.g. __internalRootRef)
+  for (const name of names) {
+    if (!SKIP_PREFIXES.some(prefix => name.startsWith(prefix))) {
+      preservedVars.push(name);
+    }
+  }
+}
 
 function getHookName(call: ts.CallExpression): string | null {
   const callee = call.expression;

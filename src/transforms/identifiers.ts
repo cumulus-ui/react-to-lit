@@ -65,6 +65,13 @@ function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
     map.set(c.name, { member: `_${c.name}` });
   }
 
+  // Skipped/unknown hook vars → this._varName
+  for (const name of ir.skippedHookVars) {
+    if (!map.has(name)) {
+      map.set(name, { member: `_${name}` });
+    }
+  }
+
   return map;
 }
 
