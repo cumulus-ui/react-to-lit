@@ -41,6 +41,20 @@ function replaceReactTypes(text: string): string {
     result = result.replace(/useRef\(([^)]*)\)/g, '{ current: $1 }');
   }
 
+  // useContext(XxxContext) → this._xxxContext
+  // (the class needs a @consume field — handled by the hook parser for main body,
+  //  this catches useContext in helper/render method bodies)
+  if (result.includes('useContext')) {
+    result = result.replace(
+      /useContext\((\w+)\)/g,
+      (_match, contextName: string) => {
+        // XxxContext → _xxxContext, xxxContextType → _xxxContextType
+        const fieldName = contextName.charAt(0).toLowerCase() + contextName.slice(1);
+        return `this._${fieldName}`;
+      },
+    );
+  }
+
   if (!result.includes('React.')) return result;
 
   const domGlobals = getGlobalNames();
