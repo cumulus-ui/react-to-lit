@@ -68,7 +68,7 @@ function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
 // Names that must NEVER be rewritten (globals, Lit, DOM, keywords)
 const GLOBAL_NAMES = new Set([
   'true', 'false', 'null', 'undefined', 'void', 'NaN', 'Infinity',
-  'event', 'index', 'value', 'item', 'key', 'error', 'target', 'result',
+  'event', 'index', 'item', 'key', 'error', 'target', 'result',
   'Array', 'Object', 'String', 'Number', 'Boolean', 'Math', 'Date',
   'Map', 'Set', 'Promise', 'JSON', 'Error', 'RegExp', 'Symbol',
   'WeakMap', 'WeakSet', 'Proxy', 'Reflect', 'BigInt',
@@ -306,7 +306,7 @@ function rewriteWithMorph(
     if (!Node.isIdentifier(node)) return;
 
     const name = node.getText();
-    if (name.length <= 2) return;
+    if (name.length <= 1) return;
     if (GLOBAL_NAMES.has(name)) return;
     if (allLocals.has(name)) return;
 
@@ -320,6 +320,12 @@ function rewriteWithMorph(
     const startInWrapped = node.getStart();
     const startInOriginal = startInWrapped - prefix.length;
     if (startInOriginal < 0 || startInOriginal >= text.length) return;
+
+    // Safety: if preceded by . or ?. in the original text, it's property access
+    if (startInOriginal > 0) {
+      const charBefore = text[startInOriginal - 1];
+      if (charBefore === '.') return;
+    }
 
     replacements.push({
       start: startInOriginal,
