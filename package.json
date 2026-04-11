@@ -13,7 +13,8 @@
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "gate2": "tsx scripts/gate2-typecheck.ts"
   },
   "dependencies": {
     "commander": "^13.1.0",
@@ -21,8 +22,11 @@
     "typescript": "^5.8.3"
   },
   "devDependencies": {
+    "@lit/context": "^1.1.6",
     "@types/node": "^22.14.1",
     "esbuild": "^0.28.0",
+    "lit": "^3.3.2",
+    "tsx": "^4.21.0",
     "vitest": "^3.1.1"
   },
   "engines": {

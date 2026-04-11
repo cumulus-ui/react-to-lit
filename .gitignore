@@ -1,3 +1,4 @@
 node_modules/
 dist/
 *.tsbuildinfo
+.gate2-output/
