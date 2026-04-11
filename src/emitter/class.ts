@@ -10,8 +10,6 @@ import { emitProperties, emitState, emitControllers, emitContexts, emitComputed,
 import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
-import { getBooleanAttributes } from '../standards.js';
-import { pascalToKebab, toLitEventName } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Main emission
@@ -141,7 +139,8 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   const raw = `${importsStr}\n\n${bodyStr}\n`;
 
   // Final text-based cleanup for any remaining React patterns
-  return postProcessOutput(raw);
+  // Clean up excessive blank lines
+  return raw.replace(/\n{3,}/g, '\n\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -434,131 +433,3 @@ function toPrivateMethodName(name: string): string {
   return `_${name}`;
 }
 
-// ---------------------------------------------------------------------------
-// Post-processing (text-level cleanup)
-// ---------------------------------------------------------------------------
-
-function postProcessOutput(output: string): string {
-  let result = output;
-
-  // --- Convert remaining JSX in output to Lit syntax ---
-  // This catches JSX in helper function bodies that the AST-level
-  // JSX pre-transform didn't reach. Will be removed when helpers
-  // are processed through the JSX transform (step 3).
-  result = convertRemainingJsx(result);
-
-  // Clean up empty lines
-  result = result.replace(/\n{3,}/g, '\n\n');
-
-  return result;
-}
-
-/**
- * Convert remaining raw JSX patterns to Lit syntax in the code section.
- */
-function convertRemainingJsx(output: string): string {
-  // Split into import section and code section
-  const importEnd = output.lastIndexOf("import ");
-  const importEndLine = output.indexOf('\n', output.indexOf(';', importEnd));
-  if (importEndLine <= 0) return output;
-
-  const importSection = output.slice(0, importEndLine + 1);
-  let code = output.slice(importEndLine + 1);
-
-  // Convert PascalCase JSX component tags to kebab-case custom elements
-  // <RadioButton → <cs-radio-button, </RadioButton → </cs-radio-button
-  // Match when < is preceded by whitespace, newline, (, `, >, $ (template expressions)
-  code = code.replace(/(?<=[\s\n(`>$])(<\/?)(([A-Z][a-z]+){2,})\b/g, (match, prefix, name) => {
-    if (/^(Object|Array|String|Number|Boolean|Map|Set|Error|Promise|Date|RegExp|Symbol|Function|Record|Partial|Required|Readonly|Pick|Omit|Exclude|Extract|NonNullable|ReturnType|Parameters|InstanceType)$/.test(name)) return match;
-    const kebab = pascalToKebab(name);
-    return `${prefix}cs-${kebab}`;
-  });
-  // Also handle single-word PascalCase components that are known Cloudscape internals
-  code = code.replace(/(?<=[\s\n(`>$])(<\/?)(Dropdown|Grid|Tile|Option|Tag|Transition|Portal)\b/g, (_, prefix, name) => {
-    return `${prefix}cs-${name.toLowerCase()}`;
-  });
-
-  // Remove key={...} attributes
-  code = code.replace(/\s+key=\{[^}]*\}/g, '');
-
-  // Remove ref={...} attributes (already handled by cleanup but catch stragglers)
-  code = code.replace(/\s+ref=\{[^}]*\}/g, '');
-
-  // Remove {...spread} JSX attributes (including multiline)
-  code = code.replace(/\n\s*\{\.\.\.[\s\S]*?\}\s*(?=\n\s*[<>/])/g, '\n');
-
-  // Convert JSX expression attributes: prop={expr} → .prop=${expr}
-  // Only match inside what looks like an element tag (after < and before > or />)
-  code = code.replace(/(\s)([\w-]+)=\{([^}]*)\}/g, (match, ws, name, expr) => {
-    // Skip already-converted Lit bindings
-    if (name.startsWith('@') || name.startsWith('?') || name.startsWith('.')) return match;
-    // Skip class= (already converted by classMap)
-    if (name === 'class') return match;
-    // Boolean attributes
-    if (getBooleanAttributes().has(name)) {
-      return `${ws}?${name}=\${${expr}}`;
-    }
-    // Event handlers: onXxx → @xxx
-    if (/^on[A-Z]/.test(name)) {
-      const eventName = toLitEventName(name);
-      return `${ws}@${eventName}=\${${expr}}`;
-    }
-    // Property binding
-    return `${ws}.${name}=\${${expr}}`;
-  });
-
-  // Convert JSX children expressions: >{expr}< → >${expr}<
-  code = code.replace(/>\s*\{([^}]+)\}\s*</g, '>${$1}<');
-
-  // Wrap JSX inside ${ } expressions with html``
-  // Pattern: ${expr && (\n  <cs-xxx → ${expr ? html`\n  <cs-xxx : nothing
-  code = code.replace(
-    /\$\{([^}]+)\s*&&\s*\(\s*\n(\s*<cs-)/g,
-    '${$1 ? html`\n$2',
-  );
-  // Close these with ` : nothing}
-  code = code.replace(
-    /(<\/cs-[\w-]+>|\/?>)\s*\n(\s*)\)\}/g,
-    '$1\n$2` : nothing}',
-  );
-
-  // Wrap ternary JSX: ? <cs-xxx → ? html`<cs-xxx
-  code = code.replace(/\?\s*<(cs-[\w-]+)/g, '? html`<$1');
-  // And the else branch: : <cs-xxx → : html`<cs-xxx
-  code = code.replace(/:\s*<(cs-[\w-]+)/g, ': html`<$1');
-
-  // Wrap .map() callback bodies containing Lit elements in html``
-  code = code.replace(
-    /\.map\((\([^)]*\))\s*=>\s*\(\s*\n(\s*<)/g,
-    '.map($1 => html`\n$2',
-  );
-  // Close html`` at the end of .map() callbacks
-  code = code.replace(
-    /(<\/cs-[\w-]+>)\s*\n(\s*)\)\)/g,
-    '$1\n$2`)',
-  );
-
-  // Wrap return (<cs-xxx...) patterns in handlers with html``
-  code = code.replace(
-    /return\s*\(\s*\n(\s*<cs-)/g,
-    'return html`\n$1',
-  );
-  // Also handle return (<div... patterns
-  code = code.replace(
-    /return\s*\(\s*\n(\s*<[a-z])/g,
-    'return html`\n$1',
-  );
-  // Close the html`` at the matching closing paren for return(...) patterns
-  // Handles: </cs-xxx>\n    ); → </cs-xxx>\n    `;
-  //          />\n    ); → />\n    `;
-  code = code.replace(
-    /((?:<\/(?:cs-[\w-]+|div|span|button|a|input|label|ul|li|nav|section|form|textarea|select|table|tr|td|th)>|\/?>))\s*\n(\s*)\);/g,
-    '$1\n$2`;',
-  );
-
-  // =>${ (arrow body fused with template) → => {
-  code = code.replace(/=>\$\{\n/g, '=> {\n');
-  code = code.replace(/=>\$\{(\s)/g, '=> {$1');
-
-  return importSection + code;
-}
