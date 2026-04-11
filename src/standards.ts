@@ -135,3 +135,37 @@ export function getBooleanAttributes(): Set<string> {
   project.removeSourceFile(sf);
   return _booleanAttrs;
 }
+
+// ---------------------------------------------------------------------------
+// HTML tag names (for distinguishing HTML elements from components)
+// ---------------------------------------------------------------------------
+
+let _htmlTagNames: Set<string> | undefined;
+
+/**
+ * Valid HTML element tag names, queried from HTMLElementTagNameMap.
+ * Used to distinguish native elements from custom components.
+ */
+export function getHtmlTagNames(): Set<string> {
+  if (_htmlTagNames) return _htmlTagNames;
+
+  const project = getProject();
+  const sf = project.createSourceFile('__tags.ts', '');
+  const checker = project.getTypeChecker();
+
+  // HTMLElementTagNameMap has all standard HTML tag names as keys
+  const tagMapSymbol = checker.compilerObject.resolveName(
+    'HTMLElementTagNameMap', sf.compilerNode, ts.SymbolFlags.Interface, false,
+  );
+
+  _htmlTagNames = new Set<string>();
+  if (tagMapSymbol) {
+    const tagMapType = checker.compilerObject.getDeclaredTypeOfSymbol(tagMapSymbol);
+    for (const prop of tagMapType.getProperties?.() ?? []) {
+      _htmlTagNames.add(prop.getName());
+    }
+  }
+
+  project.removeSourceFile(sf);
+  return _htmlTagNames;
+}
