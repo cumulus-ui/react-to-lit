@@ -222,10 +222,15 @@ function hasConditionalRendering(node: import('../ir/types.js').TemplateNodeIR):
 function hasClassMap(node: import('../ir/types.js').TemplateNodeIR): boolean {
   for (const attr of node.attributes) {
     if (attr.kind === 'classMap') return true;
+    // Also check expression text for classMap() calls (from clsx transform)
+    if (typeof attr.value === 'object' && attr.value.expression.includes('classMap(')) return true;
   }
+  // Check node expression text
+  if (node.expression?.includes('classMap(')) return true;
   for (const child of node.children) {
     if (hasClassMap(child)) return true;
   }
+  if (node.condition?.alternate && hasClassMap(node.condition.alternate)) return true;
   return false;
 }
 
