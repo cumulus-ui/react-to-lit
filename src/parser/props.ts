@@ -13,27 +13,6 @@ import type { RawComponent } from './component.js';
 import { SKIP_PROPS, SKIP_PREFIXES } from '../cloudscape-config.js';
 
 // ---------------------------------------------------------------------------
-// Event handler type names
-// ---------------------------------------------------------------------------
-
-const NON_CANCELABLE_EVENT_TYPES = new Set([
-  'NonCancelableEventHandler',
-]);
-
-const CANCELABLE_EVENT_TYPES = new Set([
-  'CancelableEventHandler',
-]);
-
-// ---------------------------------------------------------------------------
-// React types that indicate a slot
-// ---------------------------------------------------------------------------
-
-const SLOT_TYPE_NAMES = new Set([
-  'ReactNode',
-  'ReactElement',
-]);
-
-// ---------------------------------------------------------------------------
 // Main extraction
 // ---------------------------------------------------------------------------
 

@@ -374,11 +374,7 @@ function isFactoryWrapper(sourceFile: ts.SourceFile): boolean {
 // ---------------------------------------------------------------------------
 
 /** Interfaces that indicate form participation */
-const FORM_INTERFACES = new Set([
-  'FormFieldControlProps',
-  'BaseCheckboxProps',
-  'BaseInputProps',
-]);
+const FORM_INTERFACES = ['FormFieldControlProps', 'BaseCheckboxProps', 'BaseInputProps'];
 
 /**
  * Detect mixins needed based on source file imports and prop analysis.
@@ -399,10 +395,7 @@ function detectMixins(
   ) && props.some((p) => p.name === 'disabled');
 
   // Check for base interfaces that imply form participation
-  const hasFormInterface = FORM_INTERFACES.has('') || // placeholder
-    sourceText.includes('FormFieldControlProps') ||
-    sourceText.includes('BaseCheckboxProps') ||
-    sourceText.includes('BaseInputProps');
+  const hasFormInterface = FORM_INTERFACES.some(name => sourceText.includes(name));
 
   if (hasFormFieldContext || (hasFormProps && hasFormInterface)) {
     mixins.push('FormControlMixin');
