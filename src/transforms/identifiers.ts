@@ -110,6 +110,7 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   // Transform handlers
   const handlers = ir.handlers.map((h) => ({
     ...h,
+    params: astRewrite(h.params),
     body: astRewrite(h.body),
   }));
 
@@ -129,10 +130,28 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   // Transform body preamble
   const bodyPreamble = ir.bodyPreamble.map(astRewrite);
 
+  // Transform state initial values
+  const state = ir.state.map((s) => ({
+    ...s,
+    initialValue: astRewrite(s.initialValue),
+  }));
+
+  // Transform ref initial values
+  const refs = ir.refs.map((r) => ({
+    ...r,
+    initialValue: astRewrite(r.initialValue),
+  }));
+
   // Transform helpers
   const helpers = ir.helpers.map((h) => ({
     ...h,
     source: astRewrite(h.source),
+  }));
+
+  // Transform computed values
+  const computedValues = ir.computedValues.map((c) => ({
+    ...c,
+    expression: astRewrite(c.expression),
   }));
 
   // Transform template expressions
@@ -144,7 +163,10 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
     effects,
     publicMethods,
     bodyPreamble,
+    state,
+    refs,
     helpers,
+    computedValues,
     template,
   };
 }
