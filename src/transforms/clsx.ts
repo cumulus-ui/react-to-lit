@@ -168,7 +168,7 @@ function parseClsxArgs(argsStr: string): string {
         } else if (className !== inner) {
           entries.push(`'${className}': ${condition}`);
         } else {
-          entries.push(`/* ${trimmed} */`);
+          // Unrecognized array-wrapped pattern — skip
         }
         continue;
       }
@@ -199,8 +199,7 @@ function parseClsxArgs(argsStr: string): string {
         entries.push(`[${varExpr}]: ${condition}`);
         continue;
       }
-      // Fallback for unrecognized && patterns
-      entries.push(`/* ${trimmed} */`);
+      // Fallback for unrecognized && patterns — skip
       continue;
     }
 
@@ -231,8 +230,8 @@ function parseClsxArgs(argsStr: string): string {
       continue;
     }
 
-    // Unknown pattern — pass through as comment
-    entries.push(`/* ${trimmed} */`);
+    // Unknown pattern — skip rather than emit broken syntax
+    continue;
   }
 
   if (entries.length === 0) {

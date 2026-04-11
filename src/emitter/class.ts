@@ -441,16 +441,6 @@ function toPrivateMethodName(name: string): string {
 function postProcessOutput(output: string): string {
   let result = output;
 
-  // --- Clean up classMap objects (comment-only entries from clsx transform) ---
-  result = result.replace(/\/\*[^*]*\*\/\s*,?\s*/g, (match, offset) => {
-    const before = result.slice(Math.max(0, offset - 200), offset);
-    if (before.includes('classMap(') || before.includes("': ")) return '';
-    return match;
-  });
-  result = result.replace(/\{\s*,/g, '{');
-  result = result.replace(/,\s*,/g, ',');
-  result = result.replace(/,\s*\}/g, ' }');
-
   // --- Convert remaining JSX in output to Lit syntax ---
   // This catches JSX in helper function bodies that the AST-level
   // JSX pre-transform didn't reach. Will be removed when helpers
