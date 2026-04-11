@@ -66,21 +66,35 @@ const SLOT_TYPE_NAMES = new Set([
 
 /**
  * Extract props from the component's props interface/type.
- * Merges defaults from index.tsx and internal.tsx.
+ *
+ * Strategy:
+ * 1. Build type map from published .d.ts (authoritative, complete) or vendor interfaces.ts
+ * 2. Get destructured defaults from React source (for default values only)
+ * 3. Emit ALL props from the type map, merging defaults where available
+ *
+ * This ensures we get complete prop coverage even when the React component
+ * doesn't destructure all props in its function signature.
  */
 export function extractProps(
   component: RawComponent,
   sourceFile: ts.SourceFile,
   componentDir?: string,
+  declarationsDir?: string,
+  componentName?: string,
 ): PropIR[] {
-  const props: PropIR[] = [];
+  // Build type map — prefer published .d.ts, fall back to vendor interfaces.ts
+  let interfaceTypeMap = new Map<string, string>();
+  if (declarationsDir && componentName) {
+    const dtsMap = buildDtsTypeMap(declarationsDir, componentName);
+    if (dtsMap.size > 0) {
+      interfaceTypeMap = dtsMap;
+    }
+  }
+  if (interfaceTypeMap.size === 0 && componentDir) {
+    interfaceTypeMap = buildInterfaceTypeMap(componentDir);
+  }
 
-  // Build interface type map from interfaces.ts if available
-  const interfaceTypeMap = componentDir
-    ? buildInterfaceTypeMap(componentDir)
-    : new Map<string, string>();
-
-  // Get the destructured prop names from the function parameters
+  // Get destructured prop names and defaults from the function parameters
   const destructuredProps = getDestructuredProps(component.parameters, sourceFile, interfaceTypeMap);
 
   // Merge defaults (index defaults take priority as they're the public API)
@@ -88,16 +102,37 @@ export function extractProps(
     ...component.defaultsFromInternal,
     ...component.defaultsFromIndex,
   ]);
+  // Also include destructured defaults
+  for (const [name, info] of destructuredProps) {
+    if (info.default && !mergedDefaults.has(name)) {
+      mergedDefaults.set(name, info.default);
+    }
+  }
 
-  for (const [propName, propInfo] of destructuredProps) {
-    // Skip internal/infrastructure props
-    if (shouldSkipProp(propName)) continue;
+  // Emit props from the FULL type map (not just destructured ones)
+  const props: PropIR[] = [];
+  const seen = new Set<string>();
 
-    // Override default if we have one from the outer wrapper
-    const defaultValue = mergedDefaults.get(propName) ?? propInfo.default;
+  if (interfaceTypeMap.size > 0) {
+    // Primary: emit all props from the type map
+    for (const [propName, typeText] of interfaceTypeMap) {
+      if (shouldSkipProp(propName)) continue;
+      if (seen.has(propName)) continue;
+      seen.add(propName);
 
-    const prop = classifyProp(propName, propInfo.typeText, defaultValue);
-    props.push(prop);
+      const defaultValue = mergedDefaults.get(propName);
+      props.push(classifyProp(propName, typeText, defaultValue));
+    }
+  } else {
+    // Fallback: emit only destructured props (old behavior)
+    for (const [propName, propInfo] of destructuredProps) {
+      if (shouldSkipProp(propName)) continue;
+      if (seen.has(propName)) continue;
+      seen.add(propName);
+
+      const defaultValue = mergedDefaults.get(propName) ?? propInfo.default;
+      props.push(classifyProp(propName, propInfo.typeText, defaultValue));
+    }
   }
 
   return props;
@@ -253,47 +288,25 @@ function isSlotProp(name: string, typeText: string): boolean {
   return false;
 }
 
-function isBooleanProp(name: string, _typeText: string, defaultValue?: string): boolean {
-  // Infer from default value
-  if (defaultValue === 'false' || defaultValue === 'true') return true;
-
-  // Common boolean prop names
-  const booleanNames = new Set([
-    'disabled', 'loading', 'checked', 'indeterminate', 'readOnly',
-    'external', 'dismissible', 'wrapText', 'fullWidth', 'invalid',
-    'warning', 'required', 'ariaRequired', 'expandable', 'expanded',
-  ]);
-  return booleanNames.has(name);
+function isBooleanProp(_name: string, _typeText: string, defaultValue?: string): boolean {
+  // Infer from default value only — type inference handles the rest
+  return defaultValue === 'false' || defaultValue === 'true';
 }
 
 // ---------------------------------------------------------------------------
 // Known array/object prop names (Cloudscape-specific but safe defaults)
 // ---------------------------------------------------------------------------
 
-const KNOWN_ARRAY_PROPS = new Set([
-  'options', 'items', 'columns', 'selectedOptions', 'selectedItems',
-  'filteringOptions', 'tokens', 'files', 'visibleColumns', 'columnDefinitions',
-  'breadcrumbs', 'links', 'steps', 'tabs', 'tags', 'actions', 'pages',
-  'segments', 'panes', 'tools', 'data', 'series', 'resources',
-]);
-
-const KNOWN_OBJECT_PROPS = new Set([
-  'selectedOption', 'selectedItem', 'activeHref', 'ariaLabels',
-  'i18nStrings', 'analyticsMetadata', 'filteringProperties',
-]);
-
-function isArrayProp(name: string, defaultValue?: string): boolean {
+function isArrayProp(_name: string, defaultValue?: string): boolean {
   // Detect from default value: [] or [...]
   if (defaultValue === '[]' || (defaultValue && defaultValue.startsWith('['))) return true;
-  // Detect from known prop names
-  return KNOWN_ARRAY_PROPS.has(name);
+  return false;
 }
 
-function isObjectProp(name: string, defaultValue?: string): boolean {
+function isObjectProp(_name: string, defaultValue?: string): boolean {
   // Detect from default value: {} or {...}
   if (defaultValue === '{}' || (defaultValue && defaultValue.startsWith('{'))) return true;
-  // Detect from known prop names
-  return KNOWN_OBJECT_PROPS.has(name);
+  return false;
 }
 
 function isNumberProp(defaultValue?: string): boolean {
@@ -381,7 +394,41 @@ function isArrayType(typeStr: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Interface type map builder
+// Published .d.ts type map builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a type map from published declaration files (e.g., @cloudscape-design/components).
+ * Reads interfaces.d.ts and extracts every property with its full type string.
+ */
+function buildDtsTypeMap(declarationsDir: string, componentName: string): Map<string, string> {
+  const map = new Map<string, string>();
+
+  const dtsPath = path.join(declarationsDir, componentName, 'interfaces.d.ts');
+  if (!fs.existsSync(dtsPath)) return map;
+
+  const dtsFile = parseFile(dtsPath);
+  const pascal = componentName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+  const propsName = `${pascal}Props`;
+
+  // Walk the file looking for the main interface (e.g., "export interface AlertProps extends ...")
+  function visit(node: ts.Node) {
+    if (ts.isInterfaceDeclaration(node) && node.name.text === propsName) {
+      for (const member of node.members) {
+        if (ts.isPropertySignature(member) && member.name && ts.isIdentifier(member.name) && member.type) {
+          map.set(member.name.text, getNodeText(member.type, dtsFile));
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(dtsFile);
+  return map;
+}
+
+// ---------------------------------------------------------------------------
+// Interface type map builder (vendor source fallback)
 // ---------------------------------------------------------------------------
 
 function buildInterfaceTypeMap(componentDir: string): Map<string, string> {

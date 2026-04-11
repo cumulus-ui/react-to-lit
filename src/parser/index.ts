@@ -35,6 +35,13 @@ export interface ParseOptions {
 
   /** Custom hook registry overrides */
   hookMappings?: HookRegistry;
+
+  /**
+   * Path to published declaration files (e.g., node_modules/@cloudscape-design/components).
+   * When provided, the parser reads .d.ts interfaces for complete prop type information
+   * instead of relying solely on React source destructuring.
+   */
+  declarationsDir?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,6 +61,22 @@ export function parseComponent(
 ): ComponentIR {
   const hookRegistry = createHookRegistry(options.hookMappings);
   const prefix = options.prefix ?? '';
+
+  // Auto-detect declarationsDir from @cloudscape-design/components if not provided
+  let declarationsDir = options.declarationsDir;
+  if (!declarationsDir) {
+    // Try to find @cloudscape-design/components in node_modules
+    const candidates = [
+      path.resolve('node_modules/@cloudscape-design/components'),
+      path.resolve(import.meta.dirname, '../../node_modules/@cloudscape-design/components'),
+    ];
+    for (const candidate of candidates) {
+      if (fs.existsSync(path.join(candidate, 'package.json'))) {
+        declarationsDir = candidate;
+        break;
+      }
+    }
+  }
 
   // 1. Locate source files
   const indexPath = resolveSourceFile(componentDir, 'index');
@@ -88,7 +111,8 @@ export function parseComponent(
 
   // 4. Extract props
   const sourceFile = component.sourceFile;
-  const props = extractProps(component, sourceFile, componentDir);
+  const dirName = path.basename(componentDir);
+  const props = extractProps(component, sourceFile, componentDir, declarationsDir, dirName);
 
   // 5. Extract hooks from the implementation body
   const hookResult = ts.isBlock(component.body)
