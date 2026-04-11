@@ -153,13 +153,14 @@ export function parseComponent(
   const template = parseJSXFromBody(component.body, sourceFile);
 
   // 8. Extract body preamble (code between hooks/handlers and return)
-  const bodyPreamble = ts.isBlock(component.body)
+  //    JSX-containing variables become render helpers instead of preamble.
+  const { preamble: bodyPreamble, renderHelpers } = ts.isBlock(component.body)
     ? extractBodyPreamble(component.body, sourceFile)
-    : [];
+    : { preamble: [], renderHelpers: [] };
 
   // 9. Extract helper functions (file-level, outside the component)
   const implFile = internalFile ?? indexFile;
-  const helpers = extractHelpers(implFile, component.name);
+  const helpers = [...extractHelpers(implFile, component.name), ...renderHelpers];
 
   // 9. Derive component metadata
   const componentName = deriveComponentName(component.name, componentDir);
@@ -288,11 +289,17 @@ function collectLocalVars(body: ts.Block): Set<string> {
  * and the return statement. These are typically variable assignments,
  * object builds, and conditional logic.
  */
+interface PreambleResult {
+  preamble: string[];
+  renderHelpers: import('../ir/types.js').HelperIR[];
+}
+
 function extractBodyPreamble(
   body: ts.Block,
   sourceFile: ts.SourceFile,
-): string[] {
+): PreambleResult {
   const preamble: string[] = [];
+  const renderHelpers: import('../ir/types.js').HelperIR[] = [];
   let pastHooks = false;
 
   for (const stmt of body.statements) {
@@ -312,11 +319,35 @@ function extractBodyPreamble(
       if (text.includes('applyDisplayName') || text.includes('getBaseProps')) continue;
       if (text.includes('checkSafeUrl')) continue;
       if (text.includes('useBaseComponent')) continue;
+
+      // Check if this is a variable containing a template (html`...`)
+      // These become render helper methods instead of bodyPreamble
+      if (ts.isVariableStatement(stmt) && (text.includes('html`') || text.includes('html `'))) {
+        for (const decl of stmt.declarationList.declarations) {
+          if (ts.isIdentifier(decl.name)) {
+            const name = decl.name.text;
+            const initText = decl.initializer
+              ? sourceFile.text.slice(decl.initializer.getStart(sourceFile), decl.initializer.getEnd())
+              : '';
+            if (initText.includes('html`') || initText.includes('html `')) {
+              // Convert to a render helper: const header = html`...` → function header() { return html`...`; }
+              renderHelpers.push({
+                name,
+                source: `function ${name}() {\n  return ${initText};\n}`,
+              });
+              continue;
+            }
+          }
+        }
+        // If we got here, not all declarations were helpers — add remainder to preamble
+        continue;
+      }
+
       preamble.push(text);
     }
   }
 
-  return preamble;
+  return { preamble, renderHelpers };
 }
 
 function isHookCallStatement(stmt: ts.Statement): boolean {
