@@ -10,7 +10,7 @@
  */
 import ts from 'typescript';
 import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES } from '../cloudscape-config.js';
-import { getBooleanAttributes } from '../standards.js';
+import { getBooleanAttributes, getHtmlTagNames } from '../standards.js';
 import { pascalToKebab, toLitEventName } from '../naming.js';
 
 // ---------------------------------------------------------------------------
@@ -372,15 +372,18 @@ function resolveTagName(tagName: ts.JsxTagNameExpression): string {
   if (COMPONENT_MAP[original]) return COMPONENT_MAP[original];
   if (SINGLE_WORD_MAP[original]) return SINGLE_WORD_MAP[original];
 
+  // Native HTML tag (from DOM spec)
+  if (getHtmlTagNames().has(original)) return original;
+
   // PascalCase → cs-kebab-case for multi-word names
-  if (/^[A-Z]/.test(original) && original !== original.toLowerCase()) {
+  if (/^[A-Z]/.test(original)) {
     // Skip TypeScript utility types and known non-components
     if (/^(React|Fragment|Suspense|StrictMode)$/.test(original)) return '__unwrap__';
     const kebab = pascalToKebab(original);
     return `cs-${kebab}`;
   }
 
-  // Lowercase = native HTML tag
+  // Unknown lowercase tag — pass through (could be a custom element like cs-icon)
   return original;
 }
 

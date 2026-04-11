@@ -13,7 +13,7 @@ import type {
   LoopIR,
 } from '../ir/types.js';
 import { getNodeText } from './program.js';
-import { getBooleanAttributes } from '../standards.js';
+import { getBooleanAttributes, getHtmlTagNames } from '../standards.js';
 
 // ---------------------------------------------------------------------------
 // Main entry
@@ -430,8 +430,7 @@ function getTagName(tagName: ts.JsxTagNameExpression, sourceFile: ts.SourceFile)
 }
 
 function isHtmlTag(tag: string): boolean {
-  // HTML tags start with lowercase
-  return /^[a-z]/.test(tag);
+  return getHtmlTagNames().has(tag);
 }
 
 function isEventAttributeName(name: string): boolean {
