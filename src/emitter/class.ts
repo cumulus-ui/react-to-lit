@@ -11,6 +11,7 @@ import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
 import { getBooleanAttributes } from '../standards.js';
+import { pascalToKebab, toLitEventName, toCustomEventName } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Main emission
@@ -461,21 +462,21 @@ function postProcessOutput(output: string): string {
   result = result.replace(
     /fireNonCancelableEvent\(\s*(on[A-Z]\w*)\b/g,
     (_, propName) => {
-      const eventName = propName.slice(2, 3).toLowerCase() + propName.slice(3);
+      const eventName = toCustomEventName(propName);
       return `fireNonCancelableEvent(this, '${eventName}'`;
     },
   );
   result = result.replace(
     /fireCancelableEvent\(\s*(on[A-Z]\w*)\b/g,
     (_, propName) => {
-      const eventName = propName.slice(2, 3).toLowerCase() + propName.slice(3);
+      const eventName = toCustomEventName(propName);
       return `fireNonCancelableEvent(this, '${eventName}'`;
     },
   );
   result = result.replace(
     /fireKeyboardEvent\(\s*(on[A-Z]\w*)\b/g,
     (_, propName) => {
-      const eventName = propName.slice(2, 3).toLowerCase() + propName.slice(3);
+      const eventName = toCustomEventName(propName);
       return `fireNonCancelableEvent(this, '${eventName}'`;
     },
   );
@@ -515,7 +516,7 @@ function convertRemainingJsx(output: string): string {
   // Match when < is preceded by whitespace, newline, (, `, >, $ (template expressions)
   code = code.replace(/(?<=[\s\n(`>$])(<\/?)(([A-Z][a-z]+){2,})\b/g, (match, prefix, name) => {
     if (/^(Object|Array|String|Number|Boolean|Map|Set|Error|Promise|Date|RegExp|Symbol|Function|Record|Partial|Required|Readonly|Pick|Omit|Exclude|Extract|NonNullable|ReturnType|Parameters|InstanceType)$/.test(name)) return match;
-    const kebab = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+    const kebab = pascalToKebab(name);
     return `${prefix}cs-${kebab}`;
   });
   // Also handle single-word PascalCase components that are known Cloudscape internals
@@ -545,7 +546,7 @@ function convertRemainingJsx(output: string): string {
     }
     // Event handlers: onXxx → @xxx
     if (/^on[A-Z]/.test(name)) {
-      const eventName = name.slice(2).toLowerCase();
+      const eventName = toLitEventName(name);
       return `${ws}@${eventName}=\${${expr}}`;
     }
     // Property binding

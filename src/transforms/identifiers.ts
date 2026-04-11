@@ -18,6 +18,7 @@ import type {
   TemplateNodeIR,
 } from '../ir/types.js';
 import { getGlobalNames } from '../standards.js';
+import { walkTemplate } from '../template-walker.js';
 
 // ---------------------------------------------------------------------------
 // Member map — all identifiers that should map to class members
@@ -403,48 +404,15 @@ function isDeclarationPosition(node: Node): boolean {
 
 function rewriteTemplateNode(
   node: TemplateNodeIR,
-  quickRewrite: (text: string) => string,
+  _quickRewrite: (text: string) => string,
   astRewrite: (text: string) => string,
 ): TemplateNodeIR {
-  // Rewrite attribute expressions
-  const attributes = node.attributes.map((attr) => {
-    if (typeof attr.value === 'string') return attr;
-    const expr = astRewrite(attr.value.expression);
-    return { ...attr, value: { expression: expr } };
+  return walkTemplate(node, {
+    attributeExpression: (expr) => astRewrite(expr),
+    expression: (expr) => astRewrite(expr),
+    conditionExpression: (expr) => astRewrite(expr),
+    loopIterable: (expr) => astRewrite(expr),
   });
-
-  // Rewrite expression nodes
-  let expression = node.expression;
-  if (expression) {
-    expression = astRewrite(expression);
-  }
-
-  // Rewrite condition
-  let condition = node.condition;
-  if (condition) {
-    const condExpr = astRewrite(condition.expression);
-    condition = {
-      ...condition,
-      expression: condExpr,
-      alternate: condition.alternate
-        ? rewriteTemplateNode(condition.alternate, quickRewrite, astRewrite)
-        : undefined,
-    };
-  }
-
-  // Rewrite loop
-  let loop = node.loop;
-  if (loop) {
-    const iterable = astRewrite(loop.iterable);
-    loop = { ...loop, iterable };
-  }
-
-  // Recurse into children
-  const children = node.children.map((c) =>
-    rewriteTemplateNode(c, quickRewrite, astRewrite),
-  );
-
-  return { ...node, attributes, children, expression, condition, loop };
 }
 
 // ---------------------------------------------------------------------------

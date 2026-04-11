@@ -15,6 +15,8 @@
  * Scans all code: handlers, effects, helpers, and template expressions.
  */
 import type { ComponentIR, HandlerIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
+import { toCustomEventName } from '../naming.js';
+import { walkTemplate } from '../template-walker.js';
 
 // ---------------------------------------------------------------------------
 // Main transform
@@ -26,7 +28,7 @@ export function transformEvents(ir: ComponentIR): ComponentIR {
   let hasCancelable = false;
   for (const prop of ir.props) {
     if (prop.category === 'event') {
-      const eventName = propNameToEventName(prop.name);
+      const eventName = toCustomEventName(prop.name);
       eventProps.set(prop.name, eventName);
       if (prop.eventCancelable) {
         hasCancelable = true;
@@ -234,46 +236,17 @@ function rewriteTemplateEvents(
   node: TemplateNodeIR,
   eventProps: Map<string, string>,
 ): TemplateNodeIR {
-  // Rewrite attribute expressions
-  const attrs = node.attributes.map((attr) => rewriteAttrEvent(attr, eventProps));
-
-  // Recurse
-  const children = node.children.map((c) => rewriteTemplateEvents(c, eventProps));
-
-  return {
-    ...node,
-    attributes: attrs,
-    children,
-    condition: node.condition
-      ? {
-          ...node.condition,
-          alternate: node.condition.alternate
-            ? rewriteTemplateEvents(node.condition.alternate, eventProps)
-            : undefined,
-        }
-      : undefined,
-  };
-}
-
-function rewriteAttrEvent(
-  attr: AttributeIR,
-  eventProps: Map<string, string>,
-): AttributeIR {
-  if (typeof attr.value === 'string') return attr;
-  const rewritten = rewriteEventCalls(attr.value.expression, eventProps);
-  if (rewritten === attr.value.expression) return attr;
-  return { ...attr, value: { expression: rewritten } };
+  return walkTemplate(node, {
+    attributeExpression: (expr) => {
+      const rewritten = rewriteEventCalls(expr, eventProps);
+      return rewritten !== expr ? rewritten : undefined;
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
-
-function propNameToEventName(propName: string): string {
-  if (!propName.startsWith('on')) return propName.toLowerCase();
-  const rest = propName.slice(2);
-  return rest.charAt(0).toLowerCase() + rest.slice(1);
-}
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

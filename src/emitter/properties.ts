@@ -5,6 +5,7 @@
  */
 import type { PropIR, StateIR, ControllerIR, ContextIR, ComputedIR, RefIR } from '../ir/types.js';
 import { getHtmlElementProps } from '../standards.js';
+import { camelToKebab } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Native DOM properties — queried from TypeScript's DOM lib, not hardcoded.
@@ -177,8 +178,4 @@ export function emitRefs(refs: RefIR[]): string {
   }
 
   return lines.join('\n');
-}
-
-function camelToKebab(str: string): string {
-  return str.replace(/([A-Z])/g, '-$1').toLowerCase();
 }

@@ -11,6 +11,7 @@ import type {
   DynamicValueIR,
 } from '../ir/types.js';
 import type { ImportCollector } from './imports.js';
+import { toLitEventName } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Main emission
@@ -217,7 +218,7 @@ function emitAttribute(
       return `?${attr.name}=\${${getExpression(attr.value)}}`;
 
     case 'event': {
-      const litEventName = reactEventToLit(attr.name);
+      const litEventName = `@${toLitEventName(attr.name)}`;
       return `${litEventName}=\${${getExpression(attr.value)}}`;
     }
 
@@ -242,14 +243,4 @@ function emitAttribute(
 function getExpression(value: string | DynamicValueIR): string {
   if (typeof value === 'string') return JSON.stringify(value);
   return value.expression;
-}
-
-/**
- * Convert React event handler name to Lit event binding.
- * onClick → @click, onKeyDown → @keydown, onFocus → @focus
- */
-function reactEventToLit(name: string): string {
-  if (!name.startsWith('on')) return `@${name}`;
-  const eventName = name.slice(2).toLowerCase();
-  return `@${eventName}`;
 }

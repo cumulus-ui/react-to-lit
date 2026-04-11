@@ -5,6 +5,7 @@
  * into <slot> elements in the template.
  */
 import type { ComponentIR, TemplateNodeIR } from '../ir/types.js';
+import { walkTemplate } from '../template-walker.js';
 
 // ---------------------------------------------------------------------------
 // Main transform
@@ -39,43 +40,30 @@ function transformTemplateSlots(
   node: TemplateNodeIR,
   slotProps: Set<string>,
 ): TemplateNodeIR {
-  // Check if this expression node references a slot prop
-  if (node.kind === 'expression' && node.expression) {
-    const trimmed = node.expression.trim();
-    if (slotProps.has(trimmed)) {
-      // children → <slot></slot>
-      if (trimmed === 'children') {
-        return {
-          kind: 'slot',
-          attributes: [],
-          children: [],
-        };
-      }
-      // named slot → <slot name="propName"></slot>
-      return {
-        kind: 'slot',
-        tag: 'slot',
-        attributes: [{ name: 'name', value: trimmed, kind: 'static' }],
-        children: [],
-      };
-    }
-  }
-
-  // Recurse into children
-  const transformedChildren = node.children.map((child) =>
-    transformTemplateSlots(child, slotProps),
-  );
-
-  return {
-    ...node,
-    children: transformedChildren,
-    condition: node.condition
-      ? {
-          ...node.condition,
-          alternate: node.condition.alternate
-            ? transformTemplateSlots(node.condition.alternate, slotProps)
-            : undefined,
+  return walkTemplate(node, {
+    node: (n) => {
+      // Check if this expression node references a slot prop
+      if (n.kind === 'expression' && n.expression) {
+        const trimmed = n.expression.trim();
+        if (slotProps.has(trimmed)) {
+          // children → <slot></slot>
+          if (trimmed === 'children') {
+            return {
+              kind: 'slot',
+              attributes: [],
+              children: [],
+            };
+          }
+          // named slot → <slot name="propName"></slot>
+          return {
+            kind: 'slot',
+            tag: 'slot',
+            attributes: [{ name: 'name', value: trimmed, kind: 'static' }],
+            children: [],
+          };
         }
-      : undefined,
-  };
+      }
+      return undefined; // keep as-is
+    },
+  });
 }

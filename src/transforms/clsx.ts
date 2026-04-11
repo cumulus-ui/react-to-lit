@@ -11,6 +11,7 @@
  * effect bodies, helpers, bodyPreamble, publicMethods, computed expressions).
  */
 import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
+import { walkTemplate } from '../template-walker.js';
 
 // ---------------------------------------------------------------------------
 // Main transform — accepts full ComponentIR
@@ -67,39 +68,24 @@ export function transformClsx(ir: ComponentIR): ComponentIR {
  * converting clsx expressions to classMap-compatible expressions.
  */
 function transformClsxInTemplate(node: TemplateNodeIR): TemplateNodeIR {
-  const transformedAttrs = node.attributes.map((attr) => {
-    if (attr.kind === 'classMap' && typeof attr.value !== 'string') {
-      return transformClassAttribute(attr);
-    }
-    if (typeof attr.value !== 'string' && attr.value.expression.includes('clsx(')) {
-      return transformClassAttribute({ ...attr, kind: 'classMap' });
-    }
-    if (attr.name === 'className') {
-      return { ...attr, name: 'class', kind: attr.kind === 'classMap' ? 'classMap' as const : attr.kind };
-    }
-    return attr;
+  return walkTemplate(node, {
+    attribute: (attr) => {
+      if (attr.kind === 'classMap' && typeof attr.value !== 'string') {
+        return transformClassAttribute(attr);
+      }
+      if (typeof attr.value !== 'string' && attr.value.expression.includes('clsx(')) {
+        return transformClassAttribute({ ...attr, kind: 'classMap' });
+      }
+      if (attr.name === 'className') {
+        return { ...attr, name: 'class', kind: attr.kind === 'classMap' ? 'classMap' as const : attr.kind };
+      }
+      return undefined; // keep as-is
+    },
+    expression: (expr) => {
+      const replaced = replaceClsxAndStylesInText(expr);
+      return replaced !== expr ? replaced : undefined;
+    },
   });
-
-  const transformedChildren = node.children.map(transformClsxInTemplate);
-
-  const transformedExpression = node.expression
-    ? replaceClsxAndStylesInText(node.expression)
-    : node.expression;
-
-  return {
-    ...node,
-    expression: transformedExpression,
-    attributes: transformedAttrs,
-    children: transformedChildren,
-    condition: node.condition
-      ? {
-          ...node.condition,
-          alternate: node.condition.alternate
-            ? transformClsxInTemplate(node.condition.alternate)
-            : undefined,
-        }
-      : undefined,
-  };
 }
 
 // ---------------------------------------------------------------------------

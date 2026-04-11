@@ -11,6 +11,7 @@
 import ts from 'typescript';
 import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES } from '../cloudscape-config.js';
 import { getBooleanAttributes } from '../standards.js';
+import { pascalToKebab, toLitEventName } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Component name mapping
@@ -296,7 +297,7 @@ function emitAttribute(
 
     // Event handlers: onXxx → @xxx
     if (/^on[A-Z]/.test(name)) {
-      const eventName = name.slice(2).toLowerCase();
+      const eventName = toLitEventName(name);
       builder.appendStatic(` @${eventName}=`);
       builder.addExpression(visitedExpr);
       return;
@@ -375,7 +376,7 @@ function resolveTagName(tagName: ts.JsxTagNameExpression): string {
   if (/^[A-Z]/.test(original) && original !== original.toLowerCase()) {
     // Skip TypeScript utility types and known non-components
     if (/^(React|Fragment|Suspense|StrictMode)$/.test(original)) return '__unwrap__';
-    const kebab = original.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+    const kebab = pascalToKebab(original);
     return `cs-${kebab}`;
   }
 

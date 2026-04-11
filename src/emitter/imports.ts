@@ -5,6 +5,7 @@
  * a deduplicated, sorted import block.
  */
 import type { ComponentIR } from '../ir/types.js';
+import { someInTemplate, templateHasExpression } from '../template-walker.js';
 
 // ---------------------------------------------------------------------------
 // Import collector
@@ -212,26 +213,31 @@ export function collectImports(ir: ComponentIR): ImportCollector {
 // ---------------------------------------------------------------------------
 
 function hasConditionalRendering(node: import('../ir/types.js').TemplateNodeIR): boolean {
-  if (node.condition) return true;
-  for (const child of node.children) {
-    if (hasConditionalRendering(child)) return true;
-  }
-  return false;
+  return someInTemplate(node, (n) => !!n.condition);
 }
 
 function hasClassMap(node: import('../ir/types.js').TemplateNodeIR): boolean {
-  for (const attr of node.attributes) {
-    if (attr.kind === 'classMap') return true;
-    // Also check expression text for classMap() calls (from clsx transform)
-    if (typeof attr.value === 'object' && attr.value.expression.includes('classMap(')) return true;
-  }
-  // Check node expression text
-  if (node.expression?.includes('classMap(')) return true;
-  for (const child of node.children) {
-    if (hasClassMap(child)) return true;
-  }
-  if (node.condition?.alternate && hasClassMap(node.condition.alternate)) return true;
-  return false;
+  return someInTemplate(node, (n) => {
+    for (const attr of n.attributes) {
+      if (attr.kind === 'classMap') return true;
+      // Also check expression text for classMap() calls (from clsx transform)
+      if (typeof attr.value === 'object' && attr.value.expression.includes('classMap(')) return true;
+    }
+    // Check node expression text
+    if (n.expression?.includes('classMap(')) return true;
+    return false;
+  });
+}
+
+function hasIfDefined(node: import('../ir/types.js').TemplateNodeIR): boolean {
+  return someInTemplate(node, (n) => {
+    for (const attr of n.attributes) {
+      if (typeof attr.value === 'object' && attr.value.expression.includes('ifDefined(')) return true;
+      if (typeof attr.value === 'string' && attr.value.includes('ifDefined(')) return true;
+    }
+    if (n.expression && n.expression.includes('ifDefined(')) return true;
+    return false;
+  });
 }
 
 function hasClassMapInCodeBodies(ir: ComponentIR): boolean {
@@ -245,18 +251,6 @@ function hasClassMapInCodeBodies(ir: ComponentIR): boolean {
   for (const s of ir.bodyPreamble) { if (check(s)) return true; }
   for (const m of ir.publicMethods) { if (check(m.body)) return true; }
   for (const c of ir.computedValues) { if (check(c.expression)) return true; }
-  return false;
-}
-
-function hasIfDefined(node: import('../ir/types.js').TemplateNodeIR): boolean {
-  for (const attr of node.attributes) {
-    if (typeof attr.value === 'object' && attr.value.expression.includes('ifDefined(')) return true;
-    if (typeof attr.value === 'string' && attr.value.includes('ifDefined(')) return true;
-  }
-  if (node.expression && node.expression.includes('ifDefined(')) return true;
-  for (const child of node.children) {
-    if (hasIfDefined(child)) return true;
-  }
   return false;
 }
 

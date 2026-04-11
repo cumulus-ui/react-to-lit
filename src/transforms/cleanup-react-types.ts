@@ -14,6 +14,7 @@
  */
 import type { ComponentIR, TemplateNodeIR } from '../ir/types.js';
 import { getGlobalNames } from '../standards.js';
+import { walkTemplate } from '../template-walker.js';
 
 // ---------------------------------------------------------------------------
 // Non-obvious mappings — only things that can't be derived from a rule.
@@ -108,29 +109,10 @@ export function cleanupReactTypes(ir: ComponentIR): ComponentIR {
 }
 
 function replaceReactTypesInTemplate(node: TemplateNodeIR): TemplateNodeIR {
-  const attributes = node.attributes.map(attr => {
-    if (typeof attr.value === 'string') return attr;
-    return { ...attr, value: { expression: replaceReactTypes(attr.value.expression) } };
+  return walkTemplate(node, {
+    attributeExpression: (expr) => replaceReactTypes(expr),
+    expression: (expr) => replaceReactTypes(expr),
+    conditionExpression: (expr) => replaceReactTypes(expr),
+    loopIterable: (expr) => replaceReactTypes(expr),
   });
-
-  let expression = node.expression;
-  if (expression) expression = replaceReactTypes(expression);
-
-  let condition = node.condition;
-  if (condition) {
-    condition = {
-      ...condition,
-      expression: replaceReactTypes(condition.expression),
-      alternate: condition.alternate
-        ? replaceReactTypesInTemplate(condition.alternate)
-        : undefined,
-    };
-  }
-
-  let loop = node.loop;
-  if (loop) loop = { ...loop, iterable: replaceReactTypes(loop.iterable) };
-
-  const children = node.children.map(replaceReactTypesInTemplate);
-
-  return { ...node, attributes, children, expression, condition, loop };
 }

@@ -11,6 +11,7 @@ import type { PropIR } from '../ir/types.js';
 import { getNodeText, parseFile } from './program.js';
 import type { RawComponent } from './component.js';
 import { SKIP_PROPS, SKIP_PREFIXES } from '../cloudscape-config.js';
+import { camelToKebab } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Main extraction
@@ -175,7 +176,7 @@ function classifyProp(
       type: typeText !== 'unknown' ? typeText : 'boolean',
       default: defaultValue,
       category: 'attribute',
-      attribute: toKebabCase(name),
+      attribute: camelToKebab(name),
       litType: 'Boolean',
     };
   }
@@ -210,7 +211,7 @@ function classifyProp(
       type: typeText !== 'unknown' ? typeText : 'number',
       default: defaultValue,
       category: 'attribute',
-      attribute: needsExplicitAttribute(name) ? toKebabCase(name) : undefined,
+      attribute: needsExplicitAttribute(name) ? camelToKebab(name) : undefined,
       litType: 'Number',
     };
   }
@@ -221,7 +222,7 @@ function classifyProp(
     type: typeText,
     default: defaultValue,
     category: 'attribute',
-    attribute: needsExplicitAttribute(name) ? toKebabCase(name) : undefined,
+    attribute: needsExplicitAttribute(name) ? camelToKebab(name) : undefined,
     litType: 'String',
   };
 }
@@ -298,17 +299,6 @@ function needsExplicitAttribute(name: string): boolean {
   return /[A-Z]/.test(name);
 }
 
-/**
- * Convert camelCase to kebab-case.
- */
-function toKebabCase(str: string): string {
-  // Handle 'ariaLabel' → 'aria-label'
-  if (str.startsWith('aria')) {
-    return str.replace(/([A-Z])/g, '-$1').toLowerCase();
-  }
-  // Handle 'readOnly' → 'read-only', 'iconName' → 'icon-name'
-  return str.replace(/([A-Z])/g, '-$1').toLowerCase();
-}
 
 // ---------------------------------------------------------------------------
 // Type-string-based inference

@@ -11,6 +11,7 @@
  */
 import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
 import { SKIP_PROPS, REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, INFRA_FUNCTIONS } from '../cloudscape-config.js';
+import { walkTemplate } from '../template-walker.js';
 
 // ---------------------------------------------------------------------------
 // Main transform
@@ -124,45 +125,27 @@ function cleanHandlerBody(body: string): string {
 // ---------------------------------------------------------------------------
 
 function cleanTemplate(node: TemplateNodeIR): TemplateNodeIR {
-  // Remove Cloudscape-specific attributes
-  const cleanedAttrs = node.attributes.filter((attr) => {
-    if (REMOVE_ATTRS.has(attr.name)) return false;
-    if (attr.name.startsWith('.') && REMOVE_ATTRS.has(attr.name.slice(1))) return false;
-    if (REMOVE_ATTR_PREFIXES.some((p) => attr.name.startsWith(p))) return false;
-    if (attr.name.startsWith('.__')) return false;
+  return walkTemplate(node, {
+    attribute: (attr) => {
+      if (REMOVE_ATTRS.has(attr.name)) return null;
+      if (attr.name.startsWith('.') && REMOVE_ATTRS.has(attr.name.slice(1))) return null;
+      if (REMOVE_ATTR_PREFIXES.some((p) => attr.name.startsWith(p))) return null;
+      if (attr.name.startsWith('.__')) return null;
 
-    // Remove ALL spread attributes — React spread has no Lit equivalent
-    // and all Cloudscape spreads are internal plumbing
-    if (attr.kind === 'spread') {
-      return false;
-    }
+      // Remove ALL spread attributes — React spread has no Lit equivalent
+      // and all Cloudscape spreads are internal plumbing
+      if (attr.kind === 'spread') return null;
 
-    // Remove attributes that reference __internalRootRef
-    if (typeof attr.value !== 'string') {
-      const expr = attr.value.expression;
-      if (expr.includes('__internalRootRef') || expr.includes('__internalRoot')) return false;
-    }
+      // Remove attributes that reference __internalRootRef
+      if (typeof attr.value !== 'string') {
+        const expr = attr.value.expression;
+        if (expr.includes('__internalRootRef') || expr.includes('__internalRoot')) return null;
+      }
 
-    return true;
+      // Keep — but clean the attribute expression
+      return cleanAttribute(attr);
+    },
   });
-
-  // Clean attribute expressions
-  const cleanedAttrValues = cleanedAttrs.map((attr) => cleanAttribute(attr));
-
-  // Recurse into children
-  const cleanedChildren = node.children.map(cleanTemplate);
-
-  return {
-    ...node,
-    attributes: cleanedAttrValues,
-    children: cleanedChildren,
-    condition: node.condition
-      ? {
-          ...node.condition,
-          alternate: node.condition.alternate ? cleanTemplate(node.condition.alternate) : undefined,
-        }
-      : undefined,
-  };
 }
 
 function cleanAttribute(attr: AttributeIR): AttributeIR {

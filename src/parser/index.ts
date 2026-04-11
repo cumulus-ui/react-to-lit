@@ -24,6 +24,7 @@ import { extractHandlers, extractHelpers } from './utils.js';
 import type { HookRegistry } from '../hooks/registry.js';
 import { createHookRegistry } from '../hooks/registry.js';
 import { transformJsxToLit } from './jsx-transform.js';
+import { pascalToKebab } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -247,9 +248,7 @@ function deriveComponentName(functionName: string, componentDir: string): string
  */
 function deriveTagName(componentName: string, prefix: string): string {
   // PascalCase to kebab-case
-  const kebab = componentName
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .toLowerCase();
+  const kebab = pascalToKebab(componentName);
 
   return prefix ? `${prefix}-${kebab}` : kebab;
 }
