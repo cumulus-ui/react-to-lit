@@ -124,10 +124,11 @@ function analyzeComponent(componentName: string): AnalysisResult {
       result.warnings.push(`${ir.effects.length} effect(s) parsed but no lifecycle emitted`);
     }
     if (ir.props.some((p) => p.category === 'event') && !result.stats.hasEventDispatch) {
-      // Only warn if the component has no child custom elements that could
-      // dispatch events on its behalf (event bubbling through shadow DOM)
+      // Only warn if the component has no child elements that could
+      // dispatch events on its behalf (custom elements or native form elements)
       const hasChildComponents = /<cs-[\w-]+/.test(output);
-      if (!hasChildComponents) {
+      const hasNativeFormElements = /<(input|textarea|select|button)\b/.test(output);
+      if (!hasChildComponents && !hasNativeFormElements) {
         result.warnings.push('Event props parsed but no event dispatch emitted');
       }
     }

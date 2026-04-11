@@ -7,6 +7,7 @@
 import ts from 'typescript';
 import path from 'node:path';
 import fs from 'node:fs';
+import { Project, ts as morphTs } from 'ts-morph';
 import type { PropIR } from '../ir/types.js';
 import { getNodeText, parseFile } from './program.js';
 import type { RawComponent } from './component.js';
@@ -346,29 +347,71 @@ function isArrayType(typeStr: string): boolean {
  * Build a type map from published declaration files (e.g., @cloudscape-design/components).
  * Reads interfaces.d.ts and extracts every property with its full type string.
  */
+// Shared ts-morph project for .d.ts parsing (reused across calls)
+let _dtsProject: Project | undefined;
+let _dtsProjectInitialized = false;
+
+function getDtsProject(declarationsDir: string): Project {
+  if (!_dtsProject) {
+    _dtsProject = new Project({
+      compilerOptions: {
+        target: morphTs.ScriptTarget.ESNext,
+        module: morphTs.ModuleKind.ESNext,
+        strict: false,
+        declaration: true,
+      },
+    });
+  }
+
+  // Add all .d.ts files from the declarations directory once
+  if (!_dtsProjectInitialized && fs.existsSync(declarationsDir)) {
+    _dtsProjectInitialized = true;
+    _dtsProject.addSourceFilesAtPaths(path.join(declarationsDir, '**/*.d.ts'));
+  }
+
+  return _dtsProject;
+}
+
 function buildDtsTypeMap(declarationsDir: string, componentName: string): Map<string, string> {
   const map = new Map<string, string>();
 
   const dtsPath = path.join(declarationsDir, componentName, 'interfaces.d.ts');
   if (!fs.existsSync(dtsPath)) return map;
 
-  const dtsFile = parseFile(dtsPath);
+  const project = getDtsProject(declarationsDir);
+
+  const sf = project.getSourceFile(dtsPath);
+  if (!sf) return map;
+
   const pascal = componentName.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
   const propsName = `${pascal}Props`;
 
-  // Walk the file looking for the main interface (e.g., "export interface AlertProps extends ...")
-  function visit(node: ts.Node) {
-    if (ts.isInterfaceDeclaration(node) && node.name.text === propsName) {
-      for (const member of node.members) {
-        if (ts.isPropertySignature(member) && member.name && ts.isIdentifier(member.name) && member.type) {
-          map.set(member.name.text, getNodeText(member.type, dtsFile));
-        }
-      }
+  const iface = sf.getInterface(propsName);
+  if (!iface) return map;
+
+  // Use the Type to get ALL properties including inherited ones.
+  // Interface.getProperties() only returns direct members;
+  // Interface.getType().getProperties() resolves the full extends chain.
+  const type = iface.getType();
+  for (const prop of type.getProperties()) {
+    const name = prop.getName();
+    const declarations = prop.getDeclarations();
+    if (declarations.length === 0) continue;
+    const decl = declarations[0];
+    // Get type text from the declaration's type node
+    const typeNode = decl.getChildrenOfKind(morphTs.SyntaxKind.TypeReference)[0]
+      ?? decl.getChildrenOfKind(morphTs.SyntaxKind.UnionType)[0]
+      ?? decl.getChildrenOfKind(morphTs.SyntaxKind.TypeLiteral)[0]
+      ?? decl.getChildrenOfKind(morphTs.SyntaxKind.ArrayType)[0]
+      ?? decl.getChildrenOfKind(morphTs.SyntaxKind.FunctionType)[0];
+    if (typeNode) {
+      map.set(name, typeNode.getText());
+    } else {
+      // Fallback: stringify from checker
+      map.set(name, prop.getTypeAtLocation(iface).getText());
     }
-    ts.forEachChild(node, visit);
   }
 
-  visit(dtsFile);
   return map;
 }
 
