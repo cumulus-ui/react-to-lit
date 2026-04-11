@@ -365,13 +365,8 @@ function isDeclarationPosition(node: Node): boolean {
   const parent = node.getParent();
   if (!parent) return false;
 
-  // obj.propName — don't rewrite the name after dot
+  // obj.propName — the name after a dot is not a declaration
   if (Node.isPropertyAccessExpression(parent) && parent.getNameNode() === node) return false;
-  // Wait — that's a reference, not a declaration. We should return false for declarations.
-  // Let me be more careful:
-
-  // Property access .name → not a declaration, but not a free reference either
-  if (Node.isPropertyAccessExpression(parent) && parent.getNameNode() === node) return true;
 
   // Variable declaration name
   if (Node.isVariableDeclaration(parent) && parent.getNameNode() === node) return true;

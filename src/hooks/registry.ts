@@ -74,6 +74,10 @@ export const cloudscapeHookRegistry: HookRegistry = {
     action: 'skip',
     reason: 'Cloudscape component-toolkit internal',
   },
+  'useVisualRefresh': {
+    action: 'skip',
+    reason: 'Visual refresh detection — handled differently in Lit',
+  },
   'useInternalI18n': {
     action: 'skip',
     reason: 'Cloudscape i18n — handled separately in Lit',

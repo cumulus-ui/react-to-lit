@@ -238,6 +238,7 @@ function convertToPrivateMethod(source: string): string {
  */
 function toPrivateMethodName(name: string): string {
   if (name.startsWith('_')) return name;
+  if (/^Render[A-Z]/.test(name)) return `_${name[0].toLowerCase()}${name.slice(1)}`;
   if (/^[A-Z]/.test(name)) return `_render${name}`;
   if (name.startsWith('render')) return `_${name}`;
   return `_${name}`;

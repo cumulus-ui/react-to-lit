@@ -463,10 +463,25 @@ function splitTopLevel(str: string): string[] {
  */
 function findTopLevelColon(str: string): number {
   let depth = 0;
+  let inTemplate = false;
+  let templateBraceDepth = 0;
   for (let i = 0; i < str.length; i++) {
     const ch = str[i];
-    if (ch === '{' || ch === '[' || ch === '(' || ch === '`') depth++;
-    if (ch === '}' || ch === ']' || ch === ')' || (ch === '`' && depth > 0)) depth--;
+    if (ch === '`') {
+      inTemplate = !inTemplate;
+      continue;
+    }
+    if (inTemplate) {
+      if (ch === '$' && str[i + 1] === '{') {
+        templateBraceDepth++;
+        i++; // skip '{'
+      } else if (ch === '}' && templateBraceDepth > 0) {
+        templateBraceDepth--;
+      }
+      continue;
+    }
+    if (ch === '{' || ch === '[' || ch === '(') depth++;
+    if (ch === '}' || ch === ']' || ch === ')') depth--;
     if (ch === ':' && depth === 0) return i;
   }
   return -1;

@@ -26,7 +26,11 @@ export function transformJsxToLit(sourceFile: ts.SourceFile): ts.SourceFile {
     newLine: ts.NewLineKind.LineFeed,
     removeComments: false,
   });
-  const printed = printer.printFile(transformed);
+  let printed = printer.printFile(transformed);
+
+  // The TS printer inserts a space between the tag and the backtick
+  // (e.g. `html \`...\``). Remove it so we emit `html\`...\``.
+  printed = printed.replace(/\b(html|svg) `/g, '$1`');
 
   result.dispose();
 
