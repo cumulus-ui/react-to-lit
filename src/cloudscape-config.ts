@@ -25,7 +25,7 @@ export const SKIP_PREFIXES = ['__'];
 
 /** Attributes to strip from template elements. */
 export const REMOVE_ATTRS = new Set([
-  'key', 'ref', 'componentName', 'skipWarnings',
+  'key', 'ref', 'componentName', 'skipWarnings', 'baseProps',
   'nativeAttributes', 'nativeInputAttributes',
   'nativeButtonAttributes', 'nativeAnchorAttributes',
 ]);

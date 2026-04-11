@@ -124,7 +124,12 @@ function analyzeComponent(componentName: string): AnalysisResult {
       result.warnings.push(`${ir.effects.length} effect(s) parsed but no lifecycle emitted`);
     }
     if (ir.props.some((p) => p.category === 'event') && !result.stats.hasEventDispatch) {
-      result.warnings.push('Event props parsed but no event dispatch emitted');
+      // Only warn if the component has no child custom elements that could
+      // dispatch events on its behalf (event bubbling through shadow DOM)
+      const hasChildComponents = /<cs-[\w-]+/.test(output);
+      if (!hasChildComponents) {
+        result.warnings.push('Event props parsed but no event dispatch emitted');
+      }
     }
 
   } catch (err) {
@@ -179,6 +184,7 @@ if (withWarnings.length > 0) {
   console.log('--- Warnings (suboptimal but not broken) ---');
   for (const [warn, comps] of [...warnTypes.entries()].sort((a, b) => b[1].length - a[1].length)) {
     console.log(`  ${comps.length}x ${warn}`);
+    for (const c of comps) console.log(`      - ${c}`);
   }
   console.log('');
 }
