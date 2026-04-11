@@ -4,75 +4,76 @@
  * Replaces React-specific type annotations and API references with their
  * web-standard equivalents across all IR string fields.
  *
- * This is a deterministic mapping — every React type has exactly one
- * correct web platform equivalent. No heuristics.
+ * Rules are derived from standards, not hardcoded:
+ * - React.XxxEvent → XxxEvent if it exists in DOM, otherwise Event
+ * - React.useXxx → useXxx (drop namespace)
+ * - React.Xxx<T> → small exceptions map for non-obvious mappings
  *
  * Runs on: handlers, effects, helpers, bodyPreamble, publicMethods,
  *          computedValues, template expressions.
  */
 import type { ComponentIR, TemplateNodeIR } from '../ir/types.js';
+import { getGlobalNames } from '../standards.js';
 
 // ---------------------------------------------------------------------------
-// React → Web Platform type mapping table
-//
-// Source: React's SyntheticEvent type hierarchy maps 1:1 to DOM events.
-// React utility types map to TypeScript/DOM equivalents.
+// Non-obvious mappings — only things that can't be derived from a rule.
+// Everything else is handled by pattern rules below.
 // ---------------------------------------------------------------------------
 
-const REACT_TYPE_REPLACEMENTS: Array<[RegExp, string]> = [
-  // Event types — React.XxxEvent<T> → XxxEvent (drop generic param)
-  [/React\.MouseEvent(<[^>]*>)?/g, 'MouseEvent'],
-  [/React\.KeyboardEvent(<[^>]*>)?/g, 'KeyboardEvent'],
-  [/React\.FocusEvent(<[^>]*>)?/g, 'FocusEvent'],
-  [/React\.ChangeEvent(<[^>]*>)?/g, 'Event'],
-  [/React\.FormEvent(<[^>]*>)?/g, 'Event'],
-  [/React\.SyntheticEvent(<[^>]*>)?/g, 'Event'],
-  [/React\.DragEvent(<[^>]*>)?/g, 'DragEvent'],
-  [/React\.ClipboardEvent(<[^>]*>)?/g, 'ClipboardEvent'],
-  [/React\.PointerEvent(<[^>]*>)?/g, 'PointerEvent'],
-  [/React\.TouchEvent(<[^>]*>)?/g, 'TouchEvent'],
-  [/React\.WheelEvent(<[^>]*>)?/g, 'WheelEvent'],
-  [/React\.AnimationEvent(<[^>]*>)?/g, 'AnimationEvent'],
-  [/React\.TransitionEvent(<[^>]*>)?/g, 'TransitionEvent'],
-  [/React\.CompositionEvent(<[^>]*>)?/g, 'CompositionEvent'],
-  [/React\.UIEvent(<[^>]*>)?/g, 'UIEvent'],
-  // Catch-all for any remaining React.XxxEvent
-  [/React\.(\w+)Event/g, '$1Event'],
+const REACT_EXCEPTIONS: Record<string, string> = {
+  'React.CSSProperties': 'Record<string, string>',
+  'React.Fragment': '',
+  'React.createElement': 'document.createElement',
+};
 
-  // Ref types — no web equivalent, use any
-  [/React\.Ref<[^>]*>/g, 'any'],
-  [/React\.RefObject<[^>]*>/g, 'any'],
-  [/React\.MutableRefObject<[^>]*>/g, 'any'],
+// ---------------------------------------------------------------------------
+// Core replacement logic
+// ---------------------------------------------------------------------------
 
-  // Utility types
-  [/React\.CSSProperties/g, 'Record<string, string>'],
-  [/React\.ReactNode/g, 'unknown'],
-  [/React\.ReactElement(<[^>]*>)?/g, 'unknown'],
-  [/React\.\w+HTMLAttributes<[^>]*>/g, 'Record<string, unknown>'],
+function replaceReactTypes(text: string): string {
+  if (!text.includes('React.')) return text;
 
-  // React API → bare names (in helper bodies that reference React.xxx)
-  [/React\.useRef/g, 'useRef'],
-  [/React\.useEffect/g, 'useEffect'],
-  [/React\.useState/g, 'useState'],
-  [/React\.useCallback/g, 'useCallback'],
-  [/React\.useMemo/g, 'useMemo'],
-  [/React\.useImperativeHandle/g, 'useImperativeHandle'],
-  [/React\.Fragment/g, ''],
-  [/React\.forwardRef\(/g, '('],
-  [/React\.createElement/g, 'document.createElement'],
-];
+  const domGlobals = getGlobalNames();
+  let result = text;
+
+  // 1. Apply explicit exceptions first
+  for (const [from, to] of Object.entries(REACT_EXCEPTIONS)) {
+    if (result.includes(from)) {
+      result = result.replaceAll(from, to);
+    }
+  }
+
+  // 2. React.forwardRef( → ( (strip wrapper)
+  result = result.replace(/React\.forwardRef\(/g, '(');
+
+  // 3. React.XxxEvent<T> → XxxEvent or Event (check DOM lib)
+  result = result.replace(/React\.(\w+Event)(<[^>]*>)?/g, (_match, name: string) => {
+    return domGlobals.has(name) ? name : 'Event';
+  });
+
+  // 4. React.ReactNode / React.ReactElement<T> → unknown
+  result = result.replace(/React\.React\w+(<[^>]*>)?/g, 'unknown');
+
+  // 5. React.Ref<T> / React.RefObject<T> / React.MutableRefObject<T> → any
+  result = result.replace(/React\.(?:Mutable)?Ref(?:Object)?<[^>]*>/g, 'any');
+
+  // 6. React.XxxHTMLAttributes<T> → Record<string, unknown>
+  result = result.replace(/React\.\w+HTMLAttributes<[^>]*>/g, 'Record<string, unknown>');
+
+  // 7. React.useXxx → useXxx (drop namespace)
+  result = result.replace(/React\.(use\w+)/g, '$1');
+
+  // 8. Catch-all: any remaining React.Xxx → strip React. prefix
+  result = result.replace(/React\.(\w+)/g, (_match, name: string) => {
+    return domGlobals.has(name) ? name : 'unknown';
+  });
+
+  return result;
+}
 
 // ---------------------------------------------------------------------------
 // Main transform
 // ---------------------------------------------------------------------------
-
-function replaceReactTypes(text: string): string {
-  let result = text;
-  for (const [pattern, replacement] of REACT_TYPE_REPLACEMENTS) {
-    result = result.replace(pattern, replacement);
-  }
-  return result;
-}
 
 export function cleanupReactTypes(ir: ComponentIR): ComponentIR {
   return {
