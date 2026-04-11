@@ -84,13 +84,31 @@ function generateAll(components: string[]): GeneratedComponent[] {
 
 const BASE_ELEMENT_STUB = `\
 import { LitElement } from 'lit';
+import type { PropertyValues, CSSResultGroup } from 'lit';
 export class CsBaseElement extends LitElement {
-  [key: string]: any;
+  static styles: CSSResultGroup;
+  // ARIA properties that generated components override
+  ariaLabel: string | null;
+  ariaRequired: string | null;
+  ariaDescribedby: string | null;
+  ariaControls: string | null;
+  ariaExpanded: string | null;
+  ariaHaspopup: string | null;
+  role: string | null;
+  title: string;
+  hidden: boolean;
+  tabIndex: number;
+  render(): unknown;
+  connectedCallback(): void;
+  disconnectedCallback(): void;
+  willUpdate(changedProperties: PropertyValues): void;
+  updated(changedProperties: PropertyValues): void;
+  firstUpdated(changedProperties: PropertyValues): void;
 }
 `;
 
 const EVENTS_STUB = `\
-export declare function fireNonCancelableEvent(target: EventTarget, name: string, detail?: any): void;
+export declare function fireNonCancelableEvent(target: EventTarget, name: string, detail?: any, nativeEvent?: Event): void;
 export declare function fireCancelableEvent(target: EventTarget, name: string, detail?: any, event?: Event): boolean;
 `;
 
@@ -116,6 +134,7 @@ export declare const defaultFormFieldContext: any;
 export interface FormFieldContextValue {
   [key: string]: any;
 }
+export type FormFieldContext = FormFieldContextValue;
 `;
 
 const BUTTON_CONTEXT_STUB = `\
@@ -124,6 +143,7 @@ export declare const defaultButtonContext: any;
 export interface ButtonContextValue {
   [key: string]: any;
 }
+export type ButtonContext = ButtonContextValue;
 `;
 
 function makeStylesStub(): string {
@@ -134,55 +154,198 @@ export declare const sharedStyles: CSSResult;
 `;
 }
 
-function makeInterfacesStub(componentName: string): string {
+function makeInterfacesStub(componentName: string, namespaceMembersMap: Map<string, Set<string>>): string {
   const pascal = toPascalCase(componentName);
+  const propsName = `${pascal}Props`;
+
+  // Collect all namespace members needed for this component's Props namespace
+  const members = namespaceMembersMap.get(propsName) ?? new Set<string>();
+
+  // Always include common members as fallback
+  const commonMembers = [
+    'Type', 'Size', 'Variant', 'Status', 'Placement', 'Position',
+    'Direction', 'Overflow', 'Step', 'Option', 'Item', 'Column',
+    'Row', 'Node', 'Group', 'Tab', 'Link', 'Tag', 'Token', 'Page',
+    'Message', 'Action', 'Selection', 'Filter', 'Preferences',
+    'I18nStrings', 'ChangeDetail', 'DismissDetail', 'FollowDetail',
+    'ClickDetail', 'SubmitDetail', 'SelectDetail',
+    'ExpandableChangeDetail', 'FilteringChangeDetail',
+    'PaginationChangeDetail', 'TextFilterChangeDetail',
+    'PropertyFilterProps', 'Color', 'Ref',
+  ];
+  for (const m of commonMembers) {
+    members.add(m);
+  }
+
+  // Build namespace body
+  const lines: string[] = [];
+  for (const member of [...members].sort()) {
+    // Some types are generic
+    if (member === 'Definition' || member === 'SortingState' || member === 'SortingChangeDetail') {
+      lines.push(`  type ${member}<T = any> = any;`);
+    } else if (member === 'ChangeDetail') {
+      lines.push(`  type ${member} = { value: any; [key: string]: any };`);
+    } else {
+      lines.push(`  type ${member} = any;`);
+    }
+  }
+
   return `\
-export interface ${pascal}Props {
+export interface ${propsName} {
   [key: string]: any;
 }
-export declare namespace ${pascal}Props {
-  type Type = string;
-  type Size = string;
-  type Variant = string;
-  type Status = string;
-  type Placement = string;
-  type Position = string;
-  type Direction = string;
-  type Overflow = string;
-  type Step = any;
-  type Option = any;
-  type Item = any;
-  type Column = any;
-  type Row = any;
-  type Node = any;
-  type Group = any;
-  type Tab = any;
-  type Link = any;
-  type Tag = any;
-  type Token = any;
-  type Page = any;
-  type Message = any;
-  type Action = any;
-  type Selection = any;
-  type Filter = any;
-  type SortingState<T = any> = any;
-  type Preferences = any;
-  type I18nStrings = any;
-  type Definition<T = any> = any;
-  type ChangeDetail = { value: any; [key: string]: any };
-  type DismissDetail = any;
-  type FollowDetail = any;
-  type ClickDetail = any;
-  type SubmitDetail = any;
-  type SelectDetail = any;
-  type ExpandableChangeDetail = any;
-  type FilteringChangeDetail = any;
-  type PaginationChangeDetail = any;
-  type SortingChangeDetail<T = any> = any;
-  type TextFilterChangeDetail = any;
-  type PropertyFilterProps = any;
+export declare namespace ${propsName} {
+${lines.join('\n')}
 }
 `;
+}
+
+// ---------------------------------------------------------------------------
+// Scan generated output to discover all Props.Member namespace references
+// ---------------------------------------------------------------------------
+
+function scanNamespaceMembers(generated: GeneratedComponent[]): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
+
+  // Regex to find PascalCase namespace member access: e.g. ButtonProps.Ref, BoxProps.Color
+  // Allow alphanumeric in namespace name to handle S3ResourceSelectorProps etc.
+  const nsRegex = /\b([A-Z][A-Za-z0-9]*Props)\.([A-Z][A-Za-z]+)/g;
+
+  for (const comp of generated) {
+    if (comp.error || !comp.output) continue;
+    let match: RegExpExecArray | null;
+    while ((match = nsRegex.exec(comp.output)) !== null) {
+      const [, ns, member] = match;
+      if (!result.has(ns)) {
+        result.set(ns, new Set());
+      }
+      result.get(ns)!.add(member);
+    }
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Scan generated output to discover all cross-component namespace references
+// (namespaces used but NOT from the component's own interfaces)
+// ---------------------------------------------------------------------------
+
+function scanCrossComponentNamespaces(generated: GeneratedComponent[]): Map<string, Set<string>> {
+  // Returns map: namespace name -> set of members used
+  // Only includes namespaces that are used in components OTHER than the one defining them
+  const allUsages = new Map<string, Set<string>>();
+  const nsRegex = /\b([A-Z][A-Za-z0-9]*(?:Props|ListProps))\.([\w]+)/g;
+
+  for (const comp of generated) {
+    if (comp.error || !comp.output) continue;
+    let match: RegExpExecArray | null;
+    while ((match = nsRegex.exec(comp.output)) !== null) {
+      const [, ns, member] = match;
+      if (!allUsages.has(ns)) {
+        allUsages.set(ns, new Set());
+      }
+      allUsages.get(ns)!.add(member);
+    }
+  }
+  return allUsages;
+}
+
+// ---------------------------------------------------------------------------
+// Build ambient declarations for cross-component types and other globals
+// ---------------------------------------------------------------------------
+
+function buildGlobalDeclarations(generated: GeneratedComponent[]): string {
+  const crossNs = scanCrossComponentNamespaces(generated);
+
+  // Also scan for other non-Props namespaces: Ace
+  const otherNsRegex = /\b(Ace)\.([\w]+)/g;
+  const aceMembers = new Set<string>();
+  for (const comp of generated) {
+    if (comp.error || !comp.output) continue;
+    let match: RegExpExecArray | null;
+    while ((match = otherNsRegex.exec(comp.output)) !== null) {
+      aceMembers.add(match[2]);
+    }
+  }
+
+  // Determine which namespaces are used cross-component (i.e. from a file that doesn't import them)
+  const componentPropsByName = new Map<string, string>(); // compName -> PropsName
+  for (const comp of generated) {
+    if (comp.error) continue;
+    componentPropsByName.set(comp.name, `${toPascalCase(comp.name)}Props`);
+  }
+
+  // For each namespace usage, check if any component uses it without importing it
+  const crossComponentNs = new Map<string, Set<string>>();
+  const nsRegex = /\b([A-Z][A-Za-z0-9]*(?:Props|ListProps))\.([\w]+)/g;
+  for (const comp of generated) {
+    if (comp.error || !comp.output) continue;
+    const ownProps = componentPropsByName.get(comp.name)!;
+    let match: RegExpExecArray | null;
+    while ((match = nsRegex.exec(comp.output)) !== null) {
+      const [, ns, member] = match;
+      if (ns !== ownProps) {
+        // Cross-component reference — this namespace needs to be globally available
+        if (!crossComponentNs.has(ns)) {
+          crossComponentNs.set(ns, new Set());
+        }
+        crossComponentNs.get(ns)!.add(member);
+      }
+    }
+  }
+
+  // Also check for NonCancelableCustomEvent usage
+  let hasNonCancelableCustomEvent = false;
+  for (const comp of generated) {
+    if (comp.error || !comp.output) continue;
+    if (comp.output.includes('NonCancelableCustomEvent')) {
+      hasNonCancelableCustomEvent = true;
+      break;
+    }
+  }
+
+  // Build a pure ambient script file (no imports/exports = script, not module)
+  // This makes all declarations globally available
+  const lines: string[] = [
+    '// Auto-generated ambient declarations for cross-component types',
+    '// This file is a script (not a module) so all declarations are global.',
+    '',
+  ];
+
+  // JSX namespace
+  lines.push('declare namespace JSX {');
+  lines.push('  interface IntrinsicElements { [elemName: string]: any; }');
+  lines.push('}');
+
+  // Ace namespace
+  if (aceMembers.size > 0) {
+    lines.push('');
+    lines.push('declare namespace Ace {');
+    for (const m of aceMembers) {
+      lines.push(`  interface ${m} { [key: string]: any; }`);
+    }
+    lines.push('}');
+  }
+
+  // NonCancelableCustomEvent
+  if (hasNonCancelableCustomEvent) {
+    lines.push('');
+    lines.push('type NonCancelableCustomEvent<T = any> = CustomEvent<T>;');
+  }
+
+  // Cross-component Props namespaces
+  for (const [nsName, members] of crossComponentNs) {
+    const allMembers = crossNs.get(nsName) ?? members;
+    lines.push('');
+    lines.push(`interface ${nsName} { [key: string]: any; }`);
+    lines.push(`declare namespace ${nsName} {`);
+    for (const member of [...allMembers].sort()) {
+      lines.push(`  type ${member} = any;`);
+    }
+    lines.push('}');
+  }
+
+  return lines.join('\n') + '\n';
 }
 
 // ---------------------------------------------------------------------------
@@ -195,6 +358,9 @@ function writeOutputTree(generated: GeneratedComponent[]): void {
     fs.rmSync(OUTPUT_DIR, { recursive: true });
   }
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+
+  // Scan all generated output to discover namespace members
+  const namespaceMembersMap = scanNamespaceMembers(generated);
 
   // Create internal stubs
   const internalDir = path.join(OUTPUT_DIR, 'internal');
@@ -231,12 +397,19 @@ function writeOutputTree(generated: GeneratedComponent[]): void {
     // Write the generated component
     fs.writeFileSync(path.join(compDir, 'index.ts'), comp.output);
 
-    // Write per-component stubs
+    // Write per-component stubs (with dynamically discovered namespace members)
     fs.writeFileSync(path.join(compDir, 'styles.d.ts'), makeStylesStub());
     fs.writeFileSync(path.join(compDir, 'styles.js'), '// stub\n');
-    fs.writeFileSync(path.join(compDir, 'interfaces.d.ts'), makeInterfacesStub(comp.name));
+    fs.writeFileSync(
+      path.join(compDir, 'interfaces.d.ts'),
+      makeInterfacesStub(comp.name, namespaceMembersMap),
+    );
     fs.writeFileSync(path.join(compDir, 'interfaces.js'), '// stub\n');
   }
+
+  // Build and write global ambient declarations for cross-component types
+  const globalDecl = buildGlobalDeclarations(generated);
+  fs.writeFileSync(path.join(OUTPUT_DIR, 'global.d.ts'), globalDecl);
 
   // Write tsconfig.json for the output directory
   const tsconfig = {
@@ -258,7 +431,7 @@ function writeOutputTree(generated: GeneratedComponent[]): void {
       },
     },
     include: ['**/*.ts'],
-    exclude: ['**/*.d.ts'],
+    exclude: [],
   };
   fs.writeFileSync(
     path.join(OUTPUT_DIR, 'tsconfig.json'),
