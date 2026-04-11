@@ -11,7 +11,7 @@ import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
 import { getBooleanAttributes } from '../standards.js';
-import { pascalToKebab, toLitEventName, toCustomEventName } from '../naming.js';
+import { pascalToKebab, toLitEventName } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Main emission
@@ -441,10 +441,7 @@ function toPrivateMethodName(name: string): string {
 function postProcessOutput(output: string): string {
   let result = output;
 
-  // --- className → class ---
-  result = result.replace(/\bclassName=/g, 'class=');
-
-  // --- Clean up classMap objects (comment-only entries from transform) ---
+  // --- Clean up classMap objects (comment-only entries from clsx transform) ---
   result = result.replace(/\/\*[^*]*\*\/\s*,?\s*/g, (match, offset) => {
     const before = result.slice(Math.max(0, offset - 200), offset);
     if (before.includes('classMap(') || before.includes("': ")) return '';
@@ -455,43 +452,10 @@ function postProcessOutput(output: string): string {
   result = result.replace(/,\s*\}/g, ' }');
 
   // --- Convert remaining JSX in output to Lit syntax ---
+  // This catches JSX in helper function bodies that the AST-level
+  // JSX pre-transform didn't reach. Will be removed when helpers
+  // are processed through the JSX transform (step 3).
   result = convertRemainingJsx(result);
-
-  // --- Rewrite remaining fire* event calls ---
-  // Catch any fireNonCancelableEvent(onXxx, ...) that survived through raw JSX or helpers
-  result = result.replace(
-    /fireNonCancelableEvent\(\s*(on[A-Z]\w*)\b/g,
-    (_, propName) => {
-      const eventName = toCustomEventName(propName);
-      return `fireNonCancelableEvent(this, '${eventName}'`;
-    },
-  );
-  result = result.replace(
-    /fireCancelableEvent\(\s*(on[A-Z]\w*)\b/g,
-    (_, propName) => {
-      const eventName = toCustomEventName(propName);
-      return `fireNonCancelableEvent(this, '${eventName}'`;
-    },
-  );
-  result = result.replace(
-    /fireKeyboardEvent\(\s*(on[A-Z]\w*)\b/g,
-    (_, propName) => {
-      const eventName = toCustomEventName(propName);
-      return `fireNonCancelableEvent(this, '${eventName}'`;
-    },
-  );
-
-  // --- Strip remaining Cloudscape internals ---
-  result = result.replace(/\.__internalRootRef=\$\{[^}]+\}\s*/g, '');
-  result = result.replace(/\bref=\{__internalRootRef\}\s*/g, '');
-  result = result.replace(/\bref=\{null\}\s*/g, '');
-  result = result.replace(/\bnativeAttributes=\{[^}]*\}\s*/g, '');
-  result = result.replace(/\bnativeInputAttributes=\{[^}]*\}\s*/g, '');
-
-  // Note: PascalCase→kebab conversion for component tags is handled by the
-  // component registry in the template IR. We do NOT convert in post-processing
-  // because it would break raw JSX in helper function bodies.
-
 
   // Clean up empty lines
   result = result.replace(/\n{3,}/g, '\n\n');
