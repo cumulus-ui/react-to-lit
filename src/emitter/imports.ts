@@ -295,30 +295,24 @@ function hasIfDefined(node: import('../ir/types.js').TemplateNodeIR): boolean {
 }
 
 function hasClassMapInCodeBodies(ir: ComponentIR): boolean {
-  const check = (text: string) => text.includes('classMap(');
-  for (const h of ir.handlers) { if (check(h.body)) return true; }
-  for (const e of ir.effects) {
-    if (check(e.body)) return true;
-    if (e.cleanup && check(e.cleanup)) return true;
-  }
-  for (const h of ir.helpers) { if (check(h.source)) return true; }
-  for (const s of ir.bodyPreamble) { if (check(s)) return true; }
-  for (const m of ir.publicMethods) { if (check(m.body)) return true; }
-  for (const c of ir.computedValues) { if (check(c.expression)) return true; }
-  return false;
+  return codeBodyContains(ir, 'classMap(');
 }
 
 function hasIfDefinedInCodeBodies(ir: ComponentIR): boolean {
-  const check = (text: string) => text.includes('ifDefined(');
-  for (const h of ir.handlers) { if (check(h.body)) return true; }
+  return codeBodyContains(ir, 'ifDefined(');
+}
+
+/** Check if any IR code body (handlers, effects, helpers, etc.) contains the given text. */
+function codeBodyContains(ir: ComponentIR, needle: string): boolean {
+  for (const h of ir.handlers) { if (h.body.includes(needle)) return true; }
   for (const e of ir.effects) {
-    if (check(e.body)) return true;
-    if (e.cleanup && check(e.cleanup)) return true;
+    if (e.body.includes(needle)) return true;
+    if (e.cleanup?.includes(needle)) return true;
   }
-  for (const h of ir.helpers) { if (check(h.source)) return true; }
-  for (const s of ir.bodyPreamble) { if (check(s)) return true; }
-  for (const m of ir.publicMethods) { if (check(m.body)) return true; }
-  for (const c of ir.computedValues) { if (check(c.expression)) return true; }
+  for (const h of ir.helpers) { if (h.source.includes(needle)) return true; }
+  for (const s of ir.bodyPreamble) { if (s.includes(needle)) return true; }
+  for (const m of ir.publicMethods) { if (m.body.includes(needle)) return true; }
+  for (const c of ir.computedValues) { if (c.expression.includes(needle)) return true; }
   return false;
 }
 
