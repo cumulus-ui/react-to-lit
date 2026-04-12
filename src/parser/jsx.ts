@@ -343,11 +343,16 @@ function parseJsxChildExpression(
   }
 
   // Plain expression: {someValue}
+  // If the expression contains JSX, convert it inline to html``
+  const rawText = getNodeText(expr, sourceFile);
+  const exprText = containsJsxNode(expr)
+    ? jsxExpressionToLitText(expr, sourceFile)
+    : rawText;
   return {
     kind: 'expression',
     attributes: [],
     children: [],
-    expression: getNodeText(expr, sourceFile),
+    expression: exprText,
   };
 }
 
