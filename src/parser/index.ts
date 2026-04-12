@@ -20,7 +20,7 @@ import { findComponent } from './component.js';
 import { extractProps } from './props.js';
 import { extractHooks } from './hooks.js';
 import { parseJSXFromBody } from './jsx.js';
-import { extractHandlers, extractHelpers, isHookCall, collectBindingNames } from './utils.js';
+import { extractHandlers, extractHelpers, isHookCall, collectBindingNames, collectLocalVariables } from './utils.js';
 import type { HookRegistry } from '../hooks/registry.js';
 import { createHookRegistry } from '../hooks/registry.js';
 import { transformJsxToLit } from './jsx-transform.js';
@@ -148,7 +148,7 @@ export function parseComponent(
 
   // 6b. Collect local variable names for scope-aware identifier rewriting
   const localVariables = ts.isBlock(component.body)
-    ? collectLocalVars(component.body)
+    ? collectLocalVariables(component.body)
     : new Set<string>();
 
   // 7. Parse JSX template
@@ -243,22 +243,6 @@ function deriveComponentName(functionName: string, componentDir: string): string
   }
 
   return name;
-}
-
-// ---------------------------------------------------------------------------
-// Local variable collection
-// ---------------------------------------------------------------------------
-
-function collectLocalVars(body: ts.Block): Set<string> {
-  const vars = new Set<string>();
-  for (const stmt of body.statements) {
-    if (ts.isVariableStatement(stmt)) {
-      for (const decl of stmt.declarationList.declarations) {
-        collectBindingNames(decl.name, vars);
-      }
-    }
-  }
-  return vars;
 }
 
 // ---------------------------------------------------------------------------
