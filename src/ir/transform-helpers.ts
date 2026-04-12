@@ -73,6 +73,10 @@ export function mapIRText(
       ...r,
       initialValue: fn(r.initialValue),
     })),
+    controllers: ir.controllers.map((c) => ({
+      ...c,
+      constructorArgs: fn(c.constructorArgs),
+    })),
     fileTypeDeclarations: ir.fileTypeDeclarations.map(fn),
     fileConstants: ir.fileConstants.map(fn),
   };

@@ -213,6 +213,12 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
     initialValue: astRewrite(r.initialValue),
   }));
 
+  // Transform controller constructor args
+  const controllers = ir.controllers.map((c) => ({
+    ...c,
+    constructorArgs: astRewrite(c.constructorArgs),
+  }));
+
   // Transform helpers
   const helpers = ir.helpers.map((h) => ({
     ...h,
@@ -251,6 +257,7 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
     refs,
     helpers,
     computedValues,
+    controllers,
     template,
   };
 }
