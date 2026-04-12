@@ -461,12 +461,38 @@ function extractBodyPreamble(
       // Track simple variable declarations for potential promotion
       if (ts.isVariableStatement(stmt)) {
         for (const decl of stmt.declarationList.declarations) {
-          if (ts.isIdentifier(decl.name) && decl.initializer) {
+          if (decl.initializer) {
             const expr = sourceFile.text.slice(
               decl.initializer.getStart(sourceFile),
               decl.initializer.getEnd(),
             );
-            preambleVars.push({ name: decl.name.text, expression: expr });
+            if (ts.isIdentifier(decl.name)) {
+              preambleVars.push({ name: decl.name.text, expression: expr });
+            } else if (ts.isObjectBindingPattern(decl.name)) {
+              // const { a, b } = expr → each binding becomes a preambleVar
+              for (const el of decl.name.elements) {
+                if (ts.isIdentifier(el.name)) {
+                  const propName = el.propertyName && ts.isIdentifier(el.propertyName)
+                    ? el.propertyName.text
+                    : el.name.text;
+                  preambleVars.push({
+                    name: el.name.text,
+                    expression: `(${expr}).${propName}`,
+                  });
+                }
+              }
+            } else if (ts.isArrayBindingPattern(decl.name)) {
+              // const [a, b] = expr → each binding becomes a preambleVar
+              for (let i = 0; i < decl.name.elements.length; i++) {
+                const el = decl.name.elements[i];
+                if (!ts.isOmittedExpression(el) && ts.isIdentifier(el.name)) {
+                  preambleVars.push({
+                    name: el.name.text,
+                    expression: `(${expr})[${i}]`,
+                  });
+                }
+              }
+            }
           }
         }
       }
