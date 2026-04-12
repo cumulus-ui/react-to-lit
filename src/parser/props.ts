@@ -136,27 +136,56 @@ function getDestructuredProps(
 }
 
 /**
- * Extract destructured prop aliases (e.g., { series: externalSeries } → externalSeries → series).
+ * Extract destructured prop aliases from both the function parameter
+ * and variable declarations in the body.
+ *
+ * Covers:
+ * - Function param: ({ series: externalSeries }) → externalSeries → series
+ * - Body destructuring: const { value: controlledValue } = props → controlledValue → value
+ * - Controllable hooks: useControllable(controlledXxx, ...) → alias patterns
  */
 export function extractPropAliases(
   component: RawComponent,
   sourceFile: ts.SourceFile,
 ): Map<string, string> {
   const aliases = new Map<string, string>();
-  if (component.parameters.length === 0) return aliases;
 
-  const firstParam = component.parameters[0];
-  if (!ts.isObjectBindingPattern(firstParam.name)) return aliases;
+  // 1. From function parameter destructuring
+  if (component.parameters.length > 0) {
+    const firstParam = component.parameters[0];
+    if (ts.isObjectBindingPattern(firstParam.name)) {
+      for (const element of firstParam.name.elements) {
+        if (element.dotDotDotToken) continue;
+        const name = ts.isIdentifier(element.name) ? element.name.text : '';
+        if (!name) continue;
+        const propName = element.propertyName
+          ? ts.isIdentifier(element.propertyName) ? element.propertyName.text : name
+          : name;
+        if (propName !== name) {
+          aliases.set(name, propName);
+        }
+      }
+    }
+  }
 
-  for (const element of firstParam.name.elements) {
-    if (element.dotDotDotToken) continue;
-    const name = ts.isIdentifier(element.name) ? element.name.text : '';
-    if (!name) continue;
-    const propName = element.propertyName
-      ? ts.isIdentifier(element.propertyName) ? element.propertyName.text : name
-      : name;
-    if (propName !== name) {
-      aliases.set(name, propName); // alias → original prop name
+  // 2. From body destructuring statements: const { prop: alias } = ...
+  if (ts.isBlock(component.body)) {
+    for (const stmt of component.body.statements) {
+      if (!ts.isVariableStatement(stmt)) continue;
+      for (const decl of stmt.declarationList.declarations) {
+        if (!ts.isObjectBindingPattern(decl.name)) continue;
+        for (const element of decl.name.elements) {
+          if (element.dotDotDotToken) continue;
+          const localName = ts.isIdentifier(element.name) ? element.name.text : '';
+          if (!localName) continue;
+          const origName = element.propertyName
+            ? ts.isIdentifier(element.propertyName) ? element.propertyName.text : localName
+            : localName;
+          if (origName !== localName && !aliases.has(localName)) {
+            aliases.set(localName, origName);
+          }
+        }
+      }
     }
   }
 
