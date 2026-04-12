@@ -8,6 +8,7 @@ import type { ComponentIR } from '../ir/types.js';
 import { Project, Node, ts } from 'ts-morph';
 import { collectImports } from './imports.js';
 import { emitProperties, emitState, emitControllers, emitContexts, emitComputed, emitRefs, emitSkippedHookVars } from './properties.js';
+import { stripFunctionCalls } from '../text-utils.js';
 import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
@@ -281,40 +282,35 @@ function toPrivateMethodName(name: string): string {
  * the trailing semicolon.
  */
 function stripReactHooks(source: string): string {
-  const hookNames = 'useEffect|useLayoutEffect|useInternalI18n|useFunnel|useFunnelStep|useFunnelSubStep|useVisualRefresh|useUniqueId|useMergeRefs';
+  const hookNames = [
+    'useEffect', 'useLayoutEffect', 'useInternalI18n', 'useFunnel',
+    'useFunnelStep', 'useFunnelSubStep', 'useVisualRefresh', 'useUniqueId',
+    'useMergeRefs',
+  ];
+
+  let result = source;
 
   // First pass: strip variable declarations with hook calls (const x = useHook(...))
-  const hookDeclPattern = new RegExp(`(?:const|let|var)\\s+(?:\\{[^}]*\\}|\\[[^\\]]*\\]|\\w+)\\s*=\\s*(${hookNames})\\s*\\(`);
-  let result = source;
-  for (let safety = 0; safety < 50; safety++) {
-    const m = hookDeclPattern.exec(result);
-    if (!m) break;
-    const openParen = result.indexOf('(', m.index + m[0].length - 1);
-    if (openParen === -1) break;
-    const closeParen = findMatchingParen(result, openParen);
-    if (closeParen === -1) break;
-    let end = closeParen + 1;
-    while (end < result.length && (result[end] === ' ' || result[end] === '\t')) end++;
-    if (end < result.length && result[end] === ';') end++;
-    if (end < result.length && result[end] === '\n') end++;
-    result = result.slice(0, m.index) + result.slice(end);
+  for (const hook of hookNames) {
+    const declPattern = new RegExp(`(?:const|let|var)\\s+(?:\\{[^}]*\\}|\\[[^\\]]*\\]|\\w+)\\s*=\\s*${hook}\\s*\\(`);
+    for (let safety = 0; safety < 50; safety++) {
+      const m = declPattern.exec(result);
+      if (!m) break;
+      const openParen = result.indexOf('(', m.index + m[0].length - 1);
+      if (openParen === -1) break;
+      const closeParen = findMatchingParen(result, openParen);
+      if (closeParen === -1) break;
+      let end = closeParen + 1;
+      while (end < result.length && (result[end] === ' ' || result[end] === '\t')) end++;
+      if (end < result.length && result[end] === ';') end++;
+      if (end < result.length && result[end] === '\n') end++;
+      result = result.slice(0, m.index) + result.slice(end);
+    }
   }
 
-  // Second pass: strip bare hook calls (useHook(...))
-  const hookPattern = new RegExp(`(?:^|[\\n;{}\\s])(\\s*)(${hookNames})\\s*\\(`);
-  for (let safety = 0; safety < 50; safety++) {
-    const m = hookPattern.exec(result);
-    if (!m) break;
-    const callStart = m.index + m[0].indexOf(m[2]);
-    const openParen = result.indexOf('(', callStart);
-    if (openParen === -1) break;
-    const closeParen = findMatchingParen(result, openParen);
-    if (closeParen === -1) break;
-    let end = closeParen + 1;
-    while (end < result.length && (result[end] === ' ' || result[end] === '\t')) end++;
-    if (end < result.length && result[end] === ';') end++;
-    if (end < result.length && result[end] === '\n') end++;
-    result = result.slice(0, callStart) + result.slice(end);
+  // Second pass: strip bare hook calls via shared utility
+  for (const hook of hookNames) {
+    result = stripFunctionCalls(result, hook);
   }
 
   // Strip comments that mention React hooks (gate3 checks for \buseEffect\b etc.)

@@ -175,3 +175,48 @@ export function splitTopLevel(str: string, separator: string): string[] {
   if (current.trim()) result.push(current);
   return result;
 }
+
+// ---------------------------------------------------------------------------
+// Code stripping utilities
+// ---------------------------------------------------------------------------
+
+/**
+ * Strip all calls to a named function from source text, handling
+ * multi-line calls and nested parens via balanced matching.
+ */
+export function stripFunctionCalls(text: string, funcName: string): string {
+  let result = text;
+  for (let safety = 0; safety < 50; safety++) {
+    const idx = result.indexOf(funcName + '(');
+    if (idx === -1) break;
+    const openParen = idx + funcName.length;
+    const closeParen = findMatchingParen(result, openParen);
+    if (closeParen === -1) break;
+    let end = closeParen + 1;
+    while (end < result.length && (result[end] === ' ' || result[end] === '\t')) end++;
+    if (end < result.length && result[end] === ';') end++;
+    if (end < result.length && result[end] === '\n') end++;
+    result = result.slice(0, idx) + result.slice(end);
+  }
+  return result;
+}
+
+/**
+ * Strip if-blocks matching a condition pattern, using balanced brace matching.
+ */
+export function stripIfBlocks(text: string, conditionPattern: RegExp): string {
+  let result = text;
+  for (let safety = 0; safety < 50; safety++) {
+    const m = conditionPattern.exec(result);
+    if (!m) break;
+    let braceStart = m.index + m[0].length;
+    while (braceStart < result.length && result[braceStart] !== '{') braceStart++;
+    if (braceStart >= result.length) break;
+    const braceEnd = findMatchingParen(result, braceStart, { allBrackets: true });
+    if (braceEnd === -1) break;
+    let end = braceEnd + 1;
+    if (end < result.length && result[end] === '\n') end++;
+    result = result.slice(0, m.index) + result.slice(end);
+  }
+  return result;
+}

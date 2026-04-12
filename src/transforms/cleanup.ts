@@ -12,7 +12,7 @@
 import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
 import { SKIP_PROPS, REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, INFRA_FUNCTIONS } from '../cloudscape-config.js';
 import { walkTemplate } from '../template-walker.js';
-import { findMatchingParen } from '../text-utils.js';
+import { stripFunctionCalls, stripIfBlocks } from '../text-utils.js';
 
 // ---------------------------------------------------------------------------
 // Main transform
@@ -74,49 +74,6 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
 // Handler body cleanup
 // ---------------------------------------------------------------------------
 
-/**
- * Strip all calls to a named function from source text, handling
- * multi-line calls and nested parens via balanced matching.
- */
-function stripFunctionCalls(text: string, funcName: string): string {
-  let result = text;
-  for (let safety = 0; safety < 50; safety++) {
-    const idx = result.indexOf(funcName + '(');
-    if (idx === -1) break;
-    const openParen = idx + funcName.length;
-    const closeParen = findMatchingParen(result, openParen);
-    if (closeParen === -1) break;
-    let end = closeParen + 1;
-    // Consume trailing semicolon and whitespace/newline
-    while (end < result.length && (result[end] === ' ' || result[end] === '\t')) end++;
-    if (end < result.length && result[end] === ';') end++;
-    if (end < result.length && result[end] === '\n') end++;
-    result = result.slice(0, idx) + result.slice(end);
-  }
-  return result;
-}
-
-/**
- * Strip if-blocks matching a condition pattern, using balanced brace matching.
- */
-function stripIfBlocks(text: string, conditionPattern: RegExp): string {
-  let result = text;
-  for (let safety = 0; safety < 50; safety++) {
-    const m = conditionPattern.exec(result);
-    if (!m) break;
-    // Find the opening brace after the condition
-    let braceStart = m.index + m[0].length;
-    while (braceStart < result.length && result[braceStart] !== '{') braceStart++;
-    if (braceStart >= result.length) break;
-    const braceEnd = findMatchingParen(result, braceStart, { allBrackets: true });
-    if (braceEnd === -1) break;
-    let end = braceEnd + 1;
-    if (end < result.length && result[end] === '\n') end++;
-    result = result.slice(0, m.index) + result.slice(end);
-  }
-  return result;
-}
-
 function cleanHandlerBody(body: string): string {
   let result = body;
 
@@ -167,25 +124,16 @@ function cleanHandlerBody(body: string): string {
   result = result.replace(/\b__\w+\s*&&\s*[^;,\n]+[;,]?\s*/g, '');
   // Remove spread of __-prefixed vars
   result = result.replace(/,?\s*\.\.\.__\w+,?/g, (m) => m.startsWith(',') && m.endsWith(',') ? ',' : '');
-  result = stripFunctionCalls(result, 'FunnelMetrics.funnelStart');
-  result = stripFunctionCalls(result, 'FunnelMetrics.funnelComplete');
-  result = stripFunctionCalls(result, 'FunnelMetrics.funnelSuccessful');
-  result = stripFunctionCalls(result, 'FunnelMetrics.funnelCancelled');
-  result = stripFunctionCalls(result, 'FunnelMetrics.funnelError');
-  result = stripFunctionCalls(result, 'FunnelMetrics.funnelStepStart');
-  result = stripFunctionCalls(result, 'FunnelMetrics.funnelStepComplete');
-  result = stripFunctionCalls(result, 'FunnelMetrics.funnelStepNavigation');
-  result = stripFunctionCalls(result, 'FunnelMetrics.funnelStepChange');
-  result = stripFunctionCalls(result, 'FunnelMetrics.funnelSubStepStart');
-  result = stripFunctionCalls(result, 'FunnelMetrics.funnelSubStepComplete');
-  result = stripFunctionCalls(result, 'FunnelMetrics.funnelSubStepError');
-  result = stripFunctionCalls(result, 'FunnelMetrics.helpPanelInteracted');
-  result = stripFunctionCalls(result, 'FunnelMetrics.externalLinkInteracted');
-  result = stripFunctionCalls(result, 'getSubStepAllSelector');
-  result = stripFunctionCalls(result, 'getFunnelValueSelector');
-  result = stripFunctionCalls(result, 'getFieldSlotSeletor');
-  result = stripFunctionCalls(result, 'getNameFromSelector');
-  result = stripFunctionCalls(result, 'getSubStepSelector');
+
+  // Remove FunnelMetrics.xxx(...) and analytics selector function calls
+  const analyticsCallPattern = /\bFunnelMetrics\.\w+\(|\b(getSubStepAllSelector|getFunnelValueSelector|getFieldSlotSeletor|getNameFromSelector|getSubStepSelector)\(/g;
+  let match;
+  while ((match = analyticsCallPattern.exec(result)) !== null) {
+    // stripFunctionCalls expects funcName without '(' — extract it
+    const funcName = match[0].slice(0, -1); // remove trailing '('
+    result = stripFunctionCalls(result, funcName);
+    analyticsCallPattern.lastIndex = 0; // reset after mutation
+  }
 
   // Note: React type annotations (React.XxxEvent, React.Ref, etc.) are
   // handled by the cleanup-react-types transform — not duplicated here.
