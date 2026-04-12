@@ -469,14 +469,13 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
       const relToOutput = path.relative(OUTPUT_DIR, resolved);
 
       // Check if a .ts, .d.ts, or .js file exists for this module
-      const extensions = ['.ts', '.d.ts', '.js', '/index.ts', '/index.d.ts', '/index.js'];
-      const exists = extensions.some(ext => fs.existsSync(path.join(OUTPUT_DIR, relToOutput + ext)));
-      if (exists) continue;
+      // Strip .js extension if present (bundler resolution)
+      const baseRelPath = relToOutput.replace(/\.js$/, '');
 
-      if (!neededModules.has(relToOutput)) {
-        neededModules.set(relToOutput, new Set());
+      if (!neededModules.has(baseRelPath)) {
+        neededModules.set(baseRelPath, new Set());
       }
-      const names = neededModules.get(relToOutput)!;
+      const names = neededModules.get(baseRelPath)!;
       if (namedStr) {
         for (const n of namedStr.split(',').map(s => s.trim()).filter(Boolean)) {
           // Handle 'Type as Alias' and 'type Name'
