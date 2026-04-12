@@ -526,12 +526,25 @@ function jsxExpressionToLitText(expr: ts.Expression, sourceFile: ts.SourceFile):
   result.dispose();
 
   // Extract the expression from `const __jsxExpr = <converted>;`
-  const eqIdx = printed.indexOf('=');
-  if (eqIdx > -1) {
-    let value = printed.slice(eqIdx + 1).trim();
-    // Strip trailing semicolon and newline
-    value = value.replace(/;\s*$/, '').trim();
-    return value;
+  // When JSX spread attributes are present, the printer may emit orphaned
+  // statements after the main declaration. Only take the first statement
+  // by finding the semicolon that ends the const declaration (at depth 0).
+  const declPrefix = 'const __jsxExpr = ';
+  const declStart = printed.indexOf(declPrefix);
+  if (declStart > -1) {
+    const valueStart = declStart + declPrefix.length;
+    let depth = 0;
+    let inTemplate = false;
+    let i = valueStart;
+    for (; i < printed.length; i++) {
+      const ch = printed[i];
+      if (ch === '`') { inTemplate = !inTemplate; continue; }
+      if (inTemplate) continue;
+      if (ch === '(' || ch === '{' || ch === '[') depth++;
+      if (ch === ')' || ch === '}' || ch === ']') depth--;
+      if (ch === ';' && depth <= 0) break;
+    }
+    return printed.slice(valueStart, i).trim();
   }
 
   // Fallback: return the original text
