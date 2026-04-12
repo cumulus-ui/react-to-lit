@@ -422,6 +422,8 @@ const SKIP_IMPORT_NAMES = new Set([
   'applyDisplayName', 'getBaseProps', 'useBaseComponent', 'InternalBaseComponentProps',
   'getAnalyticsMetadataProps', 'getAnalyticsMetadataAttribute', 'getAnalyticsLabelAttribute',
   'checkSafeUrl', 'warnOnce', 'FunnelMetrics',
+  // Event dispatchers — hardcoded by the emitter
+  'fireNonCancelableEvent', 'fireCancelableEvent', 'fireKeyboardEvent',
   // React wrapper components converted by the component transform
   'WithNativeAttributes',
 ]);
@@ -440,10 +442,10 @@ function extractSourceImports(sourceFile: ts.SourceFile): ImportIR[] {
     if (specifier.endsWith('.css') || specifier.endsWith('.css.js')) continue;
     // Skip type-only imports (won't cause runtime TS2304)
     if (stmt.importClause?.isTypeOnly) continue;
-    // Skip relative imports — they reference Cloudscape source modules that
-    // won't exist in the Lit output. These identifiers are handled by the
-    // transforms or become body preamble variables.
-    if (specifier.startsWith('.') || specifier.startsWith('/')) continue;
+    // Skip relative imports to React component files (index, internal) —
+    // these become custom element imports handled by the component transform.
+    // But keep imports to utility/shared modules (keycode, utils, etc.).
+    if ((specifier.startsWith('.') || specifier.startsWith('/')) && isComponentImportPath(specifier)) continue;
 
     const clause = stmt.importClause;
     if (!clause) {
@@ -483,4 +485,32 @@ function extractSourceImports(sourceFile: ts.SourceFile): ImportIR[] {
   }
 
   return imports;
+}
+
+/**
+ * Check if a relative import path points to a React component or
+ * internal module that shouldn't be carried to the Lit output.
+ *
+ * Returns true to SKIP the import.
+ */
+function isComponentImportPath(specifier: string): boolean {
+  // Exact patterns for component entry points
+  if (specifier.endsWith('/index') || specifier.endsWith('/index.js')) return true;
+  if (specifier.endsWith('/internal') || specifier.endsWith('/internal.js')) return true;
+  // Test/mock patterns
+  if (specifier.includes('__') || specifier.includes('.test')) return true;
+  // Analytics metadata — generated code, not needed
+  if (specifier.includes('analytics-metadata') || specifier.includes('analytics/')) return true;
+  // Context providers (already handled by transforms)
+  if (specifier.includes('/context')) return true;
+  // Hooks — handled by the hook registry
+  if (specifier.includes('/hooks') || specifier.includes('use-')) return true;
+  // Base component infrastructure
+  if (specifier.includes('base-component') || specifier.includes('base-element')) return true;
+  // i18n — needs separate Lit i18n strategy
+  if (specifier.includes('/i18n')) return true;
+  // ../component-name (bare directory — resolved as /index by Node)
+  const segments = specifier.replace(/^\.\.?\//, '').split('/');
+  if (segments.length === 1 && !segments[0].includes('.')) return true;
+  return false;
 }

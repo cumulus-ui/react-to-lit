@@ -411,6 +411,10 @@ function writeOutputTree(generated: GeneratedComponent[]): void {
   const globalDecl = buildGlobalDeclarations(generated);
   fs.writeFileSync(path.join(OUTPUT_DIR, 'global.d.ts'), globalDecl);
 
+  // Auto-generate stubs for any imported modules that don't have declarations yet.
+  // Scan all generated output for relative import paths and create catch-all .d.ts files.
+  autoStubMissingModules(generated);
+
   // Write tsconfig.json for the output directory
   const tsconfig = {
     compilerOptions: {
@@ -437,6 +441,73 @@ function writeOutputTree(generated: GeneratedComponent[]): void {
     path.join(OUTPUT_DIR, 'tsconfig.json'),
     JSON.stringify(tsconfig, null, 2),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Auto-stub missing modules
+// ---------------------------------------------------------------------------
+
+/**
+ * Scan generated output for relative import paths and create catch-all
+ * declaration stubs for any module that doesn't already have one.
+ */
+function autoStubMissingModules(generated: GeneratedComponent[]): void {
+  // Collect all relative import module specifiers and their named imports
+  const importRegex = /import\s+(?:type\s+)?(?:\{([^}]+)\}|(\w+))\s+from\s+'(\.[^']+)'/g;
+  const neededModules = new Map<string, Set<string>>(); // resolved path → named imports
+
+  for (const comp of generated) {
+    if (comp.error || !comp.output) continue;
+    let match;
+    while ((match = importRegex.exec(comp.output)) !== null) {
+      const [, namedStr, defaultName, specifier] = match;
+      // Resolve from the component's directory
+      const compDir = path.join(OUTPUT_DIR, comp.name);
+      const resolved = path.resolve(compDir, specifier);
+      const relToOutput = path.relative(OUTPUT_DIR, resolved);
+
+      // Check if a .ts, .d.ts, or .js file exists for this module
+      const extensions = ['.ts', '.d.ts', '.js', '/index.ts', '/index.d.ts', '/index.js'];
+      const exists = extensions.some(ext => fs.existsSync(path.join(OUTPUT_DIR, relToOutput + ext)));
+      if (exists) continue;
+
+      if (!neededModules.has(relToOutput)) {
+        neededModules.set(relToOutput, new Set());
+      }
+      const names = neededModules.get(relToOutput)!;
+      if (namedStr) {
+        for (const n of namedStr.split(',').map(s => s.trim()).filter(Boolean)) {
+          // Handle 'Type as Alias' and 'type Name'
+          const clean = n.replace(/^type\s+/, '').replace(/\s+as\s+\w+$/, '').trim();
+          if (clean) names.add(clean);
+        }
+      }
+      if (defaultName) names.add(defaultName);
+    }
+  }
+
+  // Create stub declaration files
+  for (const [modulePath, names] of neededModules) {
+    const stubDir = path.join(OUTPUT_DIR, path.dirname(modulePath));
+    fs.mkdirSync(stubDir, { recursive: true });
+
+    const stubLines = [
+      `// Auto-generated stub for ${modulePath}`,
+    ];
+    for (const name of [...names].sort()) {
+      // Declare as a value that also serves as a type (class-like pattern)
+      stubLines.push(`export declare const ${name}: any;`);
+    }
+    // Catch-all for any other imports
+    stubLines.push(`export default {} as any;`);
+
+    const stubPath = path.join(OUTPUT_DIR, modulePath + '.d.ts');
+    if (!fs.existsSync(stubPath)) {
+      fs.writeFileSync(stubPath, stubLines.join('\n') + '\n');
+      // Also write a .js file so module resolution works
+      fs.writeFileSync(path.join(OUTPUT_DIR, modulePath + '.js'), '// stub\n');
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
