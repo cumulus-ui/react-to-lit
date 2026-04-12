@@ -103,9 +103,9 @@ function cleanHandlerBody(body: string): string {
   // Remove: applyDisplayName(...)
   result = result.replace(/applyDisplayName\([^)]*\)\s*;?\s*/g, '');
 
-  // Remove rest/restProps references (from const { foo, ...rest } = props — meaningless in Lit)
-  result = result.replace(/\{\s*\.\.\.rest(?:Props)?\s*\}\s*\n?\s*/g, '');
-  result = result.replace(/\.\.\.rest(?:Props)?(?=\s*[,}\n])/g, '');
+  // Remove rest/restProps/restXxx references (from const { foo, ...rest } = props — meaningless in Lit)
+  result = result.replace(/\{\s*\.\.\.rest\w*\s*\}\s*\n?\s*/g, '');
+  result = result.replace(/,?\s*\.\.\.rest\w*(?:\.\w+)*\s*,?/g, (m) => m.startsWith(',') && m.endsWith(',') ? ',' : '');
   result = result.replace(/\b(?:rest|restProps)\.\w+(?:\?\.\w+)*/g, 'undefined');
 
   // Remove: getAnalyticsMetadataAttribute(...)
