@@ -131,6 +131,69 @@ export function extractHelpers(
   return helpers;
 }
 
+// ---------------------------------------------------------------------------
+// File-level constant extraction
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract top-level constant/variable declarations that aren't functions,
+ * classes, or the component itself. These are file-scope constants that
+ * helpers and the component reference.
+ */
+export function extractFileConstants(
+  sourceFile: ts.SourceFile,
+  componentFunctionName: string,
+): string[] {
+  const constants: string[] = [];
+
+  for (const stmt of sourceFile.statements) {
+    if (!ts.isVariableStatement(stmt)) continue;
+
+    // Skip exported declarations (they're usually the component or re-exports)
+    const isExported = stmt.modifiers?.some(
+      m => m.kind === ts.SyntaxKind.ExportKeyword,
+    );
+    if (isExported) continue;
+
+    const decls = stmt.declarationList.declarations;
+    let skip = false;
+
+    for (const decl of decls) {
+      if (!ts.isIdentifier(decl.name)) continue;
+      const name = decl.name.text;
+
+      // Skip the component function
+      if (name === componentFunctionName) { skip = true; break; }
+      // Skip infrastructure
+      if (isCloudscapeInfraFunction(name)) { skip = true; break; }
+      if (isComponentImplementation(name, componentFunctionName)) { skip = true; break; }
+
+      // Skip if the initializer is a function/arrow (already handled by extractHelpers)
+      if (decl.initializer && (
+        ts.isArrowFunction(decl.initializer) ||
+        ts.isFunctionExpression(decl.initializer) ||
+        ts.isObjectLiteralExpression(decl.initializer)
+      )) { skip = true; break; }
+
+      // Skip hook calls
+      if (decl.initializer && isHookCall(decl.initializer)) { skip = true; break; }
+    }
+
+    if (skip) continue;
+
+    const source = getNodeText(stmt, sourceFile);
+
+    // Skip React imports/patterns
+    if (source.includes('React.') || source.includes('createContext')) continue;
+    // Skip CSS module imports (styles = require(...))
+    if (source.includes('require(')) continue;
+
+    constants.push(source);
+  }
+
+  return constants;
+}
+
 /**
  * Check if source text contains raw JSX syntax (not html`` templates or type generics).
  */

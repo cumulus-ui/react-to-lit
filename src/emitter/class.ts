@@ -36,6 +36,14 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   sections.push(`const hostStyles = css\`:host { display: block; }\`;`);
   sections.push('');
 
+  // --- File-level constants ---
+  if (ir.fileConstants.length > 0) {
+    for (const constant of ir.fileConstants) {
+      sections.push(constant);
+    }
+    sections.push('');
+  }
+
   // --- Helpers (utility only — render helpers go inside the class) ---
   const utilityHelpers = ir.helpers.filter(h => !isRenderHelper(h.source));
   const renderHelpers = ir.helpers.filter(h => isRenderHelper(h.source));

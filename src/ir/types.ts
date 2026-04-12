@@ -67,6 +67,9 @@ export interface ComponentIR {
   /** Helper functions defined in the same file but outside the component */
   helpers: HelperIR[];
 
+  /** File-level constants (non-function variable declarations) */
+  fileConstants: string[];
+
   /** Unprocessed body statements between hooks and return (preamble code) */
   bodyPreamble: string[];
 

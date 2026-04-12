@@ -222,6 +222,7 @@ export function collectImports(ir: ComponentIR): ImportCollector {
     ...ir.handlers.map(h => h.body + (h.params ?? '')),
     ...ir.effects.map(e => e.body + (e.cleanup ?? '')),
     ...ir.helpers.map(h => h.source),
+    ...ir.fileConstants,
     ...ir.bodyPreamble,
     ...ir.computedValues.map(c => c.expression),
     ...ir.publicMethods.map(m => m.body),
