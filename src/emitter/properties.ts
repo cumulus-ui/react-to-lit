@@ -201,8 +201,10 @@ export function emitRefs(refs: RefIR[]): string {
       const type = ref.type || 'HTMLElement';
       lines.push(`  @query('#${selectorId}') private _${ref.name}!: ${type};`);
     } else {
-      const type = ref.type ? `: { current: ${ref.type} | null }` : '';
-      lines.push(`  private _${ref.name}${type} = { current: ${ref.initialValue} };`);
+      // Non-DOM refs: the identifier transform rewrites refName.current → this._refName,
+      // so we declare the field as the unwrapped type (not { current: T }).
+      const type = ref.type ? `: ${ref.type} | null` : '';
+      lines.push(`  private _${ref.name}${type} = ${ref.initialValue};`);
     }
     lines.push('');
   }
