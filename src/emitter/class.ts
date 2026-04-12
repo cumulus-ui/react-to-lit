@@ -281,28 +281,39 @@ function toPrivateMethodName(name: string): string {
  * the trailing semicolon.
  */
 function stripReactHooks(source: string): string {
-  const hookPattern = /(?:^|[\n;{}\s])(\s*)(useEffect|useLayoutEffect)\s*\(/;
+  const hookNames = 'useEffect|useLayoutEffect|useInternalI18n|useFunnel|useFunnelStep|useFunnelSubStep|useVisualRefresh|useUniqueId|useMergeRefs';
+
+  // First pass: strip variable declarations with hook calls (const x = useHook(...))
+  const hookDeclPattern = new RegExp(`(?:const|let|var)\\s+(?:\\{[^}]*\\}|\\[[^\\]]*\\]|\\w+)\\s*=\\s*(${hookNames})\\s*\\(`);
   let result = source;
-
   for (let safety = 0; safety < 50; safety++) {
-    const m = hookPattern.exec(result);
+    const m = hookDeclPattern.exec(result);
     if (!m) break;
-
-    // Position of the opening '(' for the hook call
-    const callStart = m.index + m[0].indexOf(m[2]);
-    const openParen = result.indexOf('(', callStart);
+    const openParen = result.indexOf('(', m.index + m[0].length - 1);
     if (openParen === -1) break;
-
     const closeParen = findMatchingParen(result, openParen);
     if (closeParen === -1) break;
-
-    // Consume optional trailing semicolon and whitespace/newline
     let end = closeParen + 1;
     while (end < result.length && (result[end] === ' ' || result[end] === '\t')) end++;
     if (end < result.length && result[end] === ';') end++;
-    // Also consume trailing newline so we don't leave blank lines
     if (end < result.length && result[end] === '\n') end++;
+    result = result.slice(0, m.index) + result.slice(end);
+  }
 
+  // Second pass: strip bare hook calls (useHook(...))
+  const hookPattern = new RegExp(`(?:^|[\\n;{}\\s])(\\s*)(${hookNames})\\s*\\(`);
+  for (let safety = 0; safety < 50; safety++) {
+    const m = hookPattern.exec(result);
+    if (!m) break;
+    const callStart = m.index + m[0].indexOf(m[2]);
+    const openParen = result.indexOf('(', callStart);
+    if (openParen === -1) break;
+    const closeParen = findMatchingParen(result, openParen);
+    if (closeParen === -1) break;
+    let end = closeParen + 1;
+    while (end < result.length && (result[end] === ' ' || result[end] === '\t')) end++;
+    if (end < result.length && result[end] === ';') end++;
+    if (end < result.length && result[end] === '\n') end++;
     result = result.slice(0, callStart) + result.slice(end);
   }
 
