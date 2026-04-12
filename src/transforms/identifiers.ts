@@ -431,7 +431,14 @@ function rewriteWithMorph(
 
     const mapping = memberMap.get(name);
     if (!mapping) return;
-    if (mapping.isSetter) return; // setters handled by quickRewrite
+    // Setters in call expressions (setFoo(val)) are handled by quickRewrite.
+    // But setters used as references (e.g., passed as props) still need this._ prefix.
+    if (mapping.isSetter) {
+      const parent = node.getParent();
+      if (parent && Node.isCallExpression(parent) && parent.getExpression() === node) {
+        return; // call expression — handled by quickRewrite
+      }
+    }
 
     // Check AST context — is this a reference position?
     const parent = node.getParent();
