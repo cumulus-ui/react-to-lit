@@ -9,7 +9,7 @@
  * Runs BEFORE IR extraction so all downstream code operates on JSX-free source.
  */
 import ts from 'typescript';
-import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, UNWRAP_COMPONENTS } from '../cloudscape-config.js';
+import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, shouldUnwrapComponent } from '../cloudscape-config.js';
 import { getBooleanAttributes, getHtmlTagNames } from '../standards.js';
 import { toTagName, toLitEventName, isEventProp, reactAttrToHtml } from '../naming.js';
 
@@ -58,7 +58,7 @@ function convertJsxElement(
   }
 
   // Unwrap components (keep children only)
-  if (UNWRAP_COMPONENTS.has(originalTag)) {
+  if (shouldUnwrapComponent(originalTag)) {
     return convertChildrenToTemplate(node.children, visitor, context);
   }
 
@@ -89,7 +89,7 @@ function convertSelfClosing(
 ): ts.Expression {
   const tagName = resolveTagName(node.tagName);
 
-  if (UNWRAP_COMPONENTS.has(getOriginalTagName(node.tagName))) {
+  if (shouldUnwrapComponent(getOriginalTagName(node.tagName))) {
     // Self-closing unwrap → nothing
     return ts.factory.createIdentifier('nothing');
   }
@@ -296,7 +296,7 @@ function resolveTagName(tagName: ts.JsxTagNameExpression): string {
   if (getHtmlTagNames().has(original)) return original;
 
   // React builtins and wrappers to unwrap
-  if (UNWRAP_COMPONENTS.has(original)) return '__unwrap__';
+  if (shouldUnwrapComponent(original)) return '__unwrap__';
 
   // PascalCase component → el-kebab-name
   if (/^[A-Z]/.test(original)) return toTagName(original);
@@ -308,11 +308,11 @@ function resolveTagName(tagName: ts.JsxTagNameExpression): string {
 function getOriginalTagName(tagName: ts.JsxTagNameExpression): string {
   if (ts.isIdentifier(tagName)) return tagName.text;
   if (ts.isPropertyAccessExpression(tagName)) {
-    // React.Fragment, context.Provider, etc.
     const obj = tagName.expression.getText();
     const prop = tagName.name.text;
     if (obj === 'React' && prop === 'Fragment') return 'Fragment';
-    if (prop === 'Provider' || prop === 'Consumer') return 'Fragment';
+    // Return full name (e.g., "ButtonContext.Provider") so shouldUnwrapComponent
+    // can match both explicit entries and the *.Provider/*.Consumer pattern
     return `${obj}.${prop}`;
   }
   return tagName.getText();

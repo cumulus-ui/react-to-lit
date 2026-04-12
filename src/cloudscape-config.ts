@@ -48,46 +48,94 @@ export const INFRA_FUNCTIONS = new Set([
 // ---------------------------------------------------------------------------
 
 /**
- * React wrapper components that have no Lit equivalent.
- * Used by both the JSX pre-transformer and the IR component resolver.
+ * React built-in components that produce no DOM output.
+ * These are the PascalCase exports from the `react` package that act as
+ * invisible wrappers — they exist only for React's runtime and have no
+ * web-component equivalent.
+ *
+ * Derived from React 18/19 exports: Fragment, StrictMode, Suspense, Profiler.
+ * Cannot be queried at compile time because React is a devDependency.
  */
-export const UNWRAP_COMPONENTS = new Set([
-  // React built-ins
-  'Fragment', 'React.Fragment', 'Suspense', 'StrictMode',
-  // Transition wrappers
+const REACT_BUILTINS = [
+  'Fragment', 'React.Fragment', 'Suspense', 'StrictMode', 'Profiler',
+];
+
+/**
+ * Third-party wrapper components (transition libraries, focus traps, portals)
+ * that wrap children without producing meaningful DOM.
+ */
+const THIRD_PARTY_WRAPPERS = [
   'CSSTransition', 'Transition', 'TransitionGroup',
-  // Cloudscape infrastructure wrappers
+  'FocusLock', 'Portal',
+];
+
+/**
+ * Cloudscape infrastructure wrappers — analytics, context providers,
+ * error boundaries, and layout utilities that exist only for React-side
+ * plumbing and should be stripped in the Lit output.
+ */
+const CLOUDSCAPE_WRAPPERS = [
   'AnalyticsFunnel', 'AnalyticsFunnelStep', 'AnalyticsFunnelSubStep',
-  'AppLayoutToolbarPublicContext.Provider',
   'BuiltInErrorBoundary',
+  'ColumnWidthsProvider',
+  'ContainerHeaderContextProvider',
+  'DropdownContextProvider',
+  'ExpandableSectionContainer',
+  'FormWithAnalytics',
+  'GridNavigationProvider',
+  'InternalModalAsFunnel',
+  'KeyboardNavigationProvider',
+  'ListComponent',
+  'ModalWithAnalyticsFunnel',
+  'ResetContextsForModal',
+  'SingleTabStopNavigationProvider',
+  'VisualContext',
+  'WithNativeAttributes',
+  'TableComponentsContextProvider',
+];
+
+/**
+ * Explicit React Context .Provider/.Consumer wrappers to unwrap.
+ * Any component name matching `*.Provider` or `*.Consumer` is also
+ * caught dynamically by `shouldUnwrapComponent`.
+ */
+const CONTEXT_PROVIDERS = [
+  'AppLayoutToolbarPublicContext.Provider',
   'ButtonContext.Provider',
   'CollectionLabelContext.Provider',
   'CollectionPreferencesMetadata.Provider',
-  'ColumnWidthsProvider',
-  'ContainerHeaderContextProvider',
-  'DropdownContext.Provider', 'DropdownContextProvider',
+  'DropdownContext.Provider',
   'ErrorBoundariesContext.Provider',
-  'ExpandableSectionContainer',
-  'FocusLock',
   'FormFieldContext.Provider',
-  'FormWithAnalytics',
   'FunnelNameSelectorContext.Provider',
-  'GridNavigationProvider',
   'InfoLinkLabelContext.Provider',
   'InternalIconContext.Provider',
-  'InternalModalAsFunnel',
-  'KeyboardNavigationProvider',
   'LinkDefaultVariantContext.Provider',
-  'ListComponent',
   'ModalContext.Provider',
-  'ModalWithAnalyticsFunnel',
-  'Portal',
-  'ResetContextsForModal',
-  'SingleTabStopNavigationProvider',
   'StickyHeaderContext.Provider',
-  'TableComponentsContextProvider',
   'TokenInlineContext.Provider',
-  'VisualContext',
   'WidthsContext.Provider',
-  'WithNativeAttributes',
+];
+
+/**
+ * All components that should be unwrapped (children kept, wrapper removed).
+ * Used by both the JSX pre-transformer and the IR component resolver.
+ */
+export const UNWRAP_COMPONENTS = new Set([
+  ...REACT_BUILTINS,
+  ...THIRD_PARTY_WRAPPERS,
+  ...CLOUDSCAPE_WRAPPERS,
+  ...CONTEXT_PROVIDERS,
 ]);
+
+/**
+ * Check if a component name should be unwrapped.
+ * Uses both the explicit set AND pattern matching for React Context
+ * providers/consumers that may not be listed explicitly.
+ */
+export function shouldUnwrapComponent(name: string): boolean {
+  if (UNWRAP_COMPONENTS.has(name)) return true;
+  // Any Xxx.Provider or Xxx.Consumer is a React Context wrapper
+  if (name.endsWith('.Provider') || name.endsWith('.Consumer')) return true;
+  return false;
+}

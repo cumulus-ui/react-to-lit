@@ -8,7 +8,7 @@
  *   - function: (node) => TemplateNodeIR — full template replacement
  */
 import type { TemplateNodeIR, AttributeIR } from '../ir/types.js';
-import { UNWRAP_COMPONENTS } from '../cloudscape-config.js';
+import { UNWRAP_COMPONENTS, shouldUnwrapComponent } from '../cloudscape-config.js';
 
 
 // ---------------------------------------------------------------------------
@@ -207,6 +207,15 @@ function resolveNode(
       };
       const componentPath = deriveImportPath(entry);
       if (componentPath) imports.add(componentPath);
+    } else if (shouldUnwrapComponent(node.tag)) {
+      // Dynamic pattern match (e.g., any Xxx.Provider not explicitly listed)
+      resolvedNode = {
+        kind: 'fragment',
+        attributes: [],
+        children: node.children,
+        condition: node.condition,
+        loop: node.loop,
+      };
     }
   }
 
