@@ -212,5 +212,13 @@ function rewriteTemplateEvents(
       const rewritten = rewriteEventCalls(expr, eventProps);
       return rewritten !== expr ? rewritten : undefined;
     },
+    expression: (expr) => {
+      const rewritten = rewriteEventCalls(expr, eventProps);
+      return rewritten !== expr ? rewritten : undefined;
+    },
+    conditionExpression: (expr) => {
+      const rewritten = rewriteEventCalls(expr, eventProps);
+      return rewritten !== expr ? rewritten : undefined;
+    },
   });
 }
