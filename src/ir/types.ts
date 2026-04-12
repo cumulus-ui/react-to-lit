@@ -16,6 +16,9 @@ export interface ComponentIR {
   /** Custom element tag name, e.g. "el-badge" */
   tagName: string;
 
+  /** Generic type parameters from the React component, e.g. ["T"] for AreaChart<T> */
+  typeParams?: string[];
+
   /** Source files that were merged to produce this IR */
   sourceFiles: string[];
 

@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import type { ComponentIR, ImportIR } from '../ir/types.js';
 import { parseFile } from './program.js';
 import { findComponent } from './component.js';
+import type { RawComponent } from './component.js';
 import { extractProps } from './props.js';
 import { extractHooks } from './hooks.js';
 import { parseJSXFromBody } from './jsx.js';
@@ -183,6 +184,7 @@ export function parseComponent(
   return {
     name: componentName,
     tagName,
+    typeParams: extractTypeParams(component),
     sourceFiles,
     props,
     state: hookResult.state,
@@ -515,4 +517,44 @@ function isComponentImportPath(specifier: string): boolean {
   const segments = specifier.replace(/^\.\.?\//, '').split('/');
   if (segments.length === 1 && !segments[0].includes('.')) return true;
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// Type parameter extraction
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract generic type parameters from the component function signature.
+ * e.g., `function InternalAreaChart<T>({...}: AreaChartProps<T>)` → ['T']
+ */
+function extractTypeParams(component: RawComponent): string[] | undefined {
+  if (component.parameters.length === 0) return undefined;
+  const firstParam = component.parameters[0];
+  if (!firstParam.type) return undefined;
+
+  const typeArgs = getTypeArguments(firstParam.type);
+  if (!typeArgs || typeArgs.length === 0) return undefined;
+
+  const params: string[] = [];
+  for (const arg of typeArgs) {
+    if (ts.isTypeReferenceNode(arg) && ts.isIdentifier(arg.typeName)) {
+      params.push(arg.typeName.text);
+    }
+  }
+  return params.length > 0 ? params : undefined;
+}
+
+/** Extract type arguments from a type node (handles TypeReference and IntersectionType). */
+function getTypeArguments(typeNode: ts.TypeNode): readonly ts.TypeNode[] | undefined {
+  if (ts.isTypeReferenceNode(typeNode) && typeNode.typeArguments) {
+    return typeNode.typeArguments;
+  }
+  if (ts.isIntersectionTypeNode(typeNode)) {
+    for (const member of typeNode.types) {
+      if (ts.isTypeReferenceNode(member) && member.typeArguments) {
+        return member.typeArguments;
+      }
+    }
+  }
+  return undefined;
 }

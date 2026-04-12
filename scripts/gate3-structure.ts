@@ -98,8 +98,8 @@ function checkComponent(name: string): CheckResult {
     };
   }
 
-  // Check 1: Has class declaration
-  const hasClassDecl = /export class Cs\w+Internal extends /.test(output);
+  // Check 1: Has class declaration (optionally with generic type params)
+  const hasClassDecl = /export class Cs\w+Internal(?:<[^>]+>)? extends /.test(output);
 
   // Check 2: Extends CsBaseElement (or Base which is a mixin of CsBaseElement)
   const extendsBase = /extends (CsBaseElement|Base)\b/.test(output);
