@@ -415,6 +415,118 @@ describe('rewriteIdentifiers', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // The radio-group / tiles bug: JSX with spreads in template expressions
+  // These tests document known issues — they will pass once the identifier
+  // rewriter correctly handles JSX-to-Lit conversion order.
+  // ---------------------------------------------------------------------------
+
+  describe('JSX in template expression text (radio-group pattern)', () => {
+    it.fails('does not produce "this .value" from JSX attribute values', () => {
+      const ir = minimalIR({
+        props: [prop('items'), prop('direction'), prop('value')],
+        state: [stateDef('generatedName', 'setGeneratedName', "''")],
+        refs: [refDef('radioButtonRef')],
+        imports: [
+          { moduleSpecifier: '../internal/components/radio-button', defaultImport: 'RadioButton' },
+        ],
+        template: element('div', [], [{
+          kind: 'expression',
+          attributes: [],
+          children: [],
+          condition: { expression: 'items', kind: 'and' },
+          expression: `items.map((item, index) => (
+            <RadioButton
+              className="radio"
+              checked={item.value === value}
+              value={item.value}
+              description={item.description}
+              disabled={item.disabled}
+              controlId={item.controlId}
+              readOnly={readOnly}
+              style={style}
+            >
+              {item.label}
+            </RadioButton>
+          ))`,
+        }]),
+      });
+      const result = rewriteIdentifiers(ir);
+      const expr = result.template.children[0].expression!;
+
+      // Identifiers should be rewritten
+      expect(expr).toContain('this.items');
+      expect(expr).toContain('this.value');
+
+      // No space before Lit property bindings
+      expect(expr).not.toMatch(/this\s+\.value=/);
+      expect(expr).not.toMatch(/this\s+\.controlId=/);
+      expect(expr).not.toMatch(/this\s+\.readonly=/);
+      expect(expr).not.toMatch(/this\s+\.style=/);
+
+      // No orphaned statements from spreads
+      expect(expr).not.toMatch(/;\s*\n\s*this\.\w+ =/);
+    });
+
+    it.fails('does not produce orphaned statements from JSX spread attributes', () => {
+      const ir = minimalIR({
+        props: [prop('items'), prop('disabled')],
+        imports: [
+          { moduleSpecifier: '../components/button', defaultImport: 'Button' },
+        ],
+        template: element('div', [], [{
+          kind: 'expression',
+          attributes: [],
+          children: [],
+          expression: `items.map(item => (
+            <Button
+              disabled={disabled}
+              {...getMetadata({ pos: item.index })}
+            >
+              {item.label}
+            </Button>
+          ))`,
+        }]),
+      });
+      const result = rewriteIdentifiers(ir);
+      const expr = result.template.children[0].expression!;
+
+      // Should not have getMetadata as an orphaned statement
+      expect(expr).not.toContain('getMetadata(');
+      // Should be a clean expression
+      expect(expr).not.toMatch(/;\s*\n/);
+    });
+
+    it('handles JSX with children and spread in .map() callback', () => {
+      const ir = minimalIR({
+        props: [prop('items')],
+        imports: [
+          { moduleSpecifier: '../tile', defaultImport: 'Tile' },
+        ],
+        template: element('div', [], [{
+          kind: 'expression',
+          attributes: [],
+          children: [],
+          condition: { expression: 'items', kind: 'and' },
+          expression: `items.map((item) => (
+            <Tile
+              item={item}
+              selected={item.selected}
+              {...(!item.disabled ? getAttrs({ action: 'select' }) : {})}
+            />
+          ))`,
+        }]),
+      });
+      const result = rewriteIdentifiers(ir);
+      const expr = result.template.children[0].expression!;
+
+      expect(expr).toContain('this.items');
+      // Should not have orphaned spread content
+      expect(expr).not.toContain('getAttrs(');
+      expect(expr).not.toMatch(/;\s*\n/);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Edge cases
   // ---------------------------------------------------------------------------
 
