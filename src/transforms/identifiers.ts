@@ -41,11 +41,16 @@ interface MemberMapping {
 function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
   const map = new Map<string, MemberMapping>();
 
-  // Props → this.propName (exclude events — they're dispatched, not properties)
+  // Props → this.propName
+  // Event props are included (as _onXxx) so they can be rewritten in opaque
+  // expression text where the event transform doesn't reach.
   // Slot props are included: while they render as <slot>, their names may appear
   // in conditional checks (e.g., `children && html\`...\``) that need this. prefix.
   for (const p of ir.props) {
-    if (p.category === 'event') continue;
+    if (p.category === 'event') {
+      map.set(p.name, { member: p.name });
+      continue;
+    }
     if (p.category === 'slot' && p.name === 'children') {
       // 'children' conflicts with HTMLElement.children — use _hasChildren getter
       map.set('children', { member: '_hasChildren' });
@@ -282,7 +287,7 @@ function rewriteWithMorph(
   // Quick check: does the text contain any member names?
   let hasAny = false;
   for (const name of memberMap.keys()) {
-    if (name.length > 1 && !GLOBAL_NAMES.has(name) && text.includes(name)) {
+    if (name.length > 1 && text.includes(name)) {
       hasAny = true;
       break;
     }
@@ -377,7 +382,7 @@ function rewriteWithMorph(
 
     const name = node.getText();
     if (name.length <= 1) return;
-    if (GLOBAL_NAMES.has(name)) return;
+    if (GLOBAL_NAMES.has(name) && !memberMap.has(name)) return;
     if (allLocals.has(name)) return;
 
     const mapping = memberMap.get(name);

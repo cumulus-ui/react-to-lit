@@ -96,14 +96,13 @@ describe('rewriteIdentifiers', () => {
       expect(result.handlers[0].body).toBe('const value = 42; return value;');
     });
 
-    it('does not rewrite event props', () => {
+    it('rewrites event props to this.onXxx', () => {
       const ir = minimalIR({
         props: [prop('onChange', 'event')],
         handlers: [{ name: 'h', body: 'onChange()', params: '' }],
       });
       const result = rewriteIdentifiers(ir);
-      // event props are not in member map
-      expect(result.handlers[0].body).toBe('onChange()');
+      expect(result.handlers[0].body).toBe('this.onChange()');
     });
 
     it('rewrites shorthand property to expanded form', () => {
@@ -541,13 +540,23 @@ describe('rewriteIdentifiers', () => {
       expect(result.handlers[0].body).toBe('return x + 1;');
     });
 
-    it('does not rewrite global names', () => {
+    it('does not rewrite global names that are not props', () => {
       const ir = minimalIR({
-        props: [prop('undefined'), prop('console')],
+        props: [],
         handlers: [{ name: 'h', body: 'if (undefined) console.log("hi")', params: '' }],
       });
       const result = rewriteIdentifiers(ir);
       expect(result.handlers[0].body).toBe('if (undefined) console.log("hi")');
+    });
+
+    it('rewrites global names when they are also props', () => {
+      const ir = minimalIR({
+        props: [prop('name')],
+        handlers: [{ name: 'h', body: 'return name || "default"', params: '' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      // 'name' is window.name but also a prop — prop wins
+      expect(result.handlers[0].body).toBe('return this.name || "default"');
     });
 
     it('handles empty text', () => {

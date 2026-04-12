@@ -29,7 +29,12 @@ export function emitProperties(props: PropIR[]): string {
   const lines: string[] = [];
 
   for (const prop of props) {
-    if (prop.category === 'event') continue;
+    // Event callback props — declare as optional function properties
+    // so identifier-rewritten references (this.onChange) compile.
+    if (prop.category === 'event') {
+      lines.push(`  ${prop.name}?: (...args: any[]) => void;`);
+      continue;
+    }
 
     // Slot props — emit a slotted-content check helper
     if (prop.category === 'slot') {
