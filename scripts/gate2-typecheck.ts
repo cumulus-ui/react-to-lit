@@ -500,8 +500,13 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
       `// Auto-generated stub for ${modulePath}`,
     ];
     for (const name of [...names].sort()) {
-      // Declare as a value that also serves as a type (class-like pattern)
-      stubLines.push(`export declare const ${name}: any;`);
+      // Declare as both value and type (covers classes, enums, type aliases, and constants)
+      if (/^[A-Z]/.test(name)) {
+        stubLines.push(`export declare const ${name}: any;`);
+        stubLines.push(`export declare type ${name} = any;`);
+      } else {
+        stubLines.push(`export declare const ${name}: any;`);
+      }
     }
     // Catch-all for any other imports
     stubLines.push(`export default {} as any;`);
