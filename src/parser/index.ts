@@ -175,16 +175,32 @@ export function parseComponent(
   // 9d. Promote preamble variables that are referenced by handlers, helpers,
   //     or effects to computed values — they need class-level scope since
   //     handlers/helpers become separate class methods.
-  const promotedVars = promotePreambleVars(
-    preambleVars,
-    bodyPreamble,
-    allHandlers,
-    helpers,
-    hookResult.effects,
-    hookResult.publicMethods,
-    hookResult.computedValues,
-    localVariables,
-  );
+  //     Run iteratively: promoted computed values may reference other preamble
+  //     variables that then also need promotion.
+  let currentPreambleVars = preambleVars;
+  let currentBodyPreamble = bodyPreamble;
+  let allPromotedComputedValues: import('../ir/types.js').ComputedIR[] = [];
+  const allComputedValues = [...hookResult.computedValues];
+
+  for (let round = 0; round < 5; round++) {
+    const promotedVars = promotePreambleVars(
+      currentPreambleVars,
+      currentBodyPreamble,
+      allHandlers,
+      helpers,
+      hookResult.effects,
+      hookResult.publicMethods,
+      allComputedValues,
+      localVariables,
+    );
+    if (promotedVars.computedValues.length === 0) break;
+    allPromotedComputedValues = [...allPromotedComputedValues, ...promotedVars.computedValues];
+    allComputedValues.push(...promotedVars.computedValues);
+    currentBodyPreamble = promotedVars.bodyPreamble;
+    // Remove promoted vars from preambleVars for next round
+    const promotedNames = new Set(promotedVars.computedValues.map(c => c.name));
+    currentPreambleVars = currentPreambleVars.filter(pv => !promotedNames.has(pv.name));
+  }
 
   // 9b. Extract file-level constants
   const fileConstants = extractFileConstants(implFile, component.name);
@@ -219,7 +235,7 @@ export function parseComponent(
     refs: hookResult.refs,
     handlers: allHandlers,
     template,
-    computedValues: [...hookResult.computedValues, ...promotedVars.computedValues],
+    computedValues: [...hookResult.computedValues, ...allPromotedComputedValues],
     controllers: hookResult.controllers,
     mixins,
     contexts: hookResult.contexts,
@@ -229,7 +245,7 @@ export function parseComponent(
     helpers,
     fileConstants,
     fileTypeDeclarations,
-    bodyPreamble: promotedVars.bodyPreamble,
+    bodyPreamble: currentBodyPreamble,
     localVariables,
     skippedHookVars: hookResult.preservedVars,
     propAliases: extractPropAliases(component, sourceFile),
