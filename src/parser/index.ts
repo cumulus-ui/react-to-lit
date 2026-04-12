@@ -299,6 +299,8 @@ function extractBodyPreamble(
       // Skip Cloudscape infrastructure
       if ([...INFRA_FUNCTIONS].some(fn => text.includes(fn))) continue;
       if (text.includes('useBaseComponent')) continue;
+      // Skip dev-only validation blocks (contain hooks that violate rules-of-hooks)
+      if (ts.isIfStatement(stmt) && text.includes('isDevelopment')) continue;
 
       // Check if this is a variable containing a template (html`...`)
       // These become render helper methods instead of bodyPreamble
