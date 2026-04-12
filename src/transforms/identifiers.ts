@@ -489,8 +489,16 @@ function rewriteTemplateNode(
  * convert it to Lit html`` tagged templates via the JSX transformer.
  */
 function convertRemainingJsx(text: string): string {
-  // Quick check: does it look like JSX? (PascalCase tag or fragment)
-  if (!/<[A-Z]/.test(text) && !text.includes('<>')) return text;
+  // Quick check: does it look like JSX (not TypeScript generics)?
+  // JSX: <Name ... (not preceded by word char) + has /> or </Name>
+  // Generics: Partial<Name>, Array<Name> (preceded by word char)
+  // Also skip expressions that already contain html`` templates —
+  // roundtripping these through the TS printer garbles template content.
+  const hasJsx =
+    !text.includes('html`') &&
+    ((/(?<!\w)<[A-Z]\w*[\s>\/]/.test(text)) && (/\/>/.test(text) || /<\/[A-Z]/.test(text))) ||
+    text.includes('<>');
+  if (!hasJsx) return text;
 
   const wrapper = `const __jsxExpr = ${text};`;
   const tempFile = tsLib.createSourceFile(
