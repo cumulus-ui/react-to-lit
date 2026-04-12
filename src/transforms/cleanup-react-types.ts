@@ -80,14 +80,15 @@ function replaceReactTypes(text: string): string {
   // 5. React.Ref<T> / React.RefObject<T> / React.MutableRefObject<T> → any
   result = result.replace(/React\.(?:Mutable)?Ref(?:Object)?<[^>]*>/g, 'any');
 
-  // 6. React.XxxHTMLAttributes<T> → Record<string, unknown>
-  result = result.replace(/React\.\w+HTMLAttributes<[^>]*>/g, 'Record<string, unknown>');
+  // 6. React.XxxHTMLAttributes<T> / React.HTMLAttributes<T> → Record<string, unknown>
+  result = result.replace(/React\.\w*HTMLAttributes<[^>]*>/g, 'Record<string, unknown>');
 
   // 7. React.useXxx → useXxx (drop namespace)
   result = result.replace(/React\.(use\w+)/g, '$1');
 
-  // 8. Catch-all: any remaining React.Xxx → strip React. prefix
-  result = result.replace(/React\.(\w+)/g, (_match, name: string) => {
+  // 8. Catch-all: any remaining React.Xxx<T> or React.Xxx → strip React. prefix
+  //    Must consume optional generic params to avoid producing invalid `unknown<T>`
+  result = result.replace(/React\.(\w+)(?:<[^>]*>)?/g, (_match, name: string) => {
     return domGlobals.has(name) ? name : 'unknown';
   });
 
