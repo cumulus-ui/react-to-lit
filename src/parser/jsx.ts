@@ -15,6 +15,7 @@ import type {
 import { getNodeText } from './program.js';
 import { getBooleanAttributes, getHtmlTagNames } from '../standards.js';
 import { isEventProp } from '../naming.js';
+import { jsxToLitTransformerFactory } from '../transforms/jsx-to-lit.js';
 
 // ---------------------------------------------------------------------------
 // Main entry
@@ -205,7 +206,11 @@ function parseJsxAttribute(
   // Expression: <div className={expr} />
   if (ts.isJsxExpression(attr.initializer) && attr.initializer.expression) {
     const expr = attr.initializer.expression;
-    const exprText = getNodeText(expr, sourceFile);
+
+    // If the expression IS JSX (e.g., content={<>...</>}), convert to html`` inline
+    const exprText = isJsxNode(expr)
+      ? jsxExpressionToLitText(expr, sourceFile)
+      : getNodeText(expr, sourceFile);
 
     // Detect className with clsx
     if (name === 'className') {
@@ -455,4 +460,56 @@ function findReturnStatement(block: ts.Block): ts.ReturnStatement | undefined {
     }
   }
   return lastReturn;
+}
+
+// ---------------------------------------------------------------------------
+// JSX-in-expression helpers
+// ---------------------------------------------------------------------------
+
+/** Check if a TS node is JSX syntax (element, fragment, or self-closing). */
+function isJsxNode(node: ts.Node): boolean {
+  return (
+    ts.isJsxElement(node) ||
+    ts.isJsxSelfClosingElement(node) ||
+    ts.isJsxFragment(node) ||
+    ts.isParenthesizedExpression(node) && isJsxNode(node.expression)
+  );
+}
+
+/**
+ * Convert a JSX expression to a Lit html`` tagged template string.
+ * Used when JSX appears inside attribute values or expression positions
+ * rather than at the template root.
+ */
+function jsxExpressionToLitText(expr: ts.Expression, sourceFile: ts.SourceFile): string {
+  // Use the existing JSX-to-Lit transformer to convert the expression
+  // Wrap in a minimal function so the transformer has a complete source file to work with
+  const exprText = getNodeText(expr, sourceFile);
+  const wrapper = `const __jsxExpr = ${exprText};`;
+  const tempFile = ts.createSourceFile(
+    '__jsx_inline.tsx',
+    wrapper,
+    ts.ScriptTarget.ES2019,
+    true,
+    ts.ScriptKind.TSX,
+  );
+
+  // Use the JSX-to-Lit transformer to convert the expression
+  const result = ts.transform(tempFile, [jsxToLitTransformerFactory]);
+  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
+  let printed = printer.printFile(result.transformed[0]);
+  printed = printed.replace(/\b(html|svg) `/g, '$1`');
+  result.dispose();
+
+  // Extract the expression from `const __jsxExpr = <converted>;`
+  const eqIdx = printed.indexOf('=');
+  if (eqIdx > -1) {
+    let value = printed.slice(eqIdx + 1).trim();
+    // Strip trailing semicolon and newline
+    value = value.replace(/;\s*$/, '').trim();
+    return value;
+  }
+
+  // Fallback: return the original text
+  return exprText;
 }

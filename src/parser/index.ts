@@ -84,27 +84,36 @@ export function parseComponent(
     throw new Error(`No index.tsx or index.ts found in ${componentDir}`);
   }
 
-  // 2. Parse source files
-  let indexFile = parseFile(indexPath);
-  let internalFile = internalPath ? parseFile(internalPath) : undefined;
+  // 2. Parse source files (as TSX — original with JSX syntax)
+  const origIndexFile = parseFile(indexPath);
+  let origInternalFile = internalPath ? parseFile(internalPath) : undefined;
 
   // 2b. If internal.tsx is a factory wrapper (createWidgetized*), fall back to implementation.tsx
-  if (internalFile && isFactoryWrapper(internalFile)) {
+  if (origInternalFile && isFactoryWrapper(origInternalFile)) {
     const implPath = resolveSourceFile(componentDir, 'implementation');
     if (implPath) {
       internalPath = implPath;
-      internalFile = parseFile(implPath);
+      origInternalFile = parseFile(implPath);
     }
   }
 
-  // 2c. Transform JSX → html`` tagged templates BEFORE IR extraction
-  // This handles JSX in ALL contexts: render return, handlers, helpers, ternaries, .map(), etc.
-  indexFile = transformJsxToLit(indexFile);
-  if (internalFile) {
-    internalFile = transformJsxToLit(internalFile);
-  }
+  // ---------------------------------------------------------------------------
+  // Phase A: Parse template from ORIGINAL TSX (before JSX-to-Lit).
+  // This gives us a fully structured TemplateNodeIR with decomposed attributes,
+  // conditions, and loops — rather than opaque html`` strings.
+  // ---------------------------------------------------------------------------
+  const origComponent = findComponent(origIndexFile, origInternalFile);
+  const template = parseJSXFromBody(origComponent.body, origComponent.sourceFile);
 
-  // 3. Find and merge component function
+  // ---------------------------------------------------------------------------
+  // Phase B: Transform JSX → html`` for everything ELSE (handlers, helpers,
+  // preamble variables), then re-parse so the rest of IR extraction works on
+  // plain TS (no JSX syntax in hook bodies, etc.).
+  // ---------------------------------------------------------------------------
+  let indexFile = transformJsxToLit(origIndexFile);
+  let internalFile = origInternalFile ? transformJsxToLit(origInternalFile) : undefined;
+
+  // 3. Find component in the transformed TS files
   const component = findComponent(indexFile, internalFile);
 
   // 4. Extract props
@@ -151,8 +160,7 @@ export function parseComponent(
     ? collectLocalVariables(component.body)
     : new Set<string>();
 
-  // 7. Parse JSX template
-  const template = parseJSXFromBody(component.body, sourceFile);
+  // 7. Template was already parsed in Phase A from the original TSX
 
   // 8. Extract body preamble (code between hooks/handlers and return)
   //    JSX-containing variables become render helpers instead of preamble.

@@ -9,6 +9,7 @@
  */
 import type { TemplateNodeIR, AttributeIR } from '../ir/types.js';
 import { UNWRAP_COMPONENTS, shouldUnwrapComponent } from '../cloudscape-config.js';
+import { toTagName } from '../naming.js';
 
 
 // ---------------------------------------------------------------------------
@@ -216,6 +217,17 @@ function resolveNode(
         condition: node.condition,
         loop: node.loop,
       };
+    } else {
+      // Unknown component — auto-derive a custom element tag name
+      // e.g., InternalStatusIcon → el-internal-status-icon
+      const autoTag = toTagName(node.tag);
+      resolvedNode = {
+        ...node,
+        kind: 'element',
+        tag: autoTag,
+      };
+      const componentPath = deriveImportPath(autoTag);
+      if (componentPath) imports.add(componentPath);
     }
   }
 
