@@ -485,6 +485,20 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
       }
       if (defaultName) names.add(defaultName);
     }
+
+    // Also scan for <el-internal-xxx> custom element tags in templates.
+    // These correspond to internal component imports that may have been
+    // dropped by the import collector (e.g., when JSX was converted inline
+    // and the original PascalCase identifier is no longer referenced).
+    const tagRegex = /<el-internal-([\w-]+)/g;
+    let tagMatch;
+    while ((tagMatch = tagRegex.exec(comp.output)) !== null) {
+      const tagSuffix = tagMatch[1]; // e.g., "radio-button", "status-icon"
+      const modulePath = `internal/components/${tagSuffix}`;
+      if (!neededModules.has(modulePath)) {
+        neededModules.set(modulePath, new Set());
+      }
+    }
   }
 
   // Create stub declaration files
