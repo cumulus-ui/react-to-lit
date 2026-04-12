@@ -15,6 +15,28 @@ import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Strip classMap() wrapper from preamble variable declarations.
+ * `const className = classMap({ 'a': true })` → `const className = { 'a': true }`
+ *
+ * Only unwraps when the classMap call is the sole RHS of an assignment
+ * (e.g., `= classMap({...})`). Uses balanced paren matching.
+ */
+function unwrapClassMapInPreamble(stmt: string): string {
+  const idx = stmt.indexOf('= classMap(');
+  if (idx === -1) return stmt;
+  const openParen = idx + '= classMap'.length;
+  const closeParen = findMatchingParen(stmt, openParen);
+  if (closeParen === -1) return stmt;
+  // Extract the inner argument (the object literal)
+  const inner = stmt.slice(openParen + 1, closeParen);
+  return stmt.slice(0, idx + 2) + inner + stmt.slice(closeParen + 1);
+}
+
+// ---------------------------------------------------------------------------
 // Main emission
 // ---------------------------------------------------------------------------
 
@@ -165,7 +187,13 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
     return true;
   });
   if (safePreamble.length > 0) {
-    const preambleLines = safePreamble.map((stmt) => `    ${stmt}`).join('\n');
+    // Strip classMap() wrapper from preamble variables — the template emitter
+    // will add classMap() when rendering the class attribute. Keeping classMap()
+    // in the preamble would cause double-wrapping.
+    const preambleLines = safePreamble
+      .map((stmt) => unwrapClassMapInPreamble(stmt))
+      .map((stmt) => `    ${stmt}`)
+      .join('\n');
     renderCode = renderCode.replace(
       /^(  override render\(\) \{)\n/m,
       `$1\n${preambleLines}\n\n`,

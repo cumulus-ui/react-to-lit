@@ -225,12 +225,21 @@ function emitAttribute(
 
     case 'classMap': {
       collector.addDirective('lit/directives/class-map.js', 'classMap');
-      return `class=\${classMap(${getExpression(attr.value)})}`;
+      const expr = getExpression(attr.value);
+      // Avoid double-wrapping: if the expression is already a classMap() call, use it directly.
+      if (expr.startsWith('classMap(')) {
+        return `class=\${${expr}}`;
+      }
+      return `class=\${classMap(${expr})}`;
     }
 
     case 'styleMap': {
       collector.addDirective('lit/directives/style-map.js', 'styleMap');
-      return `style=\${styleMap(${getExpression(attr.value)})}`;
+      const expr = getExpression(attr.value);
+      if (expr.startsWith('styleMap(')) {
+        return `style=\${${expr}}`;
+      }
+      return `style=\${styleMap(${expr})}`;
     }
 
     case 'spread':
