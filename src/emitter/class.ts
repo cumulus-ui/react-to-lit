@@ -202,7 +202,9 @@ function convertToPrivateMethod(source: string): string {
   let sf;
   try {
     sf = _helperProject.createSourceFile('__helper.ts', s);
-  } catch {
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[react-to-lit] Warning: failed to parse helper, emitting raw: ${msg}`);
     return `  ${s.replace(/\n/g, '\n  ')}`;
   }
 

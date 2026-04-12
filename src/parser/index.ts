@@ -128,8 +128,13 @@ export function parseComponent(
         // Merge contexts from index.tsx
         hookResult.contexts.push(...indexHooks.contexts);
       }
-    } catch {
-      // Index component might not have a parseable body (e.g., just delegates to internal)
+    } catch (e) {
+      // findComponent throws when no component is found — that's expected for
+      // index files that just re-export the internal component.
+      // Log unexpected errors so we don't silently lose public methods.
+      if (e instanceof Error && !e.message.includes('No component found')) {
+        console.warn(`[react-to-lit] Warning: failed to parse index component for ${dirName}: ${e.message}`);
+      }
     }
   }
 
