@@ -19,6 +19,7 @@ import { parseFile } from './program.js';
 import { findComponent } from './component.js';
 import type { RawComponent } from './component.js';
 import { extractProps } from './props.js';
+import { extractPropAliases } from './props.js';
 import { extractHooks } from './hooks.js';
 import { parseJSXFromBody } from './jsx.js';
 import { extractHandlers, extractHelpers, isHookCall, collectBindingNames, collectLocalVariables } from './utils.js';
@@ -203,6 +204,7 @@ export function parseComponent(
     bodyPreamble,
     localVariables,
     skippedHookVars: hookResult.preservedVars,
+    propAliases: extractPropAliases(component, sourceFile),
     forwardRef: component.forwardRef,
   };
 }

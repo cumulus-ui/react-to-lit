@@ -80,6 +80,19 @@ function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
     }
   }
 
+  // Destructured prop aliases → this.propName (e.g., externalSeries → this.series)
+  if (ir.propAliases) {
+    for (const [alias, propName] of ir.propAliases) {
+      if (!map.has(alias)) {
+        // Map alias to the same member as the original prop
+        const propMapping = map.get(propName);
+        if (propMapping) {
+          map.set(alias, { member: propMapping.member });
+        }
+      }
+    }
+  }
+
   return map;
 }
 

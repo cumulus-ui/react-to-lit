@@ -76,6 +76,9 @@ export interface ComponentIR {
   /** Variable names from skipped/unknown hooks, emitted as private stub fields */
   skippedHookVars: string[];
 
+  /** Destructured prop aliases: alias → propName (e.g., externalSeries → series) */
+  propAliases?: Map<string, string>;
+
   /** Whether the original component used React.forwardRef */
   forwardRef: boolean;
 }

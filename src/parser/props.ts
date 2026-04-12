@@ -93,6 +93,8 @@ export function extractProps(
 interface PropInfo {
   typeText: string;
   default?: string;
+  /** If destructured with an alias: { prop: alias }, alias is the local name */
+  alias?: string;
 }
 
 function getDestructuredProps(
@@ -124,11 +126,41 @@ function getDestructuredProps(
 
       const typeText = interfaceTypeMap.get(propName) ?? 'unknown';
 
-      result.set(propName, { typeText, default: defaultValue });
+      // Track alias if destructured with rename: { prop: alias }
+      const alias = propName !== name ? name : undefined;
+      result.set(propName, { typeText, default: defaultValue, alias });
     }
   }
 
   return result;
+}
+
+/**
+ * Extract destructured prop aliases (e.g., { series: externalSeries } → externalSeries → series).
+ */
+export function extractPropAliases(
+  component: RawComponent,
+  sourceFile: ts.SourceFile,
+): Map<string, string> {
+  const aliases = new Map<string, string>();
+  if (component.parameters.length === 0) return aliases;
+
+  const firstParam = component.parameters[0];
+  if (!ts.isObjectBindingPattern(firstParam.name)) return aliases;
+
+  for (const element of firstParam.name.elements) {
+    if (element.dotDotDotToken) continue;
+    const name = ts.isIdentifier(element.name) ? element.name.text : '';
+    if (!name) continue;
+    const propName = element.propertyName
+      ? ts.isIdentifier(element.propertyName) ? element.propertyName.text : name
+      : name;
+    if (propName !== name) {
+      aliases.set(name, propName); // alias → original prop name
+    }
+  }
+
+  return aliases;
 }
 
 // ---------------------------------------------------------------------------
