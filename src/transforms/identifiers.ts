@@ -249,8 +249,12 @@ function rewriteWithMorph(
   }
   if (!hasAny) return text;
 
-  // Wrap in a function to make it a valid source file
-  const prefix = 'function __wrapper() {\n';
+  // Wrap in a function to make it a valid source file.
+  // If text starts with '{', wrap as an expression assignment so the parser
+  // treats it as an object literal, not a block statement.
+  const needsExprWrap = text.trimStart().startsWith('{');
+  const exprPrefix = needsExprWrap ? 'const __expr = ' : '';
+  const prefix = `function __wrapper() {\n${exprPrefix}`;
   const suffix = '\n}';
   const wrapped = prefix + text + suffix;
 

@@ -63,29 +63,24 @@ export function extractProps(
     }
   }
 
-  // Emit props from the FULL type map (not just destructured ones)
-  const props: PropIR[] = [];
-  const seen = new Set<string>();
+  // Build a unified prop list: type map first (authoritative types), then
+  // destructured-only props (internal props not in the public interface).
+  const candidates: Array<[string, string, string | undefined]> = [];
 
-  // Primary: emit all props from the type map (public interface)
   for (const [propName, typeText] of interfaceTypeMap) {
-    if (shouldSkipProp(propName)) continue;
-    if (seen.has(propName)) continue;
-    seen.add(propName);
-
-    const defaultValue = mergedDefaults.get(propName);
-    props.push(classifyProp(propName, typeText, defaultValue));
+    candidates.push([propName, typeText, mergedDefaults.get(propName)]);
+  }
+  for (const [propName, propInfo] of destructuredProps) {
+    candidates.push([propName, propInfo.typeText, mergedDefaults.get(propName) ?? propInfo.default]);
   }
 
-  // Also include destructured-only props (internal props not in the public interface,
-  // or all props when no type map is available)
-  for (const [propName, propInfo] of destructuredProps) {
+  const props: PropIR[] = [];
+  const seen = new Set<string>();
+  for (const [propName, typeText, defaultValue] of candidates) {
     if (shouldSkipProp(propName)) continue;
     if (seen.has(propName)) continue;
     seen.add(propName);
-
-    const defaultValue = mergedDefaults.get(propName) ?? propInfo.default;
-    props.push(classifyProp(propName, propInfo.typeText, defaultValue));
+    props.push(classifyProp(propName, typeText, defaultValue));
   }
 
   return props;
