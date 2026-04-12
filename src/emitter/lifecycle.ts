@@ -16,10 +16,11 @@ import type { EffectIR } from '../ir/types.js';
 export function emitLifecycle(effects: EffectIR[]): string {
   const lines: string[] = [];
 
-  // Deduplicate effects by normalized body content
+  // Deduplicate effects by normalized body + deps (same body with different deps is meaningful)
   const seen = new Set<string>();
   const uniqueEffects = effects.filter((e) => {
-    const key = e.body.replace(/\s+/g, ' ').trim();
+    const depsKey = Array.isArray(e.deps) ? e.deps.join(',') : String(e.deps);
+    const key = depsKey + '|' + e.body.replace(/\s+/g, ' ').trim();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

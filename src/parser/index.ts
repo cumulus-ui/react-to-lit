@@ -115,7 +115,7 @@ export function parseComponent(
   // 5. Extract hooks from the implementation body
   const hookResult = ts.isBlock(component.body)
     ? extractHooks(component.body, sourceFile, hookRegistry)
-    : { state: [], effects: [], refs: [], computedValues: [], handlers: [], publicMethods: [], controllers: [], contexts: [], skipped: [], unknown: [] };
+    : { state: [], effects: [], refs: [], computedValues: [], handlers: [], publicMethods: [], controllers: [], contexts: [], skipped: [], unknown: [], preservedVars: [] };
 
   // 5b. Also extract hooks from the index.tsx wrapper (may have useImperativeHandle, etc.)
   if (component.hasInternal) {

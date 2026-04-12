@@ -138,11 +138,17 @@ function processHookCall(
       case 'controller':
         if (mapping.controller && decl) {
           processControllerHook(decl, call, sourceFile, mapping.controller, result);
+        } else {
+          result.skipped.push({ name: hookName, reason: 'controller mapping incomplete' });
+          if (decl) collectPreservedVars(decl, result.preservedVars);
         }
         return;
       case 'context':
         if (mapping.context && decl) {
           processContextHook(decl, mapping.context, result);
+        } else {
+          result.skipped.push({ name: hookName, reason: 'context mapping incomplete' });
+          if (decl) collectPreservedVars(decl, result.preservedVars);
         }
         return;
       case 'utility':
@@ -150,6 +156,10 @@ function processHookCall(
         if (decl) collectPreservedVars(decl, result.preservedVars);
         return;
       case 'inline':
+        return;
+      default:
+        result.unknown.push(hookName);
+        if (decl) collectPreservedVars(decl, result.preservedVars);
         return;
     }
   }
@@ -173,13 +183,17 @@ function processUseState(
   if (!ts.isArrayBindingPattern(decl.name)) return;
 
   const elements = decl.name.elements;
-  if (elements.length < 2) return;
+  if (elements.length < 1) return;
 
   const nameElement = elements[0];
-  const setterElement = elements[1];
-
   if (!ts.isBindingElement(nameElement) || !ts.isIdentifier(nameElement.name)) return;
-  if (!ts.isBindingElement(setterElement) || !ts.isIdentifier(setterElement.name)) return;
+
+  // Setter is optional — const [value] = useState(0) is valid read-only state
+  const setterName = elements.length >= 2
+    && ts.isBindingElement(elements[1])
+    && ts.isIdentifier(elements[1].name)
+    ? elements[1].name.text
+    : `set${nameElement.name.text.charAt(0).toUpperCase()}${nameElement.name.text.slice(1)}`;
 
   const initialValue = call.arguments.length > 0
     ? getNodeText(call.arguments[0], sourceFile)
@@ -194,7 +208,7 @@ function processUseState(
   result.state.push({
     name: nameElement.name.text,
     initialValue,
-    setter: setterElement.name.text,
+    setter: setterName,
     type,
   });
 }

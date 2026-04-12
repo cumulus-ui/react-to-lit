@@ -243,7 +243,7 @@ function rewriteWithMorph(
   // Quick check: does the text contain any member names?
   let hasAny = false;
   for (const name of memberMap.keys()) {
-    if (name.length > 2 && !GLOBAL_NAMES.has(name) && text.includes(name)) {
+    if (name.length > 1 && !GLOBAL_NAMES.has(name) && text.includes(name)) {
       hasAny = true;
       break;
     }
