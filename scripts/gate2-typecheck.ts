@@ -110,6 +110,11 @@ export class CsBaseElement extends LitElement {
 const EVENTS_STUB = `\
 export declare function fireNonCancelableEvent(target: EventTarget, name: string, detail?: any, nativeEvent?: Event): void;
 export declare function fireCancelableEvent(target: EventTarget, name: string, detail?: any, event?: Event): boolean;
+export declare function isPlainLeftClick(event: MouseEvent): boolean;
+export declare function hasModifierKeys(event: KeyboardEvent): boolean;
+export type NonCancelableCustomEvent<T = any> = CustomEvent<T>;
+export type BaseKeyDetail = { keyCode: number; key: string; ctrlKey: boolean; shiftKey: boolean; altKey: boolean; metaKey: boolean };
+export type BaseChangeDetail = { value: any };
 `;
 
 const FORM_CONTROL_MIXIN_STUB = `\
@@ -506,6 +511,15 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
       fs.writeFileSync(stubPath, stubLines.join('\n') + '\n');
       // Also write a .js file so module resolution works
       fs.writeFileSync(path.join(OUTPUT_DIR, modulePath + '.js'), '// stub\n');
+    } else {
+      // Append missing exports to existing stub file
+      const existing = fs.readFileSync(stubPath, 'utf-8');
+      const missingExports = stubLines.filter(line =>
+        line.startsWith('export') && !existing.includes(line),
+      );
+      if (missingExports.length > 0) {
+        fs.appendFileSync(stubPath, '\n' + missingExports.join('\n') + '\n');
+      }
     }
   }
 }
