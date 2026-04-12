@@ -102,8 +102,21 @@ function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
 
   // Helpers (render helpers) → this._helperName()
   // These are inner functions extracted as class methods.
+  // Skip names that are file-level constants — they're module-scope
+  // and don't need this._ prefix.
+  const fileConstantNames = new Set<string>();
+  for (const c of ir.fileConstants) {
+    const m = c.match(/^(?:const|let|var)\s+(\w+)/);
+    if (m) fileConstantNames.add(m[1]);
+  }
   for (const h of ir.helpers) {
-    if (!map.has(h.name)) {
+    if (!map.has(h.name) && !fileConstantNames.has(h.name)) {
+      // Skip helpers that are actually constant declarations (not functions/methods).
+      // File-level constants don't need this._ prefix.
+      const trimmed = h.source.trimStart();
+      if (trimmed.startsWith('const ') || trimmed.startsWith('let ') || trimmed.startsWith('var ')) {
+        continue;
+      }
       map.set(h.name, { member: `_${h.name}` });
     }
   }
