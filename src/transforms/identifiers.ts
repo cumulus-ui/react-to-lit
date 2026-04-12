@@ -18,6 +18,7 @@ import { jsxToLitTransformerFactory } from './jsx-to-lit.js';
 import type {
   ComponentIR,
   TemplateNodeIR,
+  ImportIR,
 } from '../ir/types.js';
 import { getGlobalNames } from '../standards.js';
 import { walkTemplate } from '../template-walker.js';
@@ -128,6 +129,9 @@ function getProject(): Project {
 export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   const memberMap = buildMemberMap(ir);
 
+  // Track PascalCase component names whose JSX was converted to html``
+  const convertedComponents = new Set<string>();
+
   // Quick text-based rewrites that don't need AST
   const quickRewrite = (text: string) => rewriteQuickPatterns(text, ir);
 
@@ -184,10 +188,23 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   }));
 
   // Transform template expressions
-  const template = rewriteTemplateNode(ir.template, astRewrite);
+  const template = rewriteTemplateNode(ir.template, astRewrite, convertedComponents);
+
+  // Preserve imports for components whose JSX was converted — the PascalCase
+  // identifier no longer appears in the output but the import is needed
+  // to register the custom element.
+  const imports = convertedComponents.size > 0
+    ? ir.imports.map((imp): ImportIR => {
+        if (imp.isTypeOnly || imp.isSideEffect) return imp;
+        const used = (imp.defaultImport && convertedComponents.has(imp.defaultImport)) ||
+          imp.namedImports?.some(n => convertedComponents.has(n));
+        return used ? { ...imp, preserve: true } : imp;
+      })
+    : ir.imports;
 
   return {
     ...ir,
+    imports,
     handlers,
     effects,
     publicMethods,
@@ -475,30 +492,43 @@ function isDeclarationPosition(node: Node): boolean {
 function rewriteTemplateNode(
   node: TemplateNodeIR,
   astRewrite: (text: string) => string,
+  convertedComponents: Set<string>,
 ): TemplateNodeIR {
   return walkTemplate(node, {
     attributeExpression: (expr) => astRewrite(expr),
-    expression: (expr) => convertRemainingJsx(astRewrite(expr)),
+    expression: (expr) => {
+      // If the expression contains raw JSX, convert to html`` FIRST,
+      // then rewrite identifiers in the resulting valid TS.
+      // Running astRewrite first garbles JSX in .ts mode.
+      if (hasRawJsx(expr)) {
+        for (const m of expr.matchAll(/(?<!\w)<([A-Z]\w*)/g)) {
+          convertedComponents.add(m[1]);
+        }
+        return astRewrite(convertRemainingJsx(expr));
+      }
+      return convertRemainingJsx(astRewrite(expr));
+    },
     conditionExpression: (expr) => astRewrite(expr),
     loopIterable: (expr) => astRewrite(expr),
   });
 }
 
 /**
- * If expression text still contains raw JSX (e.g., from .map() callbacks),
- * convert it to Lit html`` tagged templates via the JSX transformer.
+ * Detect raw JSX in expression text: PascalCase tags with closing syntax,
+ * but not TypeScript generics (preceded by a word character).
+ */
+function hasRawJsx(text: string): boolean {
+  if (text.includes('html`')) return false;
+  if (text.includes('<>')) return true;
+  return (/(?<!\w)<[A-Z]\w*[\s>\/]/.test(text)) &&
+    (/\/>/.test(text) || /<\/[A-Z]/.test(text));
+}
+
+/**
+ * Convert raw JSX in expression text to Lit html`` tagged templates.
  */
 function convertRemainingJsx(text: string): string {
-  // Quick check: does it look like JSX (not TypeScript generics)?
-  // JSX: <Name ... (not preceded by word char) + has /> or </Name>
-  // Generics: Partial<Name>, Array<Name> (preceded by word char)
-  // Also skip expressions that already contain html`` templates —
-  // roundtripping these through the TS printer garbles template content.
-  const hasJsx =
-    !text.includes('html`') &&
-    ((/(?<!\w)<[A-Z]\w*[\s>\/]/.test(text)) && (/\/>/.test(text) || /<\/[A-Z]/.test(text))) ||
-    text.includes('<>');
-  if (!hasJsx) return text;
+  if (!hasRawJsx(text)) return text;
 
   const wrapper = `const __jsxExpr = ${text};`;
   const tempFile = tsLib.createSourceFile(

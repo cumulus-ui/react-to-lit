@@ -375,4 +375,10 @@ export interface ImportIR {
 
   /** Whether this is a side-effect import (import 'foo') */
   isSideEffect?: boolean;
+
+  /** Keep this import even if the identifier doesn't appear in the output.
+   *  Used when JSX-to-Lit conversion replaces PascalCase component tags
+   *  with custom element tags, removing the identifier but still needing
+   *  the import for custom element registration. */
+  preserve?: boolean;
 }

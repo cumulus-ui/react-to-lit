@@ -243,10 +243,10 @@ export function collectImports(ir: ComponentIR): ImportCollector {
         if (allCode.includes(name)) collector.addType(imp.moduleSpecifier, name);
       }
     } else if (imp.defaultImport) {
-      if (allCode.includes(imp.defaultImport)) collector.addDefault(imp.moduleSpecifier, imp.defaultImport);
+      if (imp.preserve || allCode.includes(imp.defaultImport)) collector.addDefault(imp.moduleSpecifier, imp.defaultImport);
     } else if (imp.namedImports) {
       for (const name of imp.namedImports) {
-        if (allCode.includes(name)) collector.addNamed(imp.moduleSpecifier, name);
+        if (imp.preserve || allCode.includes(name)) collector.addNamed(imp.moduleSpecifier, name);
       }
     }
   }

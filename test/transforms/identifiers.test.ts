@@ -421,7 +421,7 @@ describe('rewriteIdentifiers', () => {
   // ---------------------------------------------------------------------------
 
   describe('JSX in template expression text (radio-group pattern)', () => {
-    it.fails('does not produce "this .value" from JSX attribute values', () => {
+    it('does not produce "this .value" from JSX attribute values', () => {
       const ir = minimalIR({
         props: [prop('items'), prop('direction'), prop('value')],
         state: [stateDef('generatedName', 'setGeneratedName', "''")],
@@ -467,7 +467,7 @@ describe('rewriteIdentifiers', () => {
       expect(expr).not.toMatch(/;\s*\n\s*this\.\w+ =/);
     });
 
-    it.fails('does not produce orphaned statements from JSX spread attributes', () => {
+    it('does not produce orphaned statements from JSX spread attributes', () => {
       const ir = minimalIR({
         props: [prop('items'), prop('disabled')],
         imports: [
