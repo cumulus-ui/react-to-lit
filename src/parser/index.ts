@@ -442,8 +442,6 @@ function extractSourceImports(sourceFile: ts.SourceFile): ImportIR[] {
     if (SKIP_IMPORT_PREFIXES.some(p => specifier.startsWith(p))) continue;
     // Skip CSS module imports (handled by styleImport)
     if (specifier.endsWith('.css') || specifier.endsWith('.css.js')) continue;
-    // Skip type-only imports (won't cause runtime TS2304)
-    if (stmt.importClause?.isTypeOnly) continue;
     // Skip relative imports to React component files (index, internal) —
     // these become custom element imports handled by the component transform.
     // But keep imports to utility/shared modules (keycode, utils, etc.).
@@ -457,6 +455,7 @@ function extractSourceImports(sourceFile: ts.SourceFile): ImportIR[] {
     }
 
     const namedImports: string[] = [];
+    const typeOnlyNames: string[] = [];
     let defaultImport: string | undefined;
 
     if (clause.name) {
@@ -466,10 +465,14 @@ function extractSourceImports(sourceFile: ts.SourceFile): ImportIR[] {
     if (clause.namedBindings) {
       if (ts.isNamedImports(clause.namedBindings)) {
         for (const el of clause.namedBindings.elements) {
-          if (el.isTypeOnly) continue;
-          const name = el.name.text;
+          const name = (el.propertyName ?? el.name).text;
           if (SKIP_IMPORT_NAMES.has(name)) continue;
-          namedImports.push(name);
+          // Track individual type-only imports: import { type Foo } from '...'
+          if (el.isTypeOnly) {
+            typeOnlyNames.push(el.name.text);
+          } else {
+            namedImports.push(el.name.text);
+          }
         }
       } else if (ts.isNamespaceImport(clause.namedBindings)) {
         // import * as foo — keep as default
@@ -478,10 +481,20 @@ function extractSourceImports(sourceFile: ts.SourceFile): ImportIR[] {
     }
 
     if (defaultImport || namedImports.length > 0) {
+      const isTypeOnly = !!stmt.importClause?.isTypeOnly;
       imports.push({
         moduleSpecifier: specifier,
         ...(defaultImport ? { defaultImport } : {}),
         ...(namedImports.length > 0 ? { namedImports } : {}),
+        ...(isTypeOnly ? { isTypeOnly } : {}),
+      });
+    }
+    // Individual type-only named imports: import { type Foo } from '...'
+    if (typeOnlyNames.length > 0) {
+      imports.push({
+        moduleSpecifier: specifier,
+        namedImports: typeOnlyNames,
+        isTypeOnly: true,
       });
     }
   }
