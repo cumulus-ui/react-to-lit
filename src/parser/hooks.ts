@@ -137,6 +137,9 @@ function processHookCall(
       case 'controller':
         if (mapping.controller && decl) {
           processControllerHook(decl, call, sourceFile, mapping.controller, result);
+          // Preserve the destructured return bindings (e.g., [expanded, setExpanded])
+          // so the identifier rewriter can map them to class members.
+          collectPreservedVars(decl, result.preservedVars);
         } else {
           result.skipped.push({ name: hookName, reason: 'controller mapping incomplete' });
           if (decl) collectPreservedVars(decl, result.preservedVars);
