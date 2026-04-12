@@ -141,6 +141,10 @@ function cleanHandlerBody(body: string): string {
 
   // Remove __-prefixed infrastructure: if (__xxx) { ... } blocks (with nested braces)
   result = stripIfBlocks(result, /if\s*\(\s*!?__\w+\s*\)/);
+
+  // Remove destructuring from 'rest' — React rest props are not available in Lit
+  result = result.replace(/const\s*\{[^}]*\}\s*=\s*rest\s*;?\s*/g, '');
+
   // Remove __xxx && expr patterns
   result = result.replace(/\b__\w+\s*&&\s*[^;,\n]+[;,]?\s*/g, '');
   // Remove __xxx ternary patterns: __xxx ? exprA : exprB → exprB
