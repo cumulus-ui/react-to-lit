@@ -87,7 +87,10 @@ describe('transformClsx — template attributes', () => {
     const result = transformClsx(ir);
     const attr = result.template.attributes[0];
     const expr = typeof attr.value === 'string' ? attr.value : attr.value.expression;
-    expect(expr).toContain("'root': true");
+    // A single styles.xxx reference becomes a plain class name string,
+    // not a classMap object — classMap is unnecessary for a static class.
+    expect(expr).toContain("'root'");
+    expect(attr.kind).toBe('attribute');
   });
 });
 

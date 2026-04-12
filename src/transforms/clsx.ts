@@ -45,6 +45,13 @@ function transformClsxInTemplate(node: TemplateNodeIR): TemplateNodeIR {
   return walkTemplate(node, {
     attribute: (attr) => {
       if (attr.kind === 'classMap' && typeof attr.value !== 'string') {
+        // If the classMap expression is just a styles.xxx reference,
+        // convert to a plain class attribute with the stripped class name.
+        const expr = attr.value.expression.trim();
+        if (/^styles[.[']/.test(expr) && !expr.includes(',') && !expr.includes('{')) {
+          const className = replaceStylesInText(expr);
+          return { ...attr, kind: 'attribute' as const, value: { expression: className } };
+        }
         return transformClassAttribute(attr);
       }
       if (typeof attr.value !== 'string' && attr.value.expression.includes('clsx(')) {
@@ -54,6 +61,10 @@ function transformClsxInTemplate(node: TemplateNodeIR): TemplateNodeIR {
         return { ...attr, name: 'class', kind: attr.kind === 'classMap' ? 'classMap' as const : attr.kind };
       }
       return undefined; // keep as-is
+    },
+    attributeExpression: (expr) => {
+      const replaced = replaceClsxAndStylesInText(expr);
+      return replaced !== expr ? replaced : undefined;
     },
     expression: (expr) => {
       const replaced = replaceClsxAndStylesInText(expr);
@@ -322,6 +333,11 @@ function replaceStylesInText(text: string): string {
   result = result.replace(/\bstyles\["([^"]+)"\]/g, "'$1'");
 
   result = result.replace(/\bstyles\.(\w+)\b/g, "'$1'");
+
+  // classMap('string') → 'string' — degenerate classMap with a single string arg
+  // (happens when styles.xxx was the sole classMap argument)
+  result = result.replace(/classMap\(('[^']+')\)/g, '$1');
+  result = result.replace(/classMap\((`[^`]+`)\)/g, '$1');
 
   return result;
 }
