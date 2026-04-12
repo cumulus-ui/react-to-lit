@@ -88,6 +88,14 @@ function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
     }
   }
 
+  // Helpers (render helpers) → this._helperName()
+  // These are inner functions extracted as class methods.
+  for (const h of ir.helpers) {
+    if (!map.has(h.name)) {
+      map.set(h.name, { member: `_${h.name}` });
+    }
+  }
+
   // Destructured prop aliases → this.propName (e.g., externalSeries → this.series)
   if (ir.propAliases) {
     for (const [alias, propName] of ir.propAliases) {
