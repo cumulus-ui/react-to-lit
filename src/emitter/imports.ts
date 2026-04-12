@@ -21,6 +21,13 @@ export class ImportCollector {
   private _sideEffectImports = new Set<string>();
   private _defaultImports = new Map<string, string>(); // module → default name
 
+  /** Add a name to a Map<string, Set<string>>, creating the Set on first use. */
+  private _addToMap(map: Map<string, Set<string>>, key: string, name: string): void {
+    let set = map.get(key);
+    if (!set) { set = new Set(); map.set(key, set); }
+    set.add(name);
+  }
+
   addLit(name: string): void {
     this._litImports.add(name);
   }
@@ -30,10 +37,7 @@ export class ImportCollector {
   }
 
   addDirective(module: string, name: string): void {
-    if (!this._directiveImports.has(module)) {
-      this._directiveImports.set(module, new Set());
-    }
-    this._directiveImports.get(module)!.add(name);
+    this._addToMap(this._directiveImports, module, name);
   }
 
   addContextImport(name: string): void {
@@ -41,17 +45,11 @@ export class ImportCollector {
   }
 
   addNamed(module: string, name: string): void {
-    if (!this._namedImports.has(module)) {
-      this._namedImports.set(module, new Set());
-    }
-    this._namedImports.get(module)!.add(name);
+    this._addToMap(this._namedImports, module, name);
   }
 
   addType(module: string, name: string): void {
-    if (!this._typeImports.has(module)) {
-      this._typeImports.set(module, new Set());
-    }
-    this._typeImports.get(module)!.add(name);
+    this._addToMap(this._typeImports, module, name);
   }
 
   addSideEffect(module: string): void {
