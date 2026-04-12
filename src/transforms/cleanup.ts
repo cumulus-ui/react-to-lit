@@ -138,6 +138,10 @@ function cleanHandlerBody(body: string): string {
   // (infrastructure type that adds __internalRootRef — already stripped)
   result = result.replace(/\s*&\s*InternalBaseComponentProps/g, '');
 
+  // Replace Internal{Xxx}Props → {Xxx}Props in type annotations
+  // Internal variant is the parser name; the public variant is imported.
+  result = result.replace(/\bInternal(\w+Props)\b/g, '$1');
+
   // Remove rest/spread references (general React pattern)
   result = cleanRestSpreadRefs(result);
   result = result.replace(/\.\.\.(getAnalyticsMetadataAttribute|getAnalyticsLabelAttribute)\([^)]*\),?\s*/g, '');
