@@ -40,16 +40,7 @@ export function emitLifecycle(effects: EffectIR[]): string {
   if (mountEffects.length > 0) {
     lines.push('  override connectedCallback(): void {');
     lines.push('    super.connectedCallback();');
-    for (const effect of mountEffects) {
-      const hasCleanup = !!effect.cleanup;
-      if (mountEffects.length > 1) {
-        lines.push('    {');
-        lines.push(indentBody(effect.body, 6, hasCleanup));
-        lines.push('    }');
-      } else {
-        lines.push(indentBody(effect.body, 4, hasCleanup));
-      }
-    }
+    emitEffectBodies(mountEffects, lines);
     lines.push('  }');
     lines.push('');
   }
@@ -57,16 +48,7 @@ export function emitLifecycle(effects: EffectIR[]): string {
   // firstUpdated — layout mount effects (isLayout + empty deps)
   if (layoutMountEffects.length > 0) {
     lines.push('  override firstUpdated(): void {');
-    for (const effect of layoutMountEffects) {
-      const hasCleanup = !!effect.cleanup;
-      if (layoutMountEffects.length > 1) {
-        lines.push('    {');
-        lines.push(indentBody(effect.body, 6, hasCleanup));
-        lines.push('    }');
-      } else {
-        lines.push(indentBody(effect.body, 4, hasCleanup));
-      }
-    }
+    emitEffectBodies(layoutMountEffects, lines);
     lines.push('  }');
     lines.push('');
   }
@@ -76,8 +58,9 @@ export function emitLifecycle(effects: EffectIR[]): string {
     lines.push('  override disconnectedCallback(): void {');
     lines.push('    super.disconnectedCallback();');
     for (const effect of cleanupEffects) {
+      if (!effect.cleanup) continue; // guarded by filter above
       lines.push(`    // cleanup`);
-      lines.push(indentBody(effect.cleanup!, 4));
+      lines.push(indentBody(effect.cleanup, 4));
     }
     lines.push('  }');
     lines.push('');
@@ -106,16 +89,7 @@ export function emitLifecycle(effects: EffectIR[]): string {
   const updatedEffects = [...everyRenderEffects, ...layoutNoDepsEffects];
   if (updatedEffects.length > 0) {
     lines.push('  override updated(): void {');
-    for (const effect of updatedEffects) {
-      const hasCleanup = !!effect.cleanup;
-      if (updatedEffects.length > 1) {
-        lines.push('    {');
-        lines.push(indentBody(effect.body, 6, hasCleanup));
-        lines.push('    }');
-      } else {
-        lines.push(indentBody(effect.body, 4, hasCleanup));
-      }
-    }
+    emitEffectBodies(updatedEffects, lines);
     lines.push('  }');
     lines.push('');
   }
@@ -126,6 +100,26 @@ export function emitLifecycle(effects: EffectIR[]): string {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Emit a list of effects into a lifecycle method body.
+ * When there are multiple effects, wraps each in braces for isolation.
+ */
+function emitEffectBodies(
+  effects: EffectIR[],
+  lines: string[],
+): void {
+  for (const effect of effects) {
+    const hasCleanup = !!effect.cleanup;
+    if (effects.length > 1) {
+      lines.push('    {');
+      lines.push(indentBody(effect.body, 6, hasCleanup));
+      lines.push('    }');
+    } else {
+      lines.push(indentBody(effect.body, 4, hasCleanup));
+    }
+  }
+}
 
 /**
  * Indent a body block of source text.

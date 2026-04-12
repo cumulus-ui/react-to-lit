@@ -89,7 +89,7 @@ function emitElementInline(
   indent: number,
 ): string {
   const pad = ' '.repeat(indent);
-  const tag = node.tag!;
+  const tag = node.tag ?? 'div';
   const attrs = emitAttributes(node.attributes, collector);
   const attrStr = attrs ? ' ' + attrs : '';
 
@@ -143,27 +143,28 @@ function emitConditionalInline(
   indent: number,
 ): string {
   const pad = ' '.repeat(indent);
+  const condition = node.condition!;
   collector.addLit('nothing');
 
   // Make a copy without the condition to emit the inner node
   const innerNode = { ...node, condition: undefined };
   const consequent = emitNodeInline(innerNode, collector, indent + 2);
 
-  if (node.condition!.kind === 'and') {
-    return `${pad}\${${node.condition!.expression}\n${pad}  ? html\`\n${consequent}\n${pad}  \`\n${pad}  : nothing}`;
+  if (condition.kind === 'and') {
+    return `${pad}\${${condition.expression}\n${pad}  ? html\`\n${consequent}\n${pad}  \`\n${pad}  : nothing}`;
   }
 
   // Ternary
-  const alternate = node.condition!.alternate
-    ? emitNodeInline(node.condition!.alternate, collector, indent + 2)
+  const alternate = condition.alternate
+    ? emitNodeInline(condition.alternate, collector, indent + 2)
     : `${' '.repeat(indent + 2)}nothing`;
 
-  const altIsSimple = !node.condition!.alternate;
+  const altIsSimple = !condition.alternate;
   const altContent = altIsSimple
     ? 'nothing'
     : `html\`\n${alternate}\n${pad}  \``;
 
-  return `${pad}\${${node.condition!.expression}\n${pad}  ? html\`\n${consequent}\n${pad}  \`\n${pad}  : ${altContent}}`;
+  return `${pad}\${${condition.expression}\n${pad}  ? html\`\n${consequent}\n${pad}  \`\n${pad}  : ${altContent}}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -176,13 +177,13 @@ function emitLoopInline(
   indent: number,
 ): string {
   const pad = ' '.repeat(indent);
-  const { iterable, variable, index } = node.loop!;
-  const params = index ? `${variable}, ${index}` : variable;
+  const loop = node.loop!;
+  const params = loop.index ? `${loop.variable}, ${loop.index}` : loop.variable;
 
   const innerNode = { ...node, loop: undefined };
   const body = emitNodeInline(innerNode, collector, indent + 2);
 
-  return `${pad}\${${iterable}.map((${params}) => html\`\n${body}\n${pad}\`)}`;
+  return `${pad}\${${loop.iterable}.map((${params}) => html\`\n${body}\n${pad}\`)}`;
 }
 
 // ---------------------------------------------------------------------------
