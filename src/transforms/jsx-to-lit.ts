@@ -9,26 +9,9 @@
  * Runs BEFORE IR extraction so all downstream code operates on JSX-free source.
  */
 import ts from 'typescript';
-import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES } from '../cloudscape-config.js';
+import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, UNWRAP_COMPONENTS } from '../cloudscape-config.js';
 import { getBooleanAttributes, getHtmlTagNames } from '../standards.js';
 import { toTagName, toLitEventName, isEventProp, reactAttrToHtml } from '../naming.js';
-
-// ---------------------------------------------------------------------------
-// Component name mapping
-// ---------------------------------------------------------------------------
-
-/** Components to unwrap (keep children, remove wrapper) */
-const UNWRAP_COMPONENTS = new Set([
-  'WithNativeAttributes',
-  'BuiltInErrorBoundary',
-  'CSSTransition',
-  'AnalyticsFunnelSubStep',
-  'AnalyticsFunnelStep',
-  'FocusLock',
-  'Fragment',
-  'Suspense',
-  'StrictMode',
-]);
 
 // ---------------------------------------------------------------------------
 // The transformer factory

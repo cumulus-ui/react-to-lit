@@ -8,6 +8,7 @@
  *   - function: (node) => TemplateNodeIR — full template replacement
  */
 import type { TemplateNodeIR, AttributeIR } from '../ir/types.js';
+import { UNWRAP_COMPONENTS } from '../cloudscape-config.js';
 
 
 // ---------------------------------------------------------------------------
@@ -154,46 +155,8 @@ export const cloudscapeComponentRegistry: ComponentRegistry = {
   'AbstractSwitch': buildAbstractSwitch,
 
   // React-only wrappers → unwrap (keep children)
-  'AnalyticsFunnel': '__UNWRAP__',
-  'AnalyticsFunnelStep': '__UNWRAP__',
-  'AnalyticsFunnelSubStep': '__UNWRAP__',
-  'AppLayoutToolbarPublicContext.Provider': '__UNWRAP__',
-  'BuiltInErrorBoundary': '__UNWRAP__',
-  'ButtonContext.Provider': '__UNWRAP__',
-  'CSSTransition': '__UNWRAP__',
-  'CollectionLabelContext.Provider': '__UNWRAP__',
-  'CollectionPreferencesMetadata.Provider': '__UNWRAP__',
-  'ColumnWidthsProvider': '__UNWRAP__',
-  'ContainerHeaderContextProvider': '__UNWRAP__',
-  'DropdownContext.Provider': '__UNWRAP__',
-  'DropdownContextProvider': '__UNWRAP__',
-  'ErrorBoundariesContext.Provider': '__UNWRAP__',
-  'ExpandableSectionContainer': '__UNWRAP__',
-  'FocusLock': '__UNWRAP__',
-  'FormFieldContext.Provider': '__UNWRAP__',
-  'FormWithAnalytics': '__UNWRAP__',
-  'FunnelNameSelectorContext.Provider': '__UNWRAP__',
-  'GridNavigationProvider': '__UNWRAP__',
-  'InfoLinkLabelContext.Provider': '__UNWRAP__',
-  'InternalIconContext.Provider': '__UNWRAP__',
-  'InternalModalAsFunnel': '__UNWRAP__',
-  'KeyboardNavigationProvider': '__UNWRAP__',
-  'LinkDefaultVariantContext.Provider': '__UNWRAP__',
-  'ListComponent': '__UNWRAP__',
-  'ModalContext.Provider': '__UNWRAP__',
-  'ModalWithAnalyticsFunnel': '__UNWRAP__',
-  'Portal': '__UNWRAP__',
-  'React.Fragment': '__UNWRAP__',
-  'ResetContextsForModal': '__UNWRAP__',
-  'SingleTabStopNavigationProvider': '__UNWRAP__',
-  'StickyHeaderContext.Provider': '__UNWRAP__',
-  'TableComponentsContextProvider': '__UNWRAP__',
-  'TokenInlineContext.Provider': '__UNWRAP__',
-  'Transition': '__UNWRAP__',
-  'TransitionGroup': '__UNWRAP__',
-  'VisualContext': '__UNWRAP__',
-  'WidthsContext.Provider': '__UNWRAP__',
-  'WithNativeAttributes': '__UNWRAP__',
+  // Generated from the shared UNWRAP_COMPONENTS set in cloudscape-config.ts
+  ...Object.fromEntries([...UNWRAP_COMPONENTS].map(name => [name, '__UNWRAP__' as const])),
 };
 
 // ---------------------------------------------------------------------------

@@ -42,3 +42,52 @@ export const INFRA_FUNCTIONS = new Set([
   'applyDisplayName', 'getBaseProps', 'getAnalyticsMetadataProps', 'checkSafeUrl',
   'warnOnce', 'applyDefaults',
 ]);
+
+// ---------------------------------------------------------------------------
+// Components to unwrap (keep children, discard wrapper)
+// ---------------------------------------------------------------------------
+
+/**
+ * React wrapper components that have no Lit equivalent.
+ * Used by both the JSX pre-transformer and the IR component resolver.
+ */
+export const UNWRAP_COMPONENTS = new Set([
+  // React built-ins
+  'Fragment', 'React.Fragment', 'Suspense', 'StrictMode',
+  // Transition wrappers
+  'CSSTransition', 'Transition', 'TransitionGroup',
+  // Cloudscape infrastructure wrappers
+  'AnalyticsFunnel', 'AnalyticsFunnelStep', 'AnalyticsFunnelSubStep',
+  'AppLayoutToolbarPublicContext.Provider',
+  'BuiltInErrorBoundary',
+  'ButtonContext.Provider',
+  'CollectionLabelContext.Provider',
+  'CollectionPreferencesMetadata.Provider',
+  'ColumnWidthsProvider',
+  'ContainerHeaderContextProvider',
+  'DropdownContext.Provider', 'DropdownContextProvider',
+  'ErrorBoundariesContext.Provider',
+  'ExpandableSectionContainer',
+  'FocusLock',
+  'FormFieldContext.Provider',
+  'FormWithAnalytics',
+  'FunnelNameSelectorContext.Provider',
+  'GridNavigationProvider',
+  'InfoLinkLabelContext.Provider',
+  'InternalIconContext.Provider',
+  'InternalModalAsFunnel',
+  'KeyboardNavigationProvider',
+  'LinkDefaultVariantContext.Provider',
+  'ListComponent',
+  'ModalContext.Provider',
+  'ModalWithAnalyticsFunnel',
+  'Portal',
+  'ResetContextsForModal',
+  'SingleTabStopNavigationProvider',
+  'StickyHeaderContext.Provider',
+  'TableComponentsContextProvider',
+  'TokenInlineContext.Provider',
+  'VisualContext',
+  'WidthsContext.Provider',
+  'WithNativeAttributes',
+]);
