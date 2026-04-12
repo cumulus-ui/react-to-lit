@@ -227,6 +227,11 @@ function emitAttribute(
       return `class=\${classMap(${getExpression(attr.value)})}`;
     }
 
+    case 'styleMap': {
+      collector.addDirective('lit/directives/style-map.js', 'styleMap');
+      return `style=\${styleMap(${getExpression(attr.value)})}`;
+    }
+
     case 'spread':
       // Spreads are not directly supported in Lit — emit as comment
       return `/* spread: ${getExpression(attr.value)} */`;
