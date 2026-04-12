@@ -207,8 +207,9 @@ function parseJsxAttribute(
   if (ts.isJsxExpression(attr.initializer) && attr.initializer.expression) {
     const expr = attr.initializer.expression;
 
-    // If the expression IS JSX (e.g., content={<>...</>}), convert to html`` inline
-    const exprText = isJsxNode(expr)
+    // If the expression contains JSX (e.g., content={<>...</>} or content={cond ? <X/> : null}),
+    // convert JSX parts to html`` inline
+    const exprText = containsJsxNode(expr)
       ? jsxExpressionToLitText(expr, sourceFile)
       : getNodeText(expr, sourceFile);
 
@@ -474,6 +475,12 @@ function isJsxNode(node: ts.Node): boolean {
     ts.isJsxFragment(node) ||
     ts.isParenthesizedExpression(node) && isJsxNode(node.expression)
   );
+}
+
+/** Check if a TS node or any of its descendants contain JSX syntax. */
+function containsJsxNode(node: ts.Node): boolean {
+  if (isJsxNode(node)) return true;
+  return ts.forEachChild(node, containsJsxNode) ?? false;
 }
 
 /**
