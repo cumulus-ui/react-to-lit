@@ -134,7 +134,7 @@ export function collectImports(ir: ComponentIR): ImportCollector {
     collector.addDecorator('query');
   }
 
-  // nothing (for conditional rendering)
+  // nothing (for conditional rendering or other Lit patterns)
   if (hasConditionalRendering(ir.template)) {
     collector.addLit('nothing');
   }
@@ -214,6 +214,11 @@ export function collectImports(ir: ComponentIR): ImportCollector {
     ...ir.refs.map(r => r.initialValue),
     templateToText(ir.template),
   ].join('\n');
+
+  // Also import 'nothing' if used anywhere in the output (not just templates)
+  if (/\bnothing\b/.test(allCode)) {
+    collector.addLit('nothing');
+  }
 
   for (const imp of ir.imports) {
     if (imp.isSideEffect) {
