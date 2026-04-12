@@ -88,7 +88,7 @@ describe('esbuild syntax validation', () => {
       console.log(`Failed: ${failures.join(', ')}`);
     }
     // Track progress — this number should only go up
-    expect(passed).toBeGreaterThanOrEqual(18);
+    expect(passed).toBeGreaterThanOrEqual(91);
   });
 });
 
@@ -126,7 +126,7 @@ describe('no raw JSX in output', () => {
     const passed = components.length - jsxFailures.length;
     console.log(`\nno-JSX: ${passed}/${components.length} pass (${jsxFailures.length} have raw JSX)`);
     // Track progress — this number should only go up
-    expect(passed).toBeGreaterThanOrEqual(38);
+    expect(passed).toBeGreaterThanOrEqual(91);
   });
 });
 
