@@ -498,6 +498,12 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
       if (!neededModules.has(modulePath)) {
         neededModules.set(modulePath, new Set());
       }
+      // Derive PascalCase name from kebab-case tag for the named export
+      const pascalName = tagSuffix
+        .split('-')
+        .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+        .join('');
+      neededModules.get(modulePath)!.add(pascalName);
     }
   }
 
