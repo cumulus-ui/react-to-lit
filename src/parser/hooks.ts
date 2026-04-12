@@ -251,9 +251,7 @@ function processUseEffect(
     const returnStmt = Array.from(effectFn.body.statements).reverse().find(ts.isReturnStatement);
     if (returnStmt?.expression) {
       if (ts.isArrowFunction(returnStmt.expression) || ts.isFunctionExpression(returnStmt.expression)) {
-        cleanup = ts.isBlock(returnStmt.expression.body)
-          ? getNodeText(returnStmt.expression.body, sourceFile)
-          : getNodeText(returnStmt.expression.body, sourceFile);
+        cleanup = getNodeText(returnStmt.expression.body, sourceFile);
       }
     }
   }
@@ -300,9 +298,7 @@ function processUseMemo(
   const factory = call.arguments[0];
   if (!ts.isArrowFunction(factory) && !ts.isFunctionExpression(factory)) return;
 
-  const expression = ts.isBlock(factory.body)
-    ? getNodeText(factory.body, sourceFile)
-    : getNodeText(factory.body, sourceFile);
+  const expression = getNodeText(factory.body, sourceFile);
 
   let deps: string[] = [];
   if (call.arguments.length >= 2 && ts.isArrayLiteralExpression(call.arguments[1])) {
