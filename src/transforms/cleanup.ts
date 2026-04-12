@@ -172,6 +172,17 @@ function cleanHandlerBody(body: string): string {
   // Remove assignments to __-prefixed vars: __foo = expr; or __foo = __foo ?? expr;
   result = result.replace(/^\s*__\w+\s*=[^=][^;]*;?\s*$/gm, '');
 
+  // Remove __-prefixed key-value pairs from object literals.
+  // Uses balanced-paren-aware removal to handle function calls in values.
+  result = removeInternalPrefixedProperties(result);
+
+  // Remove __-prefixed parameters from destructuring and function params.
+  // { foo, __bar, baz } → { foo, baz }
+  // (a, __b, c) → (a, c)
+  // Handle optional type annotations: __foo?: Type
+  result = result.replace(/,\s*__\w+(?:\??\s*:\s*[^,})]*)?\s*(?=[,})])/g, '');
+  result = result.replace(/\(\s*__\w+(?:\??\s*:\s*[^,})]*)?\s*,\s*/g, '(');
+
   // Remove FunnelMetrics.xxx(...) and analytics selector function calls
   const analyticsCallPattern = /\bFunnelMetrics\.\w+\(|\b(getSubStepAllSelector|getFunnelValueSelector|getFieldSlotSeletor|getNameFromSelector|getSubStepSelector)\(/g;
   let match;
@@ -324,5 +335,56 @@ function cleanInternalPrefixedRefsInExpr(text: string): string {
   result = result.replace(/\b__\w+\s*\?\s*[^:]+:\s*/g, '');
   // Bare __xxx (e.g., classMap value, standalone reference) → false
   result = result.replace(/\b__\w+\b/g, 'false');
+  return result;
+}
+
+/**
+ * Remove __-prefixed key-value pairs from object literals in code text.
+ * Handles nested function calls in values via balanced paren matching.
+ *
+ * `{ foo: 1, __bar: someCall(a, b), baz: 2 }` → `{ foo: 1, baz: 2 }`
+ */
+function removeInternalPrefixedProperties(text: string): string {
+  // Match `__propName:` or `__propName?:` at the start of a key-value pair
+  const pattern = /,?\s*__\w+\??\s*:/g;
+  let result = text;
+  let match;
+
+  while ((match = pattern.exec(result)) !== null) {
+    const keyStart = match.index;
+    const valueStart = keyStart + match[0].length;
+
+    // Find the end of the value — scan forward, respecting balanced parens/brackets
+    let depth = 0;
+    let i = valueStart;
+    while (i < result.length) {
+      const ch = result[i];
+      if (ch === '(' || ch === '[' || ch === '{') { depth++; i++; continue; }
+      if (ch === ')' || ch === ']' || ch === '}') {
+        if (depth === 0) break; // hit the end of the enclosing object
+        depth--;
+        i++;
+        continue;
+      }
+      if (ch === ',' && depth === 0) { i++; break; } // end of this value
+      // Skip strings
+      if (ch === "'" || ch === '"' || ch === '`') {
+        const quote = ch;
+        i++;
+        while (i < result.length && result[i] !== quote) {
+          if (result[i] === '\\') i++;
+          i++;
+        }
+        i++;
+        continue;
+      }
+      i++;
+    }
+
+    // Remove the key-value pair (including leading comma if present)
+    result = result.slice(0, keyStart) + result.slice(i);
+    pattern.lastIndex = keyStart; // rescan from same position
+  }
+
   return result;
 }
