@@ -168,6 +168,8 @@ function cleanHandlerBody(body: string): string {
   result = cleanInternalPrefixedRefs(result);
   // Remove spread of __-prefixed vars
   result = result.replace(/,?\s*\.\.\.__\w+,?/g, (m) => m.startsWith(',') && m.endsWith(',') ? ',' : '');
+  // Remove assignments to __-prefixed vars: __foo = expr; or __foo = __foo ?? expr;
+  result = result.replace(/^\s*__\w+\s*=[^=][^;]*;?\s*$/gm, '');
 
   // Remove FunnelMetrics.xxx(...) and analytics selector function calls
   const analyticsCallPattern = /\bFunnelMetrics\.\w+\(|\b(getSubStepAllSelector|getFunnelValueSelector|getFieldSlotSeletor|getNameFromSelector|getSubStepSelector)\(/g;
