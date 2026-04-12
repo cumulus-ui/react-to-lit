@@ -60,6 +60,13 @@ function replaceReactTypes(text: string): string {
   // DOM event types (KeyboardEvent, MouseEvent, etc.) are not generic.
   result = result.replace(/\b(KeyboardEvent|MouseEvent|FocusEvent|ChangeEvent|FormEvent|ClipboardEvent|DragEvent|PointerEvent|TouchEvent|WheelEvent|AnimationEvent|TransitionEvent|UIEvent|CompositionEvent|InputEvent)<[^>]*>/g, '$1');
 
+  // React-only event types without DOM equivalents → Event
+  result = result.replace(/\b(ChangeEvent|FormEvent|SyntheticEvent)\b/g, 'Event');
+
+  // React event properties → DOM equivalents
+  result = result.replace(/\.nativeEvent\b/g, '');
+  result = result.replace(/\.isDefaultPrevented\(\)/g, '.defaultPrevented');
+
   // Component Props types with generic params — strip the generic.
   // React component props are often generic (CardsProps<T>) but Lit versions are not.
   result = result.replace(/\b(\w+Props)<[^>]+>/g, '$1');
