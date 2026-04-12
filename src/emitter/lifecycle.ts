@@ -40,12 +40,13 @@ export function emitLifecycle(effects: EffectIR[]): string {
     lines.push('  override connectedCallback(): void {');
     lines.push('    super.connectedCallback();');
     for (const effect of mountEffects) {
+      const hasCleanup = !!effect.cleanup;
       if (mountEffects.length > 1) {
         lines.push('    {');
-        lines.push(indentBody(effect.body, 6));
+        lines.push(indentBody(effect.body, 6, hasCleanup));
         lines.push('    }');
       } else {
-        lines.push(indentBody(effect.body, 4));
+        lines.push(indentBody(effect.body, 4, hasCleanup));
       }
     }
     lines.push('  }');
@@ -56,12 +57,13 @@ export function emitLifecycle(effects: EffectIR[]): string {
   if (layoutMountEffects.length > 0) {
     lines.push('  override firstUpdated(): void {');
     for (const effect of layoutMountEffects) {
+      const hasCleanup = !!effect.cleanup;
       if (layoutMountEffects.length > 1) {
         lines.push('    {');
-        lines.push(indentBody(effect.body, 6));
+        lines.push(indentBody(effect.body, 6, hasCleanup));
         lines.push('    }');
       } else {
-        lines.push(indentBody(effect.body, 4));
+        lines.push(indentBody(effect.body, 4, hasCleanup));
       }
     }
     lines.push('  }');
@@ -87,11 +89,12 @@ export function emitLifecycle(effects: EffectIR[]): string {
     lines.push('    super.willUpdate(changed);');
     for (const effect of allDepEffects) {
       const deps = effect.deps as string[];
+      const hasCleanup = !!effect.cleanup;
       const condition = deps
         .map((d) => `changed.has('${d}')`)
         .join(' || ');
       lines.push(`    if (${condition}) {`);
-      lines.push(indentBody(effect.body, 6));
+      lines.push(indentBody(effect.body, 6, hasCleanup));
       lines.push('    }');
     }
     lines.push('  }');
@@ -103,12 +106,13 @@ export function emitLifecycle(effects: EffectIR[]): string {
   if (updatedEffects.length > 0) {
     lines.push('  override updated(): void {');
     for (const effect of updatedEffects) {
+      const hasCleanup = !!effect.cleanup;
       if (updatedEffects.length > 1) {
         lines.push('    {');
-        lines.push(indentBody(effect.body, 6));
+        lines.push(indentBody(effect.body, 6, hasCleanup));
         lines.push('    }');
       } else {
-        lines.push(indentBody(effect.body, 4));
+        lines.push(indentBody(effect.body, 4, hasCleanup));
       }
     }
     lines.push('  }');
@@ -125,13 +129,23 @@ export function emitLifecycle(effects: EffectIR[]): string {
 /**
  * Indent a body block of source text.
  * Strips the outer { } if present and re-indents.
+ * Optionally strips the cleanup return statement (return () => { ... }).
  */
-function indentBody(body: string, indentLevel: number): string {
+function indentBody(body: string, indentLevel: number, stripCleanupReturn = false): string {
   let text = body.trim();
 
   // Strip outer braces if present
   if (text.startsWith('{') && text.endsWith('}')) {
     text = text.slice(1, -1).trim();
+  }
+
+  // Strip cleanup return: `return () => { ... };` at the end of the body.
+  // The cleanup is handled separately in disconnectedCallback.
+  if (stripCleanupReturn) {
+    text = text.replace(/\breturn\s+\(\s*\)\s*=>\s*\{[\s\S]*?\}\s*;\s*$/m, '').trim();
+    text = text.replace(/\breturn\s+\(\s*\)\s*=>\s*\{[\s\S]*?\}\s*$/m, '').trim();
+    // Also handle: return function() { ... };
+    text = text.replace(/\breturn\s+function\s*\(\s*\)\s*\{[\s\S]*?\}\s*;\s*$/m, '').trim();
   }
 
   const lines = text.split('\n');
