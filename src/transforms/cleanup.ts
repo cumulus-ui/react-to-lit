@@ -162,7 +162,8 @@ function cleanHandlerBody(body: string): string {
   result = result.replace(/:\s*(?:GeneratedAnalytics\w+)(?:\s*\|\s*[\w<>,\s]+)*/g, '');
 
   // Remove __-prefixed infrastructure: if (__xxx) { ... } blocks (with nested braces)
-  result = stripIfBlocks(result, /if\s*\(\s*!?__\w+\s*\)/);
+  // Matches: if (__xxx), if (!__xxx), if (__xxx !== undefined), etc.
+  result = stripIfBlocks(result, /if\s*\(\s*!?__\w+\b[^)]*\)/);
 
   // Remove __-prefixed variable references in expressions
   result = cleanInternalPrefixedRefs(result);
