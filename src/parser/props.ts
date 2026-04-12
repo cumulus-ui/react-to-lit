@@ -67,26 +67,25 @@ export function extractProps(
   const props: PropIR[] = [];
   const seen = new Set<string>();
 
-  if (interfaceTypeMap.size > 0) {
-    // Primary: emit all props from the type map
-    for (const [propName, typeText] of interfaceTypeMap) {
-      if (shouldSkipProp(propName)) continue;
-      if (seen.has(propName)) continue;
-      seen.add(propName);
+  // Primary: emit all props from the type map (public interface)
+  for (const [propName, typeText] of interfaceTypeMap) {
+    if (shouldSkipProp(propName)) continue;
+    if (seen.has(propName)) continue;
+    seen.add(propName);
 
-      const defaultValue = mergedDefaults.get(propName);
-      props.push(classifyProp(propName, typeText, defaultValue));
-    }
-  } else {
-    // Fallback: emit only destructured props (old behavior)
-    for (const [propName, propInfo] of destructuredProps) {
-      if (shouldSkipProp(propName)) continue;
-      if (seen.has(propName)) continue;
-      seen.add(propName);
+    const defaultValue = mergedDefaults.get(propName);
+    props.push(classifyProp(propName, typeText, defaultValue));
+  }
 
-      const defaultValue = mergedDefaults.get(propName) ?? propInfo.default;
-      props.push(classifyProp(propName, propInfo.typeText, defaultValue));
-    }
+  // Also include destructured-only props (internal props not in the public interface,
+  // or all props when no type map is available)
+  for (const [propName, propInfo] of destructuredProps) {
+    if (shouldSkipProp(propName)) continue;
+    if (seen.has(propName)) continue;
+    seen.add(propName);
+
+    const defaultValue = mergedDefaults.get(propName) ?? propInfo.default;
+    props.push(classifyProp(propName, propInfo.typeText, defaultValue));
   }
 
   return props;
