@@ -14,7 +14,7 @@
 import ts from 'typescript';
 import path from 'node:path';
 import fs from 'node:fs';
-import type { ComponentIR } from '../ir/types.js';
+import type { ComponentIR, ImportIR } from '../ir/types.js';
 import { parseFile } from './program.js';
 import { findComponent } from './component.js';
 import { extractProps } from './props.js';
@@ -194,7 +194,7 @@ export function parseComponent(
     controllers: hookResult.controllers,
     mixins,
     contexts: hookResult.contexts,
-    imports: [],
+    imports: extractSourceImports(sourceFile),
     styleImport,
     publicMethods: hookResult.publicMethods,
     helpers,
@@ -418,3 +418,85 @@ function detectMixins(
 export { parseFile } from './program.js';
 export type { RawComponent } from './component.js';
 export type { HookExtractionResult } from './hooks.js';
+
+// ---------------------------------------------------------------------------
+// Source import extraction
+// ---------------------------------------------------------------------------
+
+/** Module specifiers to exclude — React, styling, and hook libraries handled elsewhere. */
+const SKIP_IMPORT_MODULES = new Set([
+  'react', 'react-dom', 'react-dom/client', 'clsx',
+]);
+
+/** Module specifier prefixes to exclude. */
+const SKIP_IMPORT_PREFIXES = [
+  '@cloudscape-design/component-toolkit',  // hooks → controllers, handled by registry
+];
+
+/** Named imports to exclude (handled by other parts of the pipeline). */
+const SKIP_IMPORT_NAMES = new Set([
+  'applyDisplayName', 'getBaseProps', 'useBaseComponent', 'InternalBaseComponentProps',
+  'getAnalyticsMetadataProps', 'getAnalyticsMetadataAttribute', 'getAnalyticsLabelAttribute',
+  'checkSafeUrl', 'warnOnce', 'FunnelMetrics',
+  // React wrapper components converted by the component transform
+  'WithNativeAttributes',
+]);
+
+function extractSourceImports(sourceFile: ts.SourceFile): ImportIR[] {
+  const imports: ImportIR[] = [];
+
+  for (const stmt of sourceFile.statements) {
+    if (!ts.isImportDeclaration(stmt)) continue;
+    const specifier = (stmt.moduleSpecifier as ts.StringLiteral).text;
+
+    // Skip React, clsx, toolkit hooks
+    if (SKIP_IMPORT_MODULES.has(specifier)) continue;
+    if (SKIP_IMPORT_PREFIXES.some(p => specifier.startsWith(p))) continue;
+    // Skip CSS module imports (handled by styleImport)
+    if (specifier.endsWith('.css') || specifier.endsWith('.css.js')) continue;
+    // Skip type-only imports (won't cause runtime TS2304)
+    if (stmt.importClause?.isTypeOnly) continue;
+    // Skip relative imports — they reference Cloudscape source modules that
+    // won't exist in the Lit output. These identifiers are handled by the
+    // transforms or become body preamble variables.
+    if (specifier.startsWith('.') || specifier.startsWith('/')) continue;
+
+    const clause = stmt.importClause;
+    if (!clause) {
+      // Side-effect import: import 'foo'
+      imports.push({ moduleSpecifier: specifier, isSideEffect: true });
+      continue;
+    }
+
+    const namedImports: string[] = [];
+    let defaultImport: string | undefined;
+
+    if (clause.name) {
+      defaultImport = clause.name.text;
+      if (SKIP_IMPORT_NAMES.has(defaultImport)) defaultImport = undefined;
+    }
+    if (clause.namedBindings) {
+      if (ts.isNamedImports(clause.namedBindings)) {
+        for (const el of clause.namedBindings.elements) {
+          if (el.isTypeOnly) continue;
+          const name = el.name.text;
+          if (SKIP_IMPORT_NAMES.has(name)) continue;
+          namedImports.push(name);
+        }
+      } else if (ts.isNamespaceImport(clause.namedBindings)) {
+        // import * as foo — keep as default
+        defaultImport = clause.namedBindings.name.text;
+      }
+    }
+
+    if (defaultImport || namedImports.length > 0) {
+      imports.push({
+        moduleSpecifier: specifier,
+        ...(defaultImport ? { defaultImport } : {}),
+        ...(namedImports.length > 0 ? { namedImports } : {}),
+      });
+    }
+  }
+
+  return imports;
+}

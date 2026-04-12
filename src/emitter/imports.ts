@@ -202,24 +202,55 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   const interfaceName = `${ir.name}Props`;
   collector.addType('./interfaces.js', interfaceName);
 
-  // Transform-added imports (from ir.imports)
+  // Transform-added imports (from ir.imports) — only emit if identifiers are used
+  const allCode = [
+    ...ir.handlers.map(h => h.body + (h.params ?? '')),
+    ...ir.effects.map(e => e.body + (e.cleanup ?? '')),
+    ...ir.helpers.map(h => h.source),
+    ...ir.bodyPreamble,
+    ...ir.computedValues.map(c => c.expression),
+    ...ir.publicMethods.map(m => m.body),
+    ...ir.state.map(s => s.initialValue),
+    ...ir.refs.map(r => r.initialValue),
+    templateToText(ir.template),
+  ].join('\n');
+
   for (const imp of ir.imports) {
     if (imp.isSideEffect) {
       collector.addSideEffect(imp.moduleSpecifier);
     } else if (imp.isTypeOnly && imp.namedImports) {
       for (const name of imp.namedImports) {
-        collector.addType(imp.moduleSpecifier, name);
+        if (allCode.includes(name)) collector.addType(imp.moduleSpecifier, name);
       }
     } else if (imp.defaultImport) {
-      collector.addDefault(imp.moduleSpecifier, imp.defaultImport);
+      if (allCode.includes(imp.defaultImport)) collector.addDefault(imp.moduleSpecifier, imp.defaultImport);
     } else if (imp.namedImports) {
       for (const name of imp.namedImports) {
-        collector.addNamed(imp.moduleSpecifier, name);
+        if (allCode.includes(name)) collector.addNamed(imp.moduleSpecifier, name);
       }
     }
   }
 
   return collector;
+}
+
+/** Flatten a template tree into text for identifier scanning. */
+function templateToText(node: import('../ir/types.js').TemplateNodeIR): string {
+  const parts: string[] = [];
+  if ('expression' in node && node.expression) parts.push(node.expression);
+  if ('attributes' in node && node.attributes) {
+    for (const attr of node.attributes) {
+      if (attr.value) parts.push(attr.value);
+    }
+  }
+  if ('condition' in node && node.condition) parts.push(node.condition);
+  if ('iterable' in node && node.iterable) parts.push(node.iterable);
+  if ('children' in node && node.children) {
+    for (const child of node.children) parts.push(templateToText(child));
+  }
+  if ('then' in node && node.then) parts.push(templateToText(node.then));
+  if ('else' in node && node.else) parts.push(templateToText(node.else));
+  return parts.join('\n');
 }
 
 // ---------------------------------------------------------------------------
