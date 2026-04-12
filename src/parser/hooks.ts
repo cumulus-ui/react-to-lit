@@ -247,14 +247,25 @@ function processUseEffect(
     }
   }
 
-  // Detect cleanup return
+  // Detect cleanup return — search for `return () => { ... }` or `return function() { ... }`
+  // in the entire effect body, not just top-level statements (cleanup may be inside if blocks).
   let cleanup: string | undefined;
   if (ts.isBlock(effectFn.body)) {
-    const returnStmt = Array.from(effectFn.body.statements).reverse().find(ts.isReturnStatement);
-    if (returnStmt?.expression) {
-      if (ts.isArrowFunction(returnStmt.expression) || ts.isFunctionExpression(returnStmt.expression)) {
-        cleanup = getNodeText(returnStmt.expression.body, sourceFile);
+    const findCleanupReturn = (node: ts.Node): ts.ReturnStatement | undefined => {
+      if (ts.isReturnStatement(node) && node.expression) {
+        if (ts.isArrowFunction(node.expression) || ts.isFunctionExpression(node.expression)) {
+          return node;
+        }
       }
+      let found: ts.ReturnStatement | undefined;
+      ts.forEachChild(node, child => {
+        if (!found) found = findCleanupReturn(child);
+      });
+      return found;
+    };
+    const returnStmt = findCleanupReturn(effectFn.body);
+    if (returnStmt?.expression && (ts.isArrowFunction(returnStmt.expression) || ts.isFunctionExpression(returnStmt.expression))) {
+      cleanup = getNodeText(returnStmt.expression.body, sourceFile);
     }
   }
 
