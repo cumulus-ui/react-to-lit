@@ -70,6 +70,9 @@ export interface ComponentIR {
   /** File-level constants (non-function variable declarations) */
   fileConstants: string[];
 
+  /** File-level type/interface declarations */
+  fileTypeDeclarations: string[];
+
   /** Unprocessed body statements between hooks and return (preamble code) */
   bodyPreamble: string[];
 

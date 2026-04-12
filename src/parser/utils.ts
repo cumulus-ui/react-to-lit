@@ -194,6 +194,70 @@ export function extractFileConstants(
   return constants;
 }
 
+// ---------------------------------------------------------------------------
+// File-level type declaration extraction
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract top-level type/interface declarations that aren't the main
+ * component props interface. These are local types that helpers and
+ * the component body reference.
+ */
+export function extractFileTypeDeclarations(
+  sourceFile: ts.SourceFile,
+  componentFunctionName: string,
+): string[] {
+  const types: string[] = [];
+  const componentName = componentFunctionName.replace(/^Internal/, '');
+
+  for (const stmt of sourceFile.statements) {
+    // type Foo = ...
+    if (ts.isTypeAliasDeclaration(stmt)) {
+      const name = stmt.name.text;
+      // Skip the main props interface (already handled by the emitter)
+      if (name.endsWith('Props') && name.includes(componentName)) continue;
+      // Skip React-specific types
+      if (name.includes('React') || name.includes('JSX')) continue;
+      // Skip analytics metadata types
+      if (name.includes('GeneratedAnalytics')) continue;
+      // Skip exported types (they belong in interfaces.ts)
+      const isExported = stmt.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
+      if (isExported) continue;
+
+      const source = getNodeText(stmt, sourceFile);
+      // Skip types that reference React (won't compile in Lit output)
+      if (source.includes('React.') || source.includes('JSX.')) continue;
+
+      types.push(source);
+    }
+
+    // interface Foo { ... }
+    if (ts.isInterfaceDeclaration(stmt)) {
+      const name = stmt.name.text;
+      if (name.endsWith('Props') && name.includes(componentName)) continue;
+      if (name.includes('React') || name.includes('JSX')) continue;
+      if (name.includes('GeneratedAnalytics')) continue;
+      const isExported = stmt.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
+      if (isExported) continue;
+
+      const source = getNodeText(stmt, sourceFile);
+      if (source.includes('React.') || source.includes('JSX.')) continue;
+
+      types.push(source);
+    }
+
+    // enum Foo { ... }
+    if (ts.isEnumDeclaration(stmt)) {
+      const name = stmt.name.text;
+      const isExported = stmt.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
+      if (isExported) continue;
+      types.push(getNodeText(stmt, sourceFile));
+    }
+  }
+
+  return types;
+}
+
 /**
  * Check if source text contains raw JSX syntax (not html`` templates or type generics).
  */

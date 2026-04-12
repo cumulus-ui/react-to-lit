@@ -44,6 +44,14 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
     sections.push('');
   }
 
+  // --- File-level type declarations ---
+  if (ir.fileTypeDeclarations.length > 0) {
+    for (const typeDecl of ir.fileTypeDeclarations) {
+      sections.push(typeDecl);
+    }
+    sections.push('');
+  }
+
   // --- Helpers (utility only — render helpers go inside the class) ---
   const utilityHelpers = ir.helpers.filter(h => !isRenderHelper(h.source));
   const renderHelpers = ir.helpers.filter(h => isRenderHelper(h.source));

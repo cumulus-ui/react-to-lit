@@ -22,7 +22,7 @@ import { extractProps } from './props.js';
 import { extractPropAliases } from './props.js';
 import { extractHooks } from './hooks.js';
 import { parseJSXFromBody } from './jsx.js';
-import { extractHandlers, extractHelpers, extractFileConstants, isHookCall, collectBindingNames, collectLocalVariables } from './utils.js';
+import { extractHandlers, extractHelpers, extractFileConstants, extractFileTypeDeclarations, isHookCall, collectBindingNames, collectLocalVariables } from './utils.js';
 import type { HookRegistry } from '../hooks/registry.js';
 import { createHookRegistry } from '../hooks/registry.js';
 import { transformJsxToLit } from './jsx-transform.js';
@@ -169,6 +169,9 @@ export function parseComponent(
   // 9b. Extract file-level constants
   const fileConstants = extractFileConstants(implFile, component.name);
 
+  // 9c. Extract file-level type declarations
+  const fileTypeDeclarations = extractFileTypeDeclarations(implFile, component.name);
+
   // 9. Derive component metadata
   const componentName = deriveComponentName(component.name, componentDir);
   const tagName = toTagName(componentName);
@@ -205,6 +208,7 @@ export function parseComponent(
     publicMethods: hookResult.publicMethods,
     helpers,
     fileConstants,
+    fileTypeDeclarations,
     bodyPreamble,
     localVariables,
     skippedHookVars: hookResult.preservedVars,
