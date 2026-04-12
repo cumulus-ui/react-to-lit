@@ -135,7 +135,7 @@ function cleanHandlerBody(body: string): string {
 
   // Remove analytics infrastructure
   result = result.replace(/\banalyticsSelectors\[['"\w-]+\]/g, "''");
-  result = result.replace(/\btestUtilStyles\[['"\w-]+\]|\btestStyles\[['"\w-]+\]/g, "''");
+  result = result.replace(/\btestUtilStyles\[['"\w-]+\]|\btestutilStyles\[['"\w-]+\]|\btestStyles\[['"\w-]+\]/g, "''");
   result = result.replace(/\[DATA_ATTR_\w+\]\s*:\s*[^,}\n]+,?\s*/g, '');
   result = result.replace(/\bFUNNEL_KEY_\w+/g, "''");
 
