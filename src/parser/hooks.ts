@@ -16,8 +16,7 @@ import type {
   ContextIR,
 } from '../ir/types.js';
 import { getNodeText } from './program.js';
-import type { HookRegistry } from '../hooks/registry.js';
-import { lookupHook } from '../hooks/registry.js';
+import { lookupHook, type HookRegistry } from '../hooks/registry.js';
 import { SKIP_PREFIXES } from '../cloudscape-config.js';
 import { collectBindingNames } from './utils.js';
 
