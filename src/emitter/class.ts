@@ -136,9 +136,12 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   // These are transformed variable declarations (className computations,
   // attribute builders) that the template references.
   // Filter out statements containing untransformed React patterns.
-  const REACT_PATTERNS = /\buseEffect\b|\buseLayoutEffect\b|\buseState\b|\buseCallback\b|\bclassName\s*=|\bcheckControlled\(/;
+  // Note: className assignments that have been converted to classMap() are valid Lit code.
+  const REACT_PATTERNS = /\buseEffect\b|\buseLayoutEffect\b|\buseState\b|\buseCallback\b|\bcheckControlled\(/;
   const safePreamble = ir.bodyPreamble.filter((stmt) => {
     if (REACT_PATTERNS.test(stmt)) return false;
+    // Filter className assignments that still use clsx() or styles.xxx (unconverted)
+    if (/\bclassName\s*=/.test(stmt) && !stmt.includes('classMap(')) return false;
     // Filter orphaned assignments from clsx → classMap rewrites (e.g. "= classMap({...})")
     if (stmt.trimStart().startsWith('=')) return false;
     return true;
