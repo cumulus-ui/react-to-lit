@@ -406,7 +406,13 @@ function extractBodyPreamble(
   const preamble: string[] = [];
   const renderHelpers: import('../ir/types.js').HelperIR[] = [];
   const preambleVars: PreambleVar[] = [];
-  let pastHooks = false;
+
+  // Determine if the component body contains any hooks or handler declarations.
+  // If not, the entire body between the first statement and the return is preamble.
+  const hasHooksOrHandlers = body.statements.some(
+    (stmt) => isHookCallStatement(stmt) || isHandlerDeclaration(stmt),
+  );
+  let pastHooks = !hasHooksOrHandlers;
 
   for (const stmt of body.statements) {
     // Skip return statements
