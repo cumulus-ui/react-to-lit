@@ -14,6 +14,12 @@ import { SKIP_PROPS, REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, INFRA_FUNCTIONS } from 
 import { walkTemplate } from '../template-walker.js';
 import { stripFunctionCalls, stripIfBlocks } from '../text-utils.js';
 
+/** Matches testUtilStyles/testutilStyles/testStyles bracket access. */
+const TEST_UTIL_STYLES_RE = /\btestUtilStyles\[['"\w-]+\]|\btestutilStyles\[['"\w-]+\]|\btestStyles\[['"\w-]+\]/g;
+
+/** Matches analyticsSelectors bracket access. */
+const ANALYTICS_SELECTORS_RE = /\banalyticsSelectors\[['"\w-]+\]/g;
+
 /** Matches `baseProps.className` with optional trailing comma/whitespace. */
 const BASE_PROPS_CLASSNAME_RE = /\bbaseProps\.className\b,?\s*/g;
 
@@ -137,8 +143,8 @@ function cleanHandlerBody(body: string): string {
   result = stripFunctionCalls(result, 'warnOnce');
 
   // Remove analytics infrastructure
-  result = result.replace(/\banalyticsSelectors\[['"\w-]+\]/g, "''");
-  result = result.replace(/\btestUtilStyles\[['"\w-]+\]|\btestutilStyles\[['"\w-]+\]|\btestStyles\[['"\w-]+\]/g, "''");
+  result = result.replace(ANALYTICS_SELECTORS_RE, "''");
+  result = result.replace(TEST_UTIL_STYLES_RE, "''");
   result = result.replace(/\[DATA_ATTR_\w+\]\s*:\s*[^,}\n]+,?\s*/g, '');
   result = result.replace(/\bFUNNEL_KEY_\w+/g, "''");
 
@@ -200,6 +206,9 @@ function cleanTemplate(node: TemplateNodeIR): TemplateNodeIR {
       // Keep — but clean the attribute expression
       return cleanAttribute(attr);
     },
+    expression: (expr) => cleanExpressionText(expr),
+    attributeExpression: (expr) => cleanExpressionText(expr),
+    conditionExpression: (expr) => cleanExpressionText(expr),
   });
 }
 
@@ -210,8 +219,19 @@ function cleanAttribute(attr: AttributeIR): AttributeIR {
 
   // Remove baseProps.className from clsx args
   expr = expr.replace(BASE_PROPS_CLASSNAME_RE, '');
+  // Remove testUtilStyles/analyticsSelectors bracket access
+  expr = expr.replace(TEST_UTIL_STYLES_RE, "''");
+  expr = expr.replace(ANALYTICS_SELECTORS_RE, "''");
   // Remove trailing comma if it became the last arg
   expr = expr.replace(/,\s*\)/, ')');
 
   return { ...attr, value: { expression: expr } };
+}
+
+/** Clean infrastructure references from expression text (including nested html`` literals). */
+function cleanExpressionText(expr: string): string {
+  let result = expr;
+  result = result.replace(TEST_UTIL_STYLES_RE, "''");
+  result = result.replace(ANALYTICS_SELECTORS_RE, "''");
+  return result;
 }
