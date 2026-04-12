@@ -59,6 +59,18 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
   // Clean body preamble
   const bodyPreamble = ir.bodyPreamble.map(cleanHandlerBody);
 
+  // Clean public methods
+  const publicMethods = ir.publicMethods.map((m) => ({
+    ...m,
+    body: cleanHandlerBody(m.body),
+  }));
+
+  // Clean computed value expressions
+  const computedValues = ir.computedValues.map((c) => ({
+    ...c,
+    expression: cleanHandlerBody(c.expression),
+  }));
+
   return {
     ...ir,
     props,
@@ -67,6 +79,8 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
     helpers,
     template,
     bodyPreamble,
+    publicMethods,
+    computedValues,
   };
 }
 
