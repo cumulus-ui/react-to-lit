@@ -290,7 +290,9 @@ function rewriteWithMorph(
   let sourceFile;
   try {
     sourceFile = project.createSourceFile('__body.ts', wrapped);
-  } catch {
+  } catch (e) {
+    // Parse failure — return text unmodified but log so it's diagnosable
+    console.warn(`[identifiers] failed to parse body for rewriting: ${(e as Error).message?.slice(0, 120)}`);
     return text;
   }
 

@@ -149,12 +149,12 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   }
 
   // classMap directive
-  if (hasClassMap(ir.template) || hasClassMapInCodeBodies(ir)) {
+  if (irContains(ir, 'classMap(')) {
     collector.addDirective('lit/directives/class-map.js', 'classMap');
   }
 
   // ifDefined directive
-  if (hasIfDefined(ir.template) || hasIfDefinedInCodeBodies(ir)) {
+  if (irContains(ir, 'ifDefined(')) {
     collector.addDirective('lit/directives/if-defined.js', 'ifDefined');
   }
 
@@ -287,36 +287,16 @@ function hasConditionalRendering(node: import('../ir/types.js').TemplateNodeIR):
   return someInTemplate(node, (n) => !!n.condition);
 }
 
-function hasClassMap(node: import('../ir/types.js').TemplateNodeIR): boolean {
+/** Check if any attribute or expression in the template tree contains the given text. */
+function templateContains(node: import('../ir/types.js').TemplateNodeIR, needle: string): boolean {
   return someInTemplate(node, (n) => {
     for (const attr of n.attributes) {
-      if (attr.kind === 'classMap') return true;
-      // Also check expression text for classMap() calls (from clsx transform)
-      if (typeof attr.value === 'object' && attr.value.expression.includes('classMap(')) return true;
+      if (attr.kind === 'classMap' && needle === 'classMap(') return true;
+      if (typeof attr.value === 'object' && attr.value.expression.includes(needle)) return true;
+      if (typeof attr.value === 'string' && attr.value.includes(needle)) return true;
     }
-    // Check node expression text
-    if (n.expression?.includes('classMap(')) return true;
-    return false;
+    return n.expression?.includes(needle) ?? false;
   });
-}
-
-function hasIfDefined(node: import('../ir/types.js').TemplateNodeIR): boolean {
-  return someInTemplate(node, (n) => {
-    for (const attr of n.attributes) {
-      if (typeof attr.value === 'object' && attr.value.expression.includes('ifDefined(')) return true;
-      if (typeof attr.value === 'string' && attr.value.includes('ifDefined(')) return true;
-    }
-    if (n.expression && n.expression.includes('ifDefined(')) return true;
-    return false;
-  });
-}
-
-function hasClassMapInCodeBodies(ir: ComponentIR): boolean {
-  return codeBodyContains(ir, 'classMap(');
-}
-
-function hasIfDefinedInCodeBodies(ir: ComponentIR): boolean {
-  return codeBodyContains(ir, 'ifDefined(');
 }
 
 /** Check if any IR code body (handlers, effects, helpers, etc.) contains the given text. */
@@ -331,6 +311,11 @@ function codeBodyContains(ir: ComponentIR, needle: string): boolean {
   for (const m of ir.publicMethods) { if (m.body.includes(needle)) return true; }
   for (const c of ir.computedValues) { if (c.expression.includes(needle)) return true; }
   return false;
+}
+
+/** Check if any part of the IR (template + code bodies) contains the given text. */
+function irContains(ir: ComponentIR, needle: string): boolean {
+  return templateContains(ir.template, needle) || codeBodyContains(ir, needle);
 }
 
 // ---------------------------------------------------------------------------
