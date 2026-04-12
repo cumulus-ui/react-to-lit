@@ -9,13 +9,40 @@
 export { parseComponent } from './parser/index.js';
 export type { ParseOptions } from './parser/index.js';
 
-// Transforms
+// Transforms — pipeline + individual transform functions
 export { transformAll } from './transforms/index.js';
 export type { TransformOptions } from './transforms/index.js';
+export {
+  transformClsx,
+  unwrapWithNativeAttributes,
+  transformEvents,
+  rewriteIdentifiers,
+  resolveComponentReferences,
+  cloudscapeComponentRegistry,
+  removeCloudscapeInternals,
+  cleanupReactTypes,
+  transformSlots,
+} from './transforms/index.js';
+export type { ComponentRegistry } from './transforms/index.js';
 
-// Emitter
+// Emitter — main function + sub-emitters
 export { emitComponent } from './emitter/index.js';
 export type { EmitOptions } from './emitter/index.js';
+export {
+  ImportCollector,
+  collectImports,
+  emitProperties,
+  emitState,
+  emitControllers,
+  emitContexts,
+  emitComputed,
+  emitRefs,
+  emitSkippedHookVars,
+  emitLifecycle,
+  emitHandlers,
+  emitPublicMethods,
+  emitRenderMethod,
+} from './emitter/index.js';
 
 // IR types — consumers need these to inspect/modify the intermediate representation
 export type {
@@ -52,4 +79,24 @@ export { walkTemplate, someInTemplate, templateHasExpression } from './template-
 export type { TemplateVisitor } from './template-walker.js';
 
 // Naming utilities — for consistent name derivation
-export { camelToKebab, pascalToKebab, kebabToPascal, toTagName, isEventProp } from './naming.js';
+export {
+  camelToKebab,
+  pascalToKebab,
+  kebabToPascal,
+  toTagName,
+  toCustomEventName,
+  toLitEventName,
+  isEventProp,
+  reactAttrToHtml,
+  escapeRegex,
+} from './naming.js';
+
+// Text utilities — for writing custom transforms with balanced-delimiter awareness
+export {
+  findMatchingParen,
+  findTopLevel,
+  splitTopLevel,
+  stripFunctionCalls,
+  stripIfBlocks,
+} from './text-utils.js';
+export type { FindMatchingParenOptions } from './text-utils.js';
