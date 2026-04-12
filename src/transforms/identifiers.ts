@@ -13,6 +13,8 @@
  * Uses ts-morph for scope-aware identifier resolution instead of regex.
  */
 import { Project, SyntaxKind, Node, ts } from 'ts-morph';
+import tsLib from 'typescript';
+import { jsxToLitTransformerFactory } from './jsx-to-lit.js';
 import type {
   ComponentIR,
   TemplateNodeIR,
@@ -476,10 +478,36 @@ function rewriteTemplateNode(
 ): TemplateNodeIR {
   return walkTemplate(node, {
     attributeExpression: (expr) => astRewrite(expr),
-    expression: (expr) => astRewrite(expr),
+    expression: (expr) => convertRemainingJsx(astRewrite(expr)),
     conditionExpression: (expr) => astRewrite(expr),
     loopIterable: (expr) => astRewrite(expr),
   });
+}
+
+/**
+ * If expression text still contains raw JSX (e.g., from .map() callbacks),
+ * convert it to Lit html`` tagged templates via the JSX transformer.
+ */
+function convertRemainingJsx(text: string): string {
+  // Quick check: does it look like JSX? (PascalCase tag or fragment)
+  if (!/<[A-Z]/.test(text) && !text.includes('<>')) return text;
+
+  const wrapper = `const __jsxExpr = ${text};`;
+  const tempFile = tsLib.createSourceFile(
+    '__jsx_expr.tsx', wrapper, tsLib.ScriptTarget.ES2019, true, tsLib.ScriptKind.TSX,
+  );
+  const result = tsLib.transform(tempFile, [jsxToLitTransformerFactory]);
+  const printer = tsLib.createPrinter({ newLine: tsLib.NewLineKind.LineFeed });
+  let printed = printer.printFile(result.transformed[0]);
+  printed = printed.replace(/\b(html|svg) `/g, '$1`');
+  result.dispose();
+
+  // Extract expression from `const __jsxExpr = <converted>;`
+  const eqIdx = printed.indexOf('=');
+  if (eqIdx > -1) {
+    return printed.slice(eqIdx + 1).replace(/;\s*$/, '').trim();
+  }
+  return text;
 }
 
 

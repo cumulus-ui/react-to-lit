@@ -360,12 +360,24 @@ function parseJsxChildExpression(
 // Conditional and loop parsing
 // ---------------------------------------------------------------------------
 
+/**
+ * Parse an expression in a conditional branch.
+ * Currently delegates to parseExpression; exists as a seam for future
+ * enhancement to handle .map() calls containing JSX.
+ */
+function parseExpressionOrMap(
+  expr: ts.Expression,
+  sourceFile: ts.SourceFile,
+): TemplateNodeIR {
+  return parseExpression(expr, sourceFile);
+}
+
 function parseAndCondition(
   expr: ts.BinaryExpression,
   sourceFile: ts.SourceFile,
 ): TemplateNodeIR {
   const conditionExpr = getNodeText(expr.left, sourceFile);
-  const consequent = parseExpression(expr.right, sourceFile);
+  const consequent = parseExpressionOrMap(expr.right, sourceFile);
 
   return {
     ...consequent,
