@@ -337,7 +337,10 @@ function rewriteWithMorph(
     if (mapping.isSetter) return; // setters handled by quickRewrite
 
     // Check AST context — is this a reference position?
-    if (isDeclarationPosition(node)) return;
+    const parent = node.getParent();
+    const isShorthand = parent && Node.isShorthandPropertyAssignment(parent)
+                        && parent.getNameNode() === node;
+    if (isDeclarationPosition(node) && !isShorthand) return;
 
     const startInWrapped = node.getStart();
     const startInOriginal = startInWrapped - prefix.length;
@@ -352,7 +355,10 @@ function rewriteWithMorph(
     replacements.push({
       start: startInOriginal,
       end: startInOriginal + name.length,
-      replacement: `this.${mapping.member}`,
+      // Shorthand { foo } → { foo: this._foo }; normal foo → this._foo
+      replacement: isShorthand
+        ? `${name}: this.${mapping.member}`
+        : `this.${mapping.member}`,
     });
   });
 
