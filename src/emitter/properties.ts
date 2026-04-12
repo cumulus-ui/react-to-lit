@@ -29,7 +29,23 @@ export function emitProperties(props: PropIR[]): string {
   const lines: string[] = [];
 
   for (const prop of props) {
-    if (prop.category === 'slot' || prop.category === 'event') continue;
+    if (prop.category === 'event') continue;
+
+    // Slot props — emit a slotted-content check helper
+    if (prop.category === 'slot') {
+      if (prop.name === 'children') {
+        // Default slot: check any non-slot-assigned children.
+        // Use a separate name to avoid conflict with HTMLElement.children.
+        lines.push(`  /** True when the default slot has content. */`);
+        lines.push(`  private get _hasChildren() { return this.childElementCount > 0; }`);
+      } else {
+        // Named slot: check for elements assigned to this slot
+        lines.push(`  /** True when the '${prop.name}' slot has content. */`);
+        lines.push(`  private get ${prop.name}() { return !!this.querySelector('[slot="${prop.name}"]'); }`);
+      }
+      lines.push('');
+      continue;
+    }
 
     const decoratorParts: string[] = [];
 

@@ -38,9 +38,16 @@ interface MemberMapping {
 function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
   const map = new Map<string, MemberMapping>();
 
-  // Props → this.propName (exclude slots and events — they're not reactive properties)
+  // Props → this.propName (exclude events — they're dispatched, not properties)
+  // Slot props are included: while they render as <slot>, their names may appear
+  // in conditional checks (e.g., `children && html\`...\``) that need this. prefix.
   for (const p of ir.props) {
-    if (p.category === 'slot' || p.category === 'event') continue;
+    if (p.category === 'event') continue;
+    if (p.category === 'slot' && p.name === 'children') {
+      // 'children' conflicts with HTMLElement.children — use _hasChildren getter
+      map.set('children', { member: '_hasChildren' });
+      continue;
+    }
     map.set(p.name, { member: p.name });
   }
 
