@@ -175,6 +175,18 @@ export function splitTopLevel(str: string, separator: string): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// Template detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if source text contains a Lit html tagged template literal.
+ * Handles both `html\`` and `html \`` (with a space before the backtick).
+ */
+export function containsHtmlTemplate(source: string): boolean {
+  return source.includes('html`') || source.includes('html `');
+}
+
+// ---------------------------------------------------------------------------
 // Code stripping utilities
 // ---------------------------------------------------------------------------
 

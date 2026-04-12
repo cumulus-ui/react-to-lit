@@ -6,6 +6,7 @@
  */
 import type { ComponentIR } from '../ir/types.js';
 import { Project, Node, ts } from 'ts-morph';
+import { containsHtmlTemplate } from '../text-utils.js';
 import { collectImports } from './imports.js';
 import { emitProperties, emitState, emitControllers, emitContexts, emitComputed, emitRefs, emitSkippedHookVars } from './properties.js';
 import { stripFunctionCalls, findMatchingParen } from '../text-utils.js';
@@ -195,7 +196,7 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
  * Check if a helper function contains template rendering (html`` tagged templates).
  */
 function isRenderHelper(source: string): boolean {
-  return source.includes('html`') || source.includes('html `');
+  return containsHtmlTemplate(source);
 }
 
 /**

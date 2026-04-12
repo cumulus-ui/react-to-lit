@@ -48,6 +48,12 @@ program
     const outputPath = opts.output ? path.resolve(opts.output) : undefined;
 
     if (opts.batch) {
+      // Batch mode requires --output
+      if (!outputPath) {
+        console.error('Error: --output is required in batch mode');
+        process.exit(1);
+      }
+
       // Batch mode: process all component directories
       const components = findComponentDirs(inputPath);
 
@@ -58,9 +64,9 @@ program
           console.error(`Component '${opts.component}' not found in ${inputPath}`);
           process.exit(1);
         }
-        await processComponents(filtered, outputPath!, opts);
+        await processComponents(filtered, outputPath, opts);
       } else {
-        await processComponents(components, outputPath!, opts);
+        await processComponents(components, outputPath, opts);
       }
     } else {
       // Single component mode

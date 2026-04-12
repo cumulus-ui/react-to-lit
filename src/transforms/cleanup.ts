@@ -14,6 +14,9 @@ import { SKIP_PROPS, REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, INFRA_FUNCTIONS } from 
 import { walkTemplate } from '../template-walker.js';
 import { stripFunctionCalls, stripIfBlocks } from '../text-utils.js';
 
+/** Matches `baseProps.className` with optional trailing comma/whitespace. */
+const BASE_PROPS_CLASSNAME_RE = /\bbaseProps\.className\b,?\s*/g;
+
 // ---------------------------------------------------------------------------
 // Main transform
 // ---------------------------------------------------------------------------
@@ -99,7 +102,7 @@ function cleanHandlerBody(body: string): string {
   // Remove ...baseProps spread in object literals (e.g., { ...baseProps, foo: bar })
   result = result.replace(/\.\.\.baseProps\s*,?\s*/g, '');
   // Remove baseProps.className references
-  result = result.replace(/\bbaseProps\.className\b,?\s*/g, '');
+  result = result.replace(BASE_PROPS_CLASSNAME_RE, '');
 
   // Remove: checkSafeUrl('Button', href);
   result = result.replace(/checkSafeUrl\([^)]*\)\s*;?\s*/g, '');
@@ -206,7 +209,7 @@ function cleanAttribute(attr: AttributeIR): AttributeIR {
   let expr = attr.value.expression;
 
   // Remove baseProps.className from clsx args
-  expr = expr.replace(/\bbaseProps\.className\b,?\s*/g, '');
+  expr = expr.replace(BASE_PROPS_CLASSNAME_RE, '');
   // Remove trailing comma if it became the last arg
   expr = expr.replace(/,\s*\)/, ')');
 

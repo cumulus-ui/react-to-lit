@@ -96,7 +96,7 @@ export { unwrapWithNativeAttributes } from './unwrap.js';
 export { transformEvents } from './events.js';
 export { rewriteIdentifiers } from './identifiers.js';
 export { resolveComponentReferences, cloudscapeComponentRegistry } from './components.js';
-export type { ComponentRegistry } from './components.js';
+export type { ComponentRegistry, RegistryEntry } from './components.js';
 export { removeCloudscapeInternals } from './cleanup.js';
 export { cleanupReactTypes } from './cleanup-react-types.js';
 export { transformSlots } from './slots.js';

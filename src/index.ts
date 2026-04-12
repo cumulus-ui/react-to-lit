@@ -23,7 +23,7 @@ export {
   cleanupReactTypes,
   transformSlots,
 } from './transforms/index.js';
-export type { ComponentRegistry } from './transforms/index.js';
+export type { ComponentRegistry, RegistryEntry } from './transforms/index.js';
 
 // Emitter — main function + sub-emitters
 export { emitComponent } from './emitter/index.js';
@@ -98,5 +98,6 @@ export {
   splitTopLevel,
   stripFunctionCalls,
   stripIfBlocks,
+  containsHtmlTemplate,
 } from './text-utils.js';
 export type { FindMatchingParenOptions } from './text-utils.js';

@@ -5,6 +5,7 @@ import ts from 'typescript';
 import { getNodeText } from './program.js';
 import type { HandlerIR, HelperIR } from '../ir/types.js';
 import { INFRA_FUNCTIONS } from '../cloudscape-config.js';
+import { containsHtmlTemplate } from '../text-utils.js';
 
 // ---------------------------------------------------------------------------
 // Modifier helpers
@@ -115,7 +116,7 @@ export function extractHelpers(
       const source = getNodeText(stmt, sourceFile);
       // Allow all helpers through — JSX pre-transform has already converted JSX to html``
       // Any remaining React patterns will be cleaned up by post-processing
-      if (containsJSX(source) && !source.includes('html`') && !source.includes('html `')) continue;
+      if (containsJSX(source) && !containsHtmlTemplate(source)) continue;
 
       helpers.push({ name, source });
     }
@@ -137,7 +138,7 @@ export function extractHelpers(
           const source = getNodeText(stmt, sourceFile);
           // Allow all helpers through — JSX pre-transform has already converted JSX to html``
           // Any remaining React patterns will be cleaned up by post-processing
-          if (containsJSX(source) && !source.includes('html`') && !source.includes('html `')) continue;
+          if (containsJSX(source) && !containsHtmlTemplate(source)) continue;
 
           helpers.push({ name, source });
         }

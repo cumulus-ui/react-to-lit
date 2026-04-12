@@ -24,6 +24,7 @@ import { extractHooks } from './hooks.js';
 import { parseJSXFromBody } from './jsx.js';
 import { extractHandlers, extractHelpers, extractFileConstants, extractFileTypeDeclarations, isHookCall, collectBindingNames, collectLocalVariables } from './utils.js';
 import type { HookRegistry } from '../hooks/registry.js';
+import { containsHtmlTemplate } from '../text-utils.js';
 import { createHookRegistry } from '../hooks/registry.js';
 import { transformJsxToLit } from './jsx-transform.js';
 import { toTagName } from '../naming.js';
@@ -300,14 +301,14 @@ function extractBodyPreamble(
 
       // Check if this is a variable containing a template (html`...`)
       // These become render helper methods instead of bodyPreamble
-      if (ts.isVariableStatement(stmt) && (text.includes('html`') || text.includes('html `'))) {
+      if (ts.isVariableStatement(stmt) && containsHtmlTemplate(text)) {
         for (const decl of stmt.declarationList.declarations) {
           if (ts.isIdentifier(decl.name)) {
             const name = decl.name.text;
             const initText = decl.initializer
               ? sourceFile.text.slice(decl.initializer.getStart(sourceFile), decl.initializer.getEnd())
               : '';
-            if (initText.includes('html`') || initText.includes('html `')) {
+            if (containsHtmlTemplate(initText)) {
               // Convert to a render helper: const header = html`...` → function header() { return html`...`; }
               renderHelpers.push({
                 name,
