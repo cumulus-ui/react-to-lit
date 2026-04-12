@@ -101,24 +101,23 @@ function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
   }
 
   // Helpers (render helpers) → this._helperName()
-  // These are inner functions extracted as class methods.
-  // Skip names that are file-level constants — they're module-scope
-  // and don't need this._ prefix.
+  // Only render helpers (containing html`` templates) become class methods
+  // and need this._ prefix. Utility helpers are file-level functions that
+  // keep their bare names.
+  // Also skip helpers that are actually constant declarations.
   const fileConstantNames = new Set<string>();
   for (const c of ir.fileConstants) {
     const m = c.match(/^(?:const|let|var)\s+(\w+)/);
     if (m) fileConstantNames.add(m[1]);
   }
   for (const h of ir.helpers) {
-    if (!map.has(h.name) && !fileConstantNames.has(h.name)) {
-      // Skip helpers that are actually constant declarations (not functions/methods).
-      // File-level constants don't need this._ prefix.
-      const trimmed = h.source.trimStart();
-      if (trimmed.startsWith('const ') || trimmed.startsWith('let ') || trimmed.startsWith('var ')) {
-        continue;
-      }
-      map.set(h.name, { member: `_${h.name}` });
-    }
+    if (map.has(h.name) || fileConstantNames.has(h.name)) continue;
+    const trimmed = h.source.trimStart();
+    // Skip constant declarations (not functions)
+    if (trimmed.startsWith('const ') || trimmed.startsWith('let ') || trimmed.startsWith('var ')) continue;
+    // Only render helpers (with html`` templates) become class methods
+    if (!h.source.includes('html`')) continue;
+    map.set(h.name, { member: `_${h.name}` });
   }
 
   // Destructured prop aliases → this.propName (e.g., externalSeries → this.series)
