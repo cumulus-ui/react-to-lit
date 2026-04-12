@@ -8,6 +8,7 @@
  * - cleanup → disconnectedCallback()
  */
 import type { EffectIR } from '../ir/types.js';
+import { findMatchingParen } from '../text-utils.js';
 
 // ---------------------------------------------------------------------------
 // Main emission
@@ -139,13 +140,11 @@ function indentBody(body: string, indentLevel: number, stripCleanupReturn = fals
     text = text.slice(1, -1).trim();
   }
 
-  // Strip cleanup return: `return () => { ... };` at the end of the body.
+  // Strip cleanup returns: `return () => { ... };` anywhere in the body.
   // The cleanup is handled separately in disconnectedCallback.
+  // Uses balanced brace matching for robustness with nested blocks.
   if (stripCleanupReturn) {
-    text = text.replace(/\breturn\s+\(\s*\)\s*=>\s*\{[\s\S]*?\}\s*;\s*$/m, '').trim();
-    text = text.replace(/\breturn\s+\(\s*\)\s*=>\s*\{[\s\S]*?\}\s*$/m, '').trim();
-    // Also handle: return function() { ... };
-    text = text.replace(/\breturn\s+function\s*\(\s*\)\s*\{[\s\S]*?\}\s*;\s*$/m, '').trim();
+    text = stripCleanupReturns(text);
   }
 
   const lines = text.split('\n');
@@ -164,4 +163,29 @@ function indentBody(body: string, indentLevel: number, stripCleanupReturn = fals
       return indent + line.slice(strip);
     })
     .join('\n');
+}
+
+/**
+ * Strip all `return () => { ... }` and `return function() { ... }` patterns
+ * from effect body text, using balanced brace matching.
+ */
+function stripCleanupReturns(text: string): string {
+  // Match: return () => { or return function() {
+  const pattern = /\breturn\s+(?:\(\s*\)\s*=>|function\s*\(\s*\))\s*\{/g;
+  let result = text;
+  let match;
+  while ((match = pattern.exec(result)) !== null) {
+    // Find the opening brace
+    const braceStart = result.indexOf('{', match.index + 6);
+    if (braceStart === -1) continue;
+    // Find the matching closing brace
+    const braceEnd = findMatchingParen(result, braceStart, { allBrackets: true });
+    if (braceEnd === -1) continue;
+    // Remove from 'return' to the closing brace + optional semicolon
+    let endPos = braceEnd + 1;
+    if (result[endPos] === ';') endPos++;
+    result = result.slice(0, match.index) + result.slice(endPos);
+    pattern.lastIndex = match.index; // re-scan from same position
+  }
+  return result.trim();
 }
