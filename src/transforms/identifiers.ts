@@ -82,10 +82,22 @@ function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
   }
 
   // Skipped/unknown hook vars → this._varName
+  // Detect setter patterns: setFoo paired with foo → treat as state setter
+  const skippedSet = new Set(ir.skippedHookVars);
   for (const name of ir.skippedHookVars) {
-    if (!map.has(name)) {
-      map.set(name, { member: `_${name}` });
+    if (map.has(name)) continue;
+
+    // setFoo pattern: if there's a matching foo in skippedHookVars, treat as setter
+    const setterMatch = name.match(/^set([A-Z]\w*)$/);
+    if (setterMatch) {
+      const valueName = setterMatch[1].charAt(0).toLowerCase() + setterMatch[1].slice(1);
+      if (skippedSet.has(valueName) || map.has(valueName)) {
+        map.set(name, { member: `_${valueName}`, isSetter: true, setterField: `_${valueName}` });
+        continue;
+      }
     }
+
+    map.set(name, { member: `_${name}` });
   }
 
   // Helpers (render helpers) → this._helperName()
@@ -248,6 +260,30 @@ function rewriteQuickPatterns(text: string, ir: ComponentIR): string {
     const setter = s.setter;
     const field = `_${s.name}`;
     const pattern = new RegExp(`\\b${escapeRegex(setter)}\\(`, 'g');
+    let match;
+    while ((match = pattern.exec(result)) !== null) {
+      const start = match.index;
+      const argStart = start + match[0].length;
+      const argEnd = findMatchingParen(result, argStart - 1);
+      if (argEnd === -1) continue;
+      const arg = result.slice(argStart, argEnd);
+      const replacement = `this.${field} = ${arg}`;
+      result = result.slice(0, start) + replacement + result.slice(argEnd + 1);
+      pattern.lastIndex = start + replacement.length;
+    }
+  }
+
+  // Setter-like skippedHookVars: setFoo(val) → this._foo = val
+  // Covers custom hooks (useControllable, etc.) returning [value, setter] pairs.
+  const skippedSetterSet = new Set(ir.skippedHookVars);
+  for (const name of ir.skippedHookVars) {
+    const setterMatch = name.match(/^set([A-Z]\w*)$/);
+    if (!setterMatch) continue;
+    const valueName = setterMatch[1].charAt(0).toLowerCase() + setterMatch[1].slice(1);
+    if (!skippedSetterSet.has(valueName)) continue;
+
+    const field = `_${valueName}`;
+    const pattern = new RegExp(`\\b${escapeRegex(name)}\\(`, 'g');
     let match;
     while ((match = pattern.exec(result)) !== null) {
       const start = match.index;
