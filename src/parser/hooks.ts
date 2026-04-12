@@ -148,6 +148,15 @@ function processHookCall(
       case 'context':
         if (mapping.context && decl) {
           processContextHook(decl, mapping.context, result);
+          // Also preserve the destructured return bindings for identifier rewriting.
+          // Filter out the context field name itself to avoid duplicate declarations.
+          if (ts.isObjectBindingPattern(decl.name)) {
+            for (const element of decl.name.elements) {
+              if (ts.isIdentifier(element.name)) {
+                result.preservedVars.push(element.name.text);
+              }
+            }
+          }
         } else {
           result.skipped.push({ name: hookName, reason: 'context mapping incomplete' });
           if (decl) collectPreservedVars(decl, result.preservedVars);
