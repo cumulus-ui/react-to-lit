@@ -90,6 +90,8 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
     bodyPreamble,
     publicMethods,
     computedValues,
+    fileTypeDeclarations: ir.fileTypeDeclarations.map(cleanHandlerBody),
+    fileConstants: ir.fileConstants.map(cleanHandlerBody),
   };
 }
 
@@ -131,6 +133,10 @@ function cleanHandlerBody(body: string): string {
   // Unwrap: createPortal(content, target) → content
   // React portals have no Lit equivalent — just render the content directly.
   result = unwrapFunctionCall(result, 'createPortal');
+
+  // Strip InternalBaseComponentProps from intersection types
+  // (infrastructure type that adds __internalRootRef — already stripped)
+  result = result.replace(/\s*&\s*InternalBaseComponentProps/g, '');
 
   // Remove rest/spread references (general React pattern)
   result = cleanRestSpreadRefs(result);
