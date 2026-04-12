@@ -42,3 +42,14 @@ export type {
 // Hook registry — for custom hook mappings
 export { createHookRegistry } from './hooks/registry.js';
 export type { HookRegistry, HookMapping, HookAction } from './hooks/registry.js';
+
+// IR transform helpers — for writing custom transforms
+export { mapIRText } from './ir/transform-helpers.js';
+export type { MapTextOptions } from './ir/transform-helpers.js';
+
+// Template walker — for writing custom template transforms
+export { walkTemplate, someInTemplate, templateHasExpression } from './template-walker.js';
+export type { TemplateVisitor } from './template-walker.js';
+
+// Naming utilities — for consistent name derivation
+export { camelToKebab, pascalToKebab, kebabToPascal, toTagName, isEventProp } from './naming.js';
