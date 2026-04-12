@@ -145,19 +145,49 @@ export function emitComputed(computed: ComputedIR[]): string {
 
   for (const c of computed) {
     const typeAnnotation = c.type ? `: ${c.type}` : '';
-    // If the expression is a block, extract the return value
     let body = c.expression.trim();
-    if (body.startsWith('{') && body.endsWith('}')) {
-      // Block body — emit as-is
+
+    if (body.startsWith('{') && body.endsWith('}') && isBlockBody(body)) {
+      // Multi-statement block body — emit as getter body directly
       lines.push(`  private get _${c.name}()${typeAnnotation} ${body}`);
     } else {
-      // Expression body
+      // Expression body — object literals starting with { need parens
+      // to disambiguate from a block when used after `return`.
+      if (body.startsWith('{')) {
+        body = `(${body})`;
+      }
       lines.push(`  private get _${c.name}()${typeAnnotation} { return ${body}; }`);
     }
     lines.push('');
   }
 
   return lines.join('\n');
+}
+
+/**
+ * Distinguish a block body `{ const x = ...; return x; }` from an
+ * object literal `{ key: value, ... }`.
+ *
+ * Heuristic: after the opening brace, skip whitespace and comments,
+ * then check if the first token is a statement keyword (const, let,
+ * var, return, if, for, while, switch, throw, try).  An object
+ * literal starts with an identifier/string followed by a colon.
+ */
+function isBlockBody(text: string): boolean {
+  let inner = text.slice(1).trimStart();
+  // Skip leading line comments
+  while (inner.startsWith('//')) {
+    const nl = inner.indexOf('\n');
+    if (nl === -1) return false;
+    inner = inner.slice(nl + 1).trimStart();
+  }
+  // Skip leading block comments
+  while (inner.startsWith('/*')) {
+    const end = inner.indexOf('*/');
+    if (end === -1) return false;
+    inner = inner.slice(end + 2).trimStart();
+  }
+  return /^(?:const |let |var |return |if |for |while |switch |throw |try )/.test(inner);
 }
 
 // ---------------------------------------------------------------------------

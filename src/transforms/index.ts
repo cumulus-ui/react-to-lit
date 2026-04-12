@@ -12,6 +12,7 @@ import { resolveComponentReferences, type ComponentRegistry, cloudscapeComponent
 import { removeCloudscapeInternals } from './cleanup.js';
 import { cleanupReactTypes } from './cleanup-react-types.js';
 import { transformSlots } from './slots.js';
+import { promoteEffectCleanupVars } from './effect-cleanup.js';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -80,6 +81,9 @@ export function transformAll(
 
   // 6. Event callbacks → CustomEvent dispatch
   result = transformEvents(result);
+
+  // 6b. Promote effect cleanup variables to class fields
+  result = promoteEffectCleanupVars(result);
 
   // 7. Identifier rewriting
   result = rewriteIdentifiers(result);
