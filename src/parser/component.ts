@@ -198,7 +198,7 @@ function findComponentInFile(sourceFile: ts.SourceFile): RawComponentInFile | nu
             return {
               name,
               forwardRef: false,
-              body: ts.isBlock(fn.body) ? fn.body : fn.body,
+              body: fn.body,
               parameters: fn.parameters,
               propsTypeName: extractPropsTypeName(fn.parameters),
             };
@@ -325,7 +325,7 @@ function extractFromForwardRefExpression(
     return {
       name: ts.isFunctionExpression(arg) && arg.name ? arg.name.text : name,
       forwardRef: true,
-      body: ts.isBlock(arg.body) ? arg.body : arg.body,
+      body: arg.body,
       parameters: arg.parameters,
       propsTypeName: extractPropsTypeName(arg.parameters),
     };

@@ -172,20 +172,20 @@ export function parseComponent(
   // 9c. Extract file-level type declarations
   const fileTypeDeclarations = extractFileTypeDeclarations(implFile, component.name);
 
-  // 9. Derive component metadata
+  // 10. Derive component metadata
   const componentName = deriveComponentName(component.name, componentDir);
   const tagName = toTagName(componentName);
 
-  // 10. Collect source files
+  // 11. Collect source files
   const sourceFiles: string[] = [path.basename(indexPath)];
   if (internalPath) sourceFiles.push(path.basename(internalPath));
 
-  // 11. Detect style import
+  // 12. Detect style import
   const styleImport = resolveSourceFile(componentDir, 'styles.css')
     ? './styles.css.js'
     : undefined;
 
-  // 12. Detect mixins (FormControlMixin)
+  // 13. Detect mixins (FormControlMixin)
   const mixins = detectMixins(implFile, props);
 
   return {
