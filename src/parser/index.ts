@@ -500,7 +500,9 @@ function isComponentImportPath(specifier: string): boolean {
   // Test/mock patterns
   if (specifier.includes('__') || specifier.includes('.test')) return true;
   // Analytics metadata — generated code, not needed
-  if (specifier.includes('analytics-metadata') || specifier.includes('analytics/')) return true;
+  if (specifier.includes('analytics-metadata')) return true;
+  // Analytics hooks — React-specific, handled by hook registry
+  if (specifier.includes('analytics/hooks')) return true;
   // Context providers (already handled by transforms)
   if (specifier.includes('/context')) return true;
   // Hooks — handled by the hook registry
