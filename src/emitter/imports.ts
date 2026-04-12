@@ -185,9 +185,13 @@ export function collectImports(ir: ComponentIR): ImportCollector {
     collector.addType('lit', 'PropertyValues');
   }
 
-  // fireNonCancelableEvent for event dispatch
+  // fireNonCancelableEvent for event dispatch — only if not already imported from source
   const hasEventProps = ir.props.some((p) => p.category === 'event');
-  if (hasEventProps) {
+  const eventsAlreadyImported = ir.imports.some(imp =>
+    imp.moduleSpecifier.includes('events') &&
+    imp.namedImports?.includes('fireNonCancelableEvent'),
+  );
+  if (hasEventProps && !eventsAlreadyImported) {
     collector.addNamed('../internal/events.js', 'fireNonCancelableEvent');
   }
 
@@ -198,9 +202,15 @@ export function collectImports(ir: ComponentIR): ImportCollector {
     }
   }
 
-  // Interface import
+  // Interface import — only add if not already provided by a source import
   const interfaceName = `${ir.name}Props`;
-  collector.addType('./interfaces.js', interfaceName);
+  const alreadyImported = ir.imports.some(imp =>
+    (imp.moduleSpecifier === './interfaces' || imp.moduleSpecifier === './interfaces.js') &&
+    imp.namedImports?.includes(interfaceName),
+  );
+  if (!alreadyImported) {
+    collector.addType('./interfaces.js', interfaceName);
+  }
 
   // Transform-added imports (from ir.imports) — only emit if identifiers are used
   const allCode = [
