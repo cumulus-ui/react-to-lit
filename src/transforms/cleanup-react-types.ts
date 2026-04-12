@@ -64,6 +64,16 @@ function replaceReactTypes(text: string): string {
   // React component props are often generic (CardsProps<T>) but Lit versions are not.
   result = result.replace(/\b(\w+Props)<[^>]+>/g, '$1');
 
+  // Bare React handler/callback types imported from 'react' without namespace.
+  // FocusEventHandler<T> → (e: FocusEvent) => void, etc.
+  // Use negative lookbehind to avoid matching React.MouseEventHandler (handled later).
+  result = result.replace(/(?<!React\.)(?<![\w.])(Focus|Mouse|Keyboard|Change|Form|Clipboard|Drag|Pointer|Touch|Wheel)EventHandler(?:<[^>]*>)?/g, '(e: $1Event) => void');
+  // Bare EventHandler<T> (not part of a larger name)
+  result = result.replace(/(?<![\w.])EventHandler(?:<[^>]*>)?/g, '(e: Event) => void');
+  // ReactNode / ReactElement bare imports (not React.ReactNode — that's handled later)
+  result = result.replace(/(?<![\w.])ReactNode\b/g, 'unknown');
+  result = result.replace(/(?<![\w.])ReactElement(?:<[^>]*>)?/g, 'unknown');
+
   if (!result.includes('React.')) return result;
 
   const domGlobals = getGlobalNames();
@@ -77,6 +87,12 @@ function replaceReactTypes(text: string): string {
 
   // 2. React.forwardRef( → ( (strip wrapper)
   result = result.replace(/React\.forwardRef\(/g, '(');
+
+  // 2b. React.XxxEventHandler<T> → (e: XxxEvent) => void
+  // Must run before the Event regex (step 3) which would partially match.
+  result = result.replace(/React\.(\w+)EventHandler(<[^>]*>)?/g, (_match, prefix: string) => {
+    return `(e: ${prefix}Event) => void`;
+  });
 
   // 3. React.XxxEvent<T> → XxxEvent or Event (check DOM lib)
   result = result.replace(/React\.(\w+Event)(<[^>]*>)?/g, (_match, name: string) => {
