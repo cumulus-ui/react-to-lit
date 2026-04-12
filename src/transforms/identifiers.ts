@@ -110,15 +110,15 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   const quickRewrite = (text: string) => rewriteQuickPatterns(text, ir);
 
   // AST-based rewrite using ts-morph
-  const astRewrite = (text: string) => {
+  const astRewrite = (text: string, wrapperParams?: string) => {
     const quick = quickRewrite(text);
-    return rewriteWithMorph(quick, memberMap, ir.localVariables);
+    return rewriteWithMorph(quick, memberMap, ir.localVariables, wrapperParams);
   };
 
-  // Transform handlers (body only — params are declarations, not references)
+  // Transform handlers (pass params so they're treated as locals in the body)
   const handlers = ir.handlers.map((h) => ({
     ...h,
-    body: astRewrite(h.body),
+    body: astRewrite(h.body, h.params),
   }));
 
   // Transform effects
@@ -128,10 +128,10 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
     cleanup: e.cleanup ? astRewrite(e.cleanup) : undefined,
   }));
 
-  // Transform public methods
+  // Transform public methods (pass params for correct scoping)
   const publicMethods = ir.publicMethods.map((m) => ({
     ...m,
-    body: astRewrite(m.body),
+    body: astRewrite(m.body, m.params),
   }));
 
   // Transform body preamble
@@ -238,6 +238,7 @@ function rewriteWithMorph(
   text: string,
   memberMap: Map<string, MemberMapping>,
   componentLocalVars: Set<string>,
+  wrapperParams?: string,
 ): string {
   // Quick check: does the text contain any member names?
   let hasAny = false;
@@ -250,11 +251,13 @@ function rewriteWithMorph(
   if (!hasAny) return text;
 
   // Wrap in a function to make it a valid source file.
-  // If text starts with '{', wrap as an expression assignment so the parser
-  // treats it as an object literal, not a block statement.
-  const needsExprWrap = text.trimStart().startsWith('{');
+  // If text looks like an object literal (starts with '{', no semicolons),
+  // wrap as an expression so the parser doesn't treat it as a block statement.
+  // Include wrapperParams so handler/method params are in scope as locals.
+  const trimmed = text.trimStart();
+  const needsExprWrap = trimmed.startsWith('{') && !trimmed.includes(';');
   const exprPrefix = needsExprWrap ? 'const __expr = ' : '';
-  const prefix = `function __wrapper() {\n${exprPrefix}`;
+  const prefix = `function __wrapper(${wrapperParams ?? ''}) {\n${exprPrefix}`;
   const suffix = '\n}';
   const wrapped = prefix + text + suffix;
 
