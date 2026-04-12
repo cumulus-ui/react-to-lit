@@ -135,7 +135,7 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   }));
 
   // Transform body preamble
-  const bodyPreamble = ir.bodyPreamble.map(astRewrite);
+  const bodyPreamble = ir.bodyPreamble.map((s) => astRewrite(s));
 
   // Transform state initial values
   const state = ir.state.map((s) => ({

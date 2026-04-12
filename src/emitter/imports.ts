@@ -242,19 +242,23 @@ export function collectImports(ir: ComponentIR): ImportCollector {
 /** Flatten a template tree into text for identifier scanning. */
 function templateToText(node: import('../ir/types.js').TemplateNodeIR): string {
   const parts: string[] = [];
-  if ('expression' in node && node.expression) parts.push(node.expression);
-  if ('attributes' in node && node.attributes) {
-    for (const attr of node.attributes) {
-      if (attr.value) parts.push(attr.value);
+  if (node.expression) parts.push(node.expression);
+  for (const attr of node.attributes) {
+    if (attr.value) {
+      parts.push(typeof attr.value === 'string' ? attr.value : attr.value.expression);
     }
   }
-  if ('condition' in node && node.condition) parts.push(node.condition);
-  if ('iterable' in node && node.iterable) parts.push(node.iterable);
-  if ('children' in node && node.children) {
-    for (const child of node.children) parts.push(templateToText(child));
+  if (node.condition) {
+    parts.push(node.condition.expression);
+    if (node.condition.alternate) parts.push(templateToText(node.condition.alternate));
   }
-  if ('then' in node && node.then) parts.push(templateToText(node.then));
-  if ('else' in node && node.else) parts.push(templateToText(node.else));
+  if (node.loop) {
+    parts.push(node.loop.iterable);
+    if (node.loop.variable) parts.push(node.loop.variable);
+  }
+  for (const child of node.children) {
+    parts.push(templateToText(child));
+  }
   return parts.join('\n');
 }
 
