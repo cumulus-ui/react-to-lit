@@ -147,6 +147,9 @@ function cleanHandlerBody(body: string): string {
   result = result.replace(TEST_UTIL_STYLES_RE, "''");
   result = result.replace(/\[DATA_ATTR_\w+\]\s*:\s*[^,}\n]+,?\s*/g, '');
   result = result.replace(/\bFUNNEL_KEY_\w+/g, "''");
+  // Remove GeneratedAnalytics* type annotations on variables
+  // Handles union types: `: GeneratedAnalytics... | OtherType | Record<string, never>`
+  result = result.replace(/:\s*(?:GeneratedAnalytics\w+)(?:\s*\|\s*[\w<>,\s]+)*/g, '');
 
   // Remove __-prefixed infrastructure: if (__xxx) { ... } blocks (with nested braces)
   result = stripIfBlocks(result, /if\s*\(\s*!?__\w+\s*\)/);
