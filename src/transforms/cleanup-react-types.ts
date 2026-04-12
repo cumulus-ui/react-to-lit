@@ -13,6 +13,7 @@
  *          computedValues, template expressions.
  */
 import type { ComponentIR, TemplateNodeIR } from '../ir/types.js';
+import { mapIRText } from '../ir/transform-helpers.js';
 import { getGlobalNames } from '../standards.js';
 import { walkTemplate } from '../template-walker.js';
 
@@ -101,33 +102,7 @@ function replaceReactTypes(text: string): string {
 
 export function cleanupReactTypes(ir: ComponentIR): ComponentIR {
   return {
-    ...ir,
-    handlers: ir.handlers.map(h => ({
-      ...h,
-      params: replaceReactTypes(h.params),
-      body: replaceReactTypes(h.body),
-      returnType: h.returnType ? replaceReactTypes(h.returnType) : undefined,
-    })),
-    effects: ir.effects.map(e => ({
-      ...e,
-      body: replaceReactTypes(e.body),
-      cleanup: e.cleanup ? replaceReactTypes(e.cleanup) : undefined,
-    })),
-    helpers: ir.helpers.map(h => ({
-      ...h,
-      source: replaceReactTypes(h.source),
-    })),
-    bodyPreamble: ir.bodyPreamble.map(replaceReactTypes),
-    publicMethods: ir.publicMethods.map(m => ({
-      ...m,
-      body: replaceReactTypes(m.body),
-      params: replaceReactTypes(m.params),
-    })),
-    computedValues: ir.computedValues.map(c => ({
-      ...c,
-      expression: replaceReactTypes(c.expression),
-      type: c.type ? replaceReactTypes(c.type) : undefined,
-    })),
+    ...mapIRText(ir, replaceReactTypes, { params: true }),
     template: replaceReactTypesInTemplate(ir.template),
   };
 }

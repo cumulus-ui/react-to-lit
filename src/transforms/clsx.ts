@@ -11,6 +11,7 @@
  * effect bodies, helpers, bodyPreamble, publicMethods, computed expressions).
  */
 import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
+import { mapIRText } from '../ir/transform-helpers.js';
 import { walkTemplate } from '../template-walker.js';
 import { findMatchingParen, findTopLevel, splitTopLevel } from '../text-utils.js';
 
@@ -26,37 +27,9 @@ import { findMatchingParen, findTopLevel, splitTopLevel } from '../text-utils.js
  */
 export function transformClsx(ir: ComponentIR): ComponentIR {
   return {
-    ...ir,
+    ...mapIRText(ir, replaceClsxAndStylesInText),
     // Template tree — existing attribute-level conversion
     template: transformClsxInTemplate(ir.template),
-    // Handler bodies
-    handlers: ir.handlers.map((h) => ({
-      ...h,
-      body: replaceClsxAndStylesInText(h.body),
-    })),
-    // Effect bodies and cleanup
-    effects: ir.effects.map((e) => ({
-      ...e,
-      body: replaceClsxAndStylesInText(e.body),
-      cleanup: e.cleanup ? replaceClsxAndStylesInText(e.cleanup) : e.cleanup,
-    })),
-    // Helper function sources
-    helpers: ir.helpers.map((h) => ({
-      ...h,
-      source: replaceClsxAndStylesInText(h.source),
-    })),
-    // Body preamble statements
-    bodyPreamble: ir.bodyPreamble.map(replaceClsxAndStylesInText),
-    // Public method bodies
-    publicMethods: ir.publicMethods.map((m) => ({
-      ...m,
-      body: replaceClsxAndStylesInText(m.body),
-    })),
-    // Computed value expressions
-    computedValues: ir.computedValues.map((c) => ({
-      ...c,
-      expression: replaceClsxAndStylesInText(c.expression),
-    })),
   };
 }
 

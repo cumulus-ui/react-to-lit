@@ -15,6 +15,7 @@
  * Scans all code: handlers, effects, helpers, and template expressions.
  */
 import type { ComponentIR, TemplateNodeIR } from '../ir/types.js';
+import { mapIRText } from '../ir/transform-helpers.js';
 import { toCustomEventName, escapeRegex } from '../naming.js';
 import { walkTemplate } from '../template-walker.js';
 
@@ -40,44 +41,19 @@ export function transformEvents(ir: ComponentIR): ComponentIR {
 
   const rewrite = (text: string) => rewriteEventCalls(text, eventProps);
 
-  // Transform handler bodies
-  const handlers = ir.handlers.map((h) => ({
-    ...h,
-    body: rewrite(h.body),
-  }));
-
-  // Transform effect bodies
-  const effects = ir.effects.map((e) => ({
-    ...e,
-    body: rewrite(e.body),
-    cleanup: e.cleanup ? rewrite(e.cleanup) : undefined,
-  }));
-
-  // Transform helper source
-  const helpers = ir.helpers.map((h) => ({
-    ...h,
-    source: rewrite(h.source),
-  }));
-
-  // Transform public methods
-  const publicMethods = ir.publicMethods.map((m) => ({
-    ...m,
-    body: rewrite(m.body),
-  }));
-
-  // Transform body preamble
-  const bodyPreamble = ir.bodyPreamble.map(rewrite);
+  // Transform all code bodies
+  const transformed = mapIRText(ir, rewrite);
 
   // Transform template expressions
   const template = rewriteTemplateEvents(ir.template, eventProps);
 
   // Check if we need event import
   const allCode = [
-    ...handlers.map((h) => h.body),
-    ...effects.map((e) => e.body),
-    ...helpers.map((h) => h.source),
-    ...publicMethods.map((m) => m.body),
-    ...bodyPreamble,
+    ...transformed.handlers.map((h) => h.body),
+    ...transformed.effects.map((e) => e.body),
+    ...transformed.helpers.map((h) => h.source),
+    ...transformed.publicMethods.map((m) => m.body),
+    ...transformed.bodyPreamble,
   ].join('\n');
 
   const needsNonCancelableImport = allCode.includes('fireNonCancelableEvent(this,');
@@ -95,12 +71,7 @@ export function transformEvents(ir: ComponentIR): ComponentIR {
   }
 
   return {
-    ...ir,
-    handlers,
-    effects,
-    helpers,
-    publicMethods,
-    bodyPreamble,
+    ...transformed,
     template,
     imports,
   };
