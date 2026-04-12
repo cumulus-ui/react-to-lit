@@ -96,6 +96,8 @@ function cleanHandlerBody(body: string): string {
 
   // Remove: {...baseProps} spread in JSX
   result = result.replace(/\{\s*\.\.\.baseProps\s*\}\s*\n?\s*/g, '');
+  // Remove ...baseProps spread in object literals (e.g., { ...baseProps, foo: bar })
+  result = result.replace(/\.\.\.baseProps\s*,?\s*/g, '');
   // Remove baseProps.className references
   result = result.replace(/\bbaseProps\.className\b,?\s*/g, '');
 
