@@ -182,16 +182,13 @@ function makeInterfacesStub(componentName: string, namespaceMembersMap: Map<stri
     members.add(m);
   }
 
-  // Build namespace body
+  // Build namespace body — all types are generic by default (safe: unused type params are ignored)
   const lines: string[] = [];
   for (const member of [...members].sort()) {
-    // Some types are generic
-    if (member === 'Definition' || member === 'SortingState' || member === 'SortingChangeDetail') {
-      lines.push(`  type ${member}<T = any> = any;`);
-    } else if (member === 'ChangeDetail') {
-      lines.push(`  type ${member} = { value: any; [key: string]: any };`);
+    if (member === 'ChangeDetail') {
+      lines.push(`  type ${member}<T = any> = { value: any; [key: string]: any };`);
     } else {
-      lines.push(`  type ${member} = any;`);
+      lines.push(`  type ${member}<T = any> = any;`);
     }
   }
 
