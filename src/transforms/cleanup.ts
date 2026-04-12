@@ -140,9 +140,13 @@ function cleanHandlerBody(body: string): string {
   result = result.replace(/\bFUNNEL_KEY_\w+/g, "''");
 
   // Remove __-prefixed infrastructure: if (__xxx) { ... } blocks (with nested braces)
-  result = stripIfBlocks(result, /if\s*\(\s*__\w+\s*\)/);
+  result = stripIfBlocks(result, /if\s*\(\s*!?__\w+\s*\)/);
   // Remove __xxx && expr patterns
   result = result.replace(/\b__\w+\s*&&\s*[^;,\n]+[;,]?\s*/g, '');
+  // Remove __xxx ternary patterns: __xxx ? exprA : exprB → exprB
+  result = result.replace(/\b__\w+\s*\?\s*[^:]+:\s*/g, '');
+  // Remove !__xxx ternary patterns: !__xxx ? exprA : exprB → exprA
+  result = result.replace(/!__\w+\s*\?\s*/g, '');
   // Remove spread of __-prefixed vars
   result = result.replace(/,?\s*\.\.\.__\w+,?/g, (m) => m.startsWith(',') && m.endsWith(',') ? ',' : '');
 
@@ -178,10 +182,12 @@ function cleanTemplate(node: TemplateNodeIR): TemplateNodeIR {
       // and all Cloudscape spreads are internal plumbing
       if (attr.kind === 'spread') return null;
 
-      // Remove attributes that reference __internalRootRef
+      // Remove attributes that reference __-prefixed infrastructure variables
       if (typeof attr.value !== 'string') {
         const expr = attr.value.expression;
         if (expr.includes('__internalRootRef') || expr.includes('__internalRoot')) return null;
+        // Remove attrs whose value is purely a __xxx variable (e.g., .icon=${__rightIcon})
+        if (/^\s*__\w+\s*$/.test(expr)) return null;
       }
 
       // Keep — but clean the attribute expression
