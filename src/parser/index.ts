@@ -528,9 +528,12 @@ function isComponentImportPath(specifier: string): boolean {
   if (specifier.includes('base-component') || specifier.includes('base-element')) return true;
   // i18n — needs separate Lit i18n strategy
   if (specifier.includes('/i18n')) return true;
-  // ../component-name (bare directory — resolved as /index by Node)
-  const segments = specifier.replace(/^\.\.?\//, '').split('/');
-  if (segments.length === 1 && !segments[0].includes('.')) return true;
+  // ../component-name (bare parent-directory — resolved as /index by Node)
+  // But not ./local-module (same-directory utility imports)
+  if (specifier.startsWith('../')) {
+    const segments = specifier.replace(/^\.\.\//, '').split('/');
+    if (segments.length === 1 && !segments[0].includes('.')) return true;
+  }
   return false;
 }
 
