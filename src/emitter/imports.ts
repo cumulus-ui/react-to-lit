@@ -98,9 +98,18 @@ export class ImportCollector {
       lines.push(`import ${name} from '${module}';`);
     }
 
-    // Type-only imports
+    // Type-only imports — skip names already covered by named imports from the same module
     for (const [module, names] of sortedEntries(this._typeImports)) {
-      lines.push(`import type { ${sorted(names).join(', ')} } from '${module}';`);
+      // Find the normalized module key for named imports (./interfaces vs ./interfaces.js)
+      const namedFromSame = this._namedImports.get(module)
+        ?? this._namedImports.get(module.replace(/\.js$/, ''))
+        ?? this._namedImports.get(module + '.js');
+      const filteredNames = namedFromSame
+        ? sorted(names).filter(n => !namedFromSame.has(n))
+        : sorted(names);
+      if (filteredNames.length > 0) {
+        lines.push(`import type { ${filteredNames.join(', ')} } from '${module}';`);
+      }
     }
 
     // Side-effect imports
@@ -202,15 +211,11 @@ export function collectImports(ir: ComponentIR): ImportCollector {
     }
   }
 
-  // Interface import — only add if not already provided by a source import
+  // Interface import — always add as type import.
+  // The ImportCollector deduplicates, so if the preserved source import
+  // also provides it via addNamed(), the type version is harmless.
   const interfaceName = `${ir.name}Props`;
-  const alreadyImported = ir.imports.some(imp =>
-    (imp.moduleSpecifier === './interfaces' || imp.moduleSpecifier === './interfaces.js') &&
-    imp.namedImports?.includes(interfaceName),
-  );
-  if (!alreadyImported) {
-    collector.addType('./interfaces.js', interfaceName);
-  }
+  collector.addType('./interfaces.js', interfaceName);
 
   // Transform-added imports (from ir.imports) — only emit if identifiers are used
   const allCode = [
