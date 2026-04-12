@@ -64,5 +64,13 @@ export function mapIRText(
       expression: fn(c.expression),
       ...(options.params && c.type ? { type: fn(c.type) } : {}),
     })),
+    state: ir.state.map((s) => ({
+      ...s,
+      initialValue: fn(s.initialValue),
+    })),
+    refs: ir.refs.map((r) => ({
+      ...r,
+      initialValue: fn(r.initialValue),
+    })),
   };
 }
