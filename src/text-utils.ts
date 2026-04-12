@@ -212,6 +212,94 @@ export function stripFunctionCalls(text: string, funcName: string): string {
 }
 
 /**
+ * Unwrap a function call to its first argument:
+ *   `funcName(firstArg, rest...)` → `firstArg`
+ *
+ * Uses balanced paren/bracket/quote matching so nested calls,
+ * template literals, and strings inside the first argument are
+ * handled correctly.
+ */
+export function unwrapFunctionCall(text: string, funcName: string): string {
+  let result = text;
+  for (let safety = 0; safety < 50; safety++) {
+    const idx = result.indexOf(funcName + '(');
+    if (idx === -1) break;
+    const openParen = idx + funcName.length;
+    const closeParen = findMatchingParen(result, openParen);
+    if (closeParen === -1) break;
+
+    // Extract the arguments string (everything between the parens)
+    const argsStr = result.slice(openParen + 1, closeParen);
+
+    // Find the first top-level comma to isolate the first argument.
+    const firstArg = extractFirstArgument(argsStr);
+
+    result = result.slice(0, idx) + firstArg + result.slice(closeParen + 1);
+  }
+  return result;
+}
+
+/**
+ * Extract the first argument from a comma-separated argument string,
+ * respecting nested parens, brackets, quotes, and template literals.
+ */
+function extractFirstArgument(argsStr: string): string {
+  let depth = 0;
+  let i = 0;
+
+  while (i < argsStr.length) {
+    const ch = argsStr[i];
+
+    // Template literals
+    if (ch === '`') {
+      i++;
+      while (i < argsStr.length && argsStr[i] !== '`') {
+        if (argsStr[i] === '\\') { i += 2; continue; }
+        if (argsStr[i] === '$' && i + 1 < argsStr.length && argsStr[i + 1] === '{') {
+          i += 2;
+          let braceDepth = 1;
+          while (i < argsStr.length && braceDepth > 0) {
+            if (argsStr[i] === '{') braceDepth++;
+            else if (argsStr[i] === '}') braceDepth--;
+            if (braceDepth > 0) i++;
+          }
+        }
+        i++;
+      }
+      i++;
+      continue;
+    }
+
+    // Quoted strings
+    if (ch === "'" || ch === '"') {
+      const quote = ch;
+      i++;
+      while (i < argsStr.length) {
+        if (argsStr[i] === '\\') { i += 2; continue; }
+        if (argsStr[i] === quote) break;
+        i++;
+      }
+      i++;
+      continue;
+    }
+
+    // Nesting
+    if (ch === '(' || ch === '{' || ch === '[') { depth++; i++; continue; }
+    if (ch === ')' || ch === '}' || ch === ']') { depth--; i++; continue; }
+
+    // Top-level comma — we found the boundary
+    if (ch === ',' && depth === 0) {
+      return argsStr.slice(0, i).trim();
+    }
+
+    i++;
+  }
+
+  // No comma found — the whole string is the first (only) argument
+  return argsStr.trim();
+}
+
+/**
  * Strip if-blocks matching a condition pattern, using balanced brace matching.
  */
 export function stripIfBlocks(text: string, conditionPattern: RegExp): string {

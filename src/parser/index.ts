@@ -24,7 +24,7 @@ import { extractHandlers, extractHelpers, extractFileConstants, extractFileTypeD
 import { createHookRegistry, type HookRegistry } from '../hooks/registry.js';
 import { containsHtmlTemplate } from '../text-utils.js';
 import { transformJsxToLit } from './jsx-transform.js';
-import { toTagName } from '../naming.js';
+import { toTagName, escapeRegex } from '../naming.js';
 import { INFRA_FUNCTIONS } from '../cloudscape-config.js';
 
 // ---------------------------------------------------------------------------
@@ -164,13 +164,27 @@ export function parseComponent(
 
   // 8. Extract body preamble (code between hooks/handlers and return)
   //    JSX-containing variables become render helpers instead of preamble.
-  const { preamble: bodyPreamble, renderHelpers } = ts.isBlock(component.body)
+  const { preamble: bodyPreamble, renderHelpers, preambleVars } = ts.isBlock(component.body)
     ? extractBodyPreamble(component.body, sourceFile)
-    : { preamble: [], renderHelpers: [] };
+    : { preamble: [], renderHelpers: [], preambleVars: [] as PreambleVar[] };
 
   // 9. Extract helper functions (file-level, outside the component)
   const implFile = internalFile ?? indexFile;
   const helpers = [...extractHelpers(implFile, component.name), ...renderHelpers];
+
+  // 9d. Promote preamble variables that are referenced by handlers, helpers,
+  //     or effects to computed values — they need class-level scope since
+  //     handlers/helpers become separate class methods.
+  const promotedVars = promotePreambleVars(
+    preambleVars,
+    bodyPreamble,
+    allHandlers,
+    helpers,
+    hookResult.effects,
+    hookResult.publicMethods,
+    hookResult.computedValues,
+    localVariables,
+  );
 
   // 9b. Extract file-level constants
   const fileConstants = extractFileConstants(implFile, component.name);
@@ -205,7 +219,7 @@ export function parseComponent(
     refs: hookResult.refs,
     handlers: allHandlers,
     template,
-    computedValues: hookResult.computedValues,
+    computedValues: [...hookResult.computedValues, ...promotedVars.computedValues],
     controllers: hookResult.controllers,
     mixins,
     contexts: hookResult.contexts,
@@ -215,7 +229,7 @@ export function parseComponent(
     helpers,
     fileConstants,
     fileTypeDeclarations,
-    bodyPreamble,
+    bodyPreamble: promotedVars.bodyPreamble,
     localVariables,
     skippedHookVars: hookResult.preservedVars,
     propAliases: extractPropAliases(component, sourceFile),
@@ -264,8 +278,114 @@ function deriveComponentName(functionName: string, componentDir: string): string
 }
 
 // ---------------------------------------------------------------------------
+// Preamble variable promotion
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect preamble variables that are referenced by handlers, helpers,
+ * effects, public methods, or other computed values, and promote them
+ * to ComputedIR entries so they become class-level getters accessible
+ * from all methods.
+ *
+ * In React, the component function body is a single flat scope — local
+ * variables are visible to all closures.  In the Lit class, handlers and
+ * helpers become separate methods, so variables scoped to render() are
+ * not accessible.  Promoting them to computed getters restores the
+ * original scoping semantics.
+ */
+function promotePreambleVars(
+  preambleVars: PreambleVar[],
+  bodyPreamble: string[],
+  handlers: import('../ir/types.js').HandlerIR[],
+  helpers: import('../ir/types.js').HelperIR[],
+  effects: import('../ir/types.js').EffectIR[],
+  publicMethods: import('../ir/types.js').PublicMethodIR[],
+  computedValues: import('../ir/types.js').ComputedIR[],
+  localVariables: Set<string>,
+): {
+  bodyPreamble: string[];
+  computedValues: import('../ir/types.js').ComputedIR[];
+} {
+  if (preambleVars.length === 0) {
+    return { bodyPreamble, computedValues: [] };
+  }
+
+  // Collect all text from code bodies that live outside render()
+  const outsideTexts: string[] = [];
+  for (const h of handlers) outsideTexts.push(h.body);
+  for (const h of helpers) outsideTexts.push(h.source);
+  for (const e of effects) {
+    outsideTexts.push(e.body);
+    if (e.cleanup) outsideTexts.push(e.cleanup);
+  }
+  for (const m of publicMethods) outsideTexts.push(m.body);
+  for (const c of computedValues) outsideTexts.push(c.expression);
+
+  const outsideText = outsideTexts.join('\n');
+
+  // Find preamble variables referenced in outside-render code
+  const promotedNames = new Set<string>();
+  for (const pv of preambleVars) {
+    // Use word-boundary check to avoid partial matches
+    const pattern = new RegExp(`\\b${escapeRegex(pv.name)}\\b`);
+    if (pattern.test(outsideText)) {
+      promotedNames.add(pv.name);
+    }
+  }
+
+  if (promotedNames.size === 0) {
+    return { bodyPreamble, computedValues: [] };
+  }
+
+  // Build promoted ComputedIR entries and filter bodyPreamble
+  const promoted: import('../ir/types.js').ComputedIR[] = [];
+  const filteredPreamble: string[] = [];
+
+  // Track which preamble statements to keep vs remove
+  const promotedVarNames = new Set<string>();
+  for (const pv of preambleVars) {
+    if (promotedNames.has(pv.name)) {
+      promoted.push({
+        name: pv.name,
+        expression: pv.expression,
+        deps: [],
+      });
+      promotedVarNames.add(pv.name);
+      // Remove from localVariables so the identifier rewriter will add this. prefix
+      localVariables.delete(pv.name);
+    }
+  }
+
+  // Filter out preamble statements that declare promoted variables.
+  // A statement may declare multiple variables; remove it only if ALL
+  // its declarations were promoted.
+  for (const stmt of bodyPreamble) {
+    // Check if this statement is a `const/let/var name = ...` for a promoted var
+    let allPromoted = false;
+    const declMatch = stmt.match(/^(?:const|let|var)\s+(\w+)\s*=/);
+    if (declMatch && promotedVarNames.has(declMatch[1])) {
+      allPromoted = true;
+    }
+    if (!allPromoted) {
+      filteredPreamble.push(stmt);
+    }
+  }
+
+  return { bodyPreamble: filteredPreamble, computedValues: promoted };
+}
+
+// ---------------------------------------------------------------------------
 // Body preamble extraction
 // ---------------------------------------------------------------------------
+
+/**
+ * A preamble variable declaration: `const name = expression`.
+ * Used to promote cross-referenced variables to class-level computed values.
+ */
+interface PreambleVar {
+  name: string;
+  expression: string;
+}
 
 /**
  * Extract statements from the component body that are between hook calls
@@ -275,6 +395,8 @@ function deriveComponentName(functionName: string, componentDir: string): string
 interface PreambleResult {
   preamble: string[];
   renderHelpers: import('../ir/types.js').HelperIR[];
+  /** Simple `const name = expression` declarations from the preamble */
+  preambleVars: PreambleVar[];
 }
 
 function extractBodyPreamble(
@@ -283,6 +405,7 @@ function extractBodyPreamble(
 ): PreambleResult {
   const preamble: string[] = [];
   const renderHelpers: import('../ir/types.js').HelperIR[] = [];
+  const preambleVars: PreambleVar[] = [];
   let pastHooks = false;
 
   for (const stmt of body.statements) {
@@ -328,10 +451,23 @@ function extractBodyPreamble(
       }
 
       preamble.push(text);
+
+      // Track simple variable declarations for potential promotion
+      if (ts.isVariableStatement(stmt)) {
+        for (const decl of stmt.declarationList.declarations) {
+          if (ts.isIdentifier(decl.name) && decl.initializer) {
+            const expr = sourceFile.text.slice(
+              decl.initializer.getStart(sourceFile),
+              decl.initializer.getEnd(),
+            );
+            preambleVars.push({ name: decl.name.text, expression: expr });
+          }
+        }
+      }
     }
   }
 
-  return { preamble, renderHelpers };
+  return { preamble, renderHelpers, preambleVars };
 }
 
 function isHookCallStatement(stmt: ts.Statement): boolean {

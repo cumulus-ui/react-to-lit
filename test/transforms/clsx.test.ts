@@ -30,6 +30,8 @@ function minimalIR(overrides: Partial<ComponentIR> = {}): ComponentIR {
     bodyPreamble: [],
     localVariables: new Set(),
     skippedHookVars: [],
+    fileConstants: [],
+    fileTypeDeclarations: [],
     forwardRef: false,
     ...overrides,
   };

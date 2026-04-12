@@ -230,7 +230,7 @@ export function extractFileTypeDeclarations(
     if (ts.isTypeAliasDeclaration(stmt)) {
       const name = stmt.name.text;
       // Skip the main props interface (already handled by the emitter)
-      if (name.endsWith('Props') && name.includes(componentName)) continue;
+      if (isMainPropsType(name, componentName)) continue;
       // Skip React-specific types
       if (name.includes('React') || name.includes('JSX')) continue;
       // Skip analytics metadata types
@@ -238,25 +238,18 @@ export function extractFileTypeDeclarations(
       // Skip exported types (they belong in interfaces.ts)
       if (isExported(stmt)) continue;
 
-      const source = getNodeText(stmt, sourceFile);
-      // Skip types that reference React (won't compile in Lit output)
-      if (source.includes('React.') || source.includes('JSX.')) continue;
-
-      types.push(source);
+      types.push(getNodeText(stmt, sourceFile));
     }
 
     // interface Foo { ... }
     if (ts.isInterfaceDeclaration(stmt)) {
       const name = stmt.name.text;
-      if (name.endsWith('Props') && name.includes(componentName)) continue;
+      if (isMainPropsType(name, componentName)) continue;
       if (name.includes('React') || name.includes('JSX')) continue;
       if (name.includes('GeneratedAnalytics')) continue;
       if (isExported(stmt)) continue;
 
-      const source = getNodeText(stmt, sourceFile);
-      if (source.includes('React.') || source.includes('JSX.')) continue;
-
-      types.push(source);
+      types.push(getNodeText(stmt, sourceFile));
     }
 
     // enum Foo { ... }
@@ -407,4 +400,26 @@ export function collectBindingNames(name: ts.BindingName, names: Set<string>): v
       }
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Props type detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Check whether a type name is the main component props interface.
+ *
+ * The main props type follows predictable naming patterns:
+ *   - `{Component}Props`           (e.g., ModalProps)
+ *   - `Internal{Component}Props`   (e.g., InternalModalProps)
+ *
+ * Other types ending in `Props` (e.g., PortaledModalProps,
+ * DropdownContainerProps) are local helper types that should be
+ * preserved in the output.
+ */
+function isMainPropsType(typeName: string, componentName: string): boolean {
+  return (
+    typeName === `${componentName}Props` ||
+    typeName === `Internal${componentName}Props`
+  );
 }

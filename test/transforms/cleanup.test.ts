@@ -1,0 +1,300 @@
+/**
+ * Unit tests for transforms/cleanup.ts — Cloudscape internals stripping.
+ */
+import { describe, it, expect } from 'vitest';
+import { removeCloudscapeInternals } from '../../src/transforms/cleanup.js';
+import type { ComponentIR } from '../../src/ir/types.js';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function minimalIR(overrides: Partial<ComponentIR> = {}): ComponentIR {
+  return {
+    name: 'Test',
+    tagName: 'el-test',
+    sourceFiles: [],
+    mixins: [],
+    props: [],
+    state: [],
+    effects: [],
+    refs: [],
+    handlers: [],
+    template: { kind: 'fragment', attributes: [], children: [] },
+    computedValues: [],
+    controllers: [],
+    contexts: [],
+    imports: [],
+    publicMethods: [],
+    helpers: [],
+    bodyPreamble: [],
+    localVariables: new Set(),
+    skippedHookVars: [],
+    forwardRef: false,
+    fileConstants: [],
+    fileTypeDeclarations: [],
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// testUtilStyles / analyticsSelectors stripping
+// ---------------------------------------------------------------------------
+
+describe('removeCloudscapeInternals', () => {
+  describe('testUtilStyles stripping', () => {
+    it('strips bracket-access testUtilStyles in handler bodies', () => {
+      const ir = minimalIR({
+        handlers: [{ name: 'h', body: "const cls = testUtilStyles['header'];", params: '' }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('testUtilStyles');
+    });
+
+    it('strips dot-access testUtilStyles in handler bodies', () => {
+      const ir = minimalIR({
+        handlers: [{ name: 'h', body: 'const cls = testUtilStyles.header;', params: '' }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('testUtilStyles');
+    });
+
+    it('strips dot-access testUtilStyles in effect bodies', () => {
+      const ir = minimalIR({
+        effects: [{ body: 'el.className = testUtilStyles.slider;', deps: [] }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.effects[0].body).not.toContain('testUtilStyles');
+    });
+
+    it('strips dot-access testUtilStyles in computed values', () => {
+      const ir = minimalIR({
+        computedValues: [{ name: 'cls', expression: 'testUtilStyles.footer', deps: [] }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.computedValues[0].expression).not.toContain('testUtilStyles');
+    });
+
+    it('strips dot-access testUtilStyles in body preamble', () => {
+      const ir = minimalIR({
+        bodyPreamble: ['const cls = testUtilStyles.content;'],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.bodyPreamble[0]).not.toContain('testUtilStyles');
+    });
+
+    it('strips dot-access testUtilStyles in helper source', () => {
+      const ir = minimalIR({
+        helpers: [{ name: 'fn', source: 'function fn() { return testUtilStyles.root; }' }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.helpers[0].source).not.toContain('testUtilStyles');
+    });
+  });
+
+  describe('analyticsSelectors stripping', () => {
+    it('strips bracket-access analyticsSelectors in handler bodies', () => {
+      const ir = minimalIR({
+        handlers: [{ name: 'h', body: "const s = analyticsSelectors['container'];", params: '' }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('analyticsSelectors');
+    });
+
+    it('strips dot-access analyticsSelectors in handler bodies', () => {
+      const ir = minimalIR({
+        handlers: [{ name: 'h', body: 'const s = analyticsSelectors.header;', params: '' }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('analyticsSelectors');
+    });
+
+    it('strips dot-access analyticsSelectors in effect bodies', () => {
+      const ir = minimalIR({
+        effects: [{ body: 'label = analyticsSelectors.container;', deps: [] }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.effects[0].body).not.toContain('analyticsSelectors');
+    });
+  });
+
+  describe('createPortal unwrapping', () => {
+    it('unwraps createPortal in handler body to its first argument', () => {
+      const ir = minimalIR({
+        handlers: [{
+          name: 'h',
+          body: 'return createPortal(html`<div>${id}</div>`, document.body);',
+          params: '',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('createPortal');
+      expect(result.handlers[0].body).toContain('html`<div>${id}</div>`');
+    });
+
+    it('unwraps createPortal in helper source', () => {
+      const ir = minimalIR({
+        helpers: [{
+          name: 'renderPortal',
+          source: 'function renderPortal() { return createPortal(content, target); }',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.helpers[0].source).not.toContain('createPortal');
+      expect(result.helpers[0].source).toContain('return content;');
+    });
+  });
+
+  describe('rest/spread cleanup', () => {
+    it('replaces rest.xxx with undefined in handler bodies', () => {
+      const ir = minimalIR({
+        handlers: [{ name: 'h', body: 'const id = rest.controlId;', params: '' }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).toContain('undefined');
+      expect(result.handlers[0].body).not.toContain('rest.controlId');
+    });
+
+    it('replaces rest.xxx with undefined in template expressions', () => {
+      const ir = minimalIR({
+        template: {
+          kind: 'element',
+          tag: 'input',
+          attributes: [{
+            name: '.aria-labelledby',
+            value: { expression: 'rest.ariaLabelledby' },
+            kind: 'property',
+          }],
+          children: [],
+        },
+      });
+      const result = removeCloudscapeInternals(ir);
+      const attr = result.template.attributes[0];
+      const expr = typeof attr.value === 'object' ? attr.value.expression : attr.value;
+      expect(expr).toBe('undefined');
+    });
+
+    it('replaces restProps.xxx with undefined in template expressions', () => {
+      const ir = minimalIR({
+        template: {
+          kind: 'element',
+          tag: 'div',
+          attributes: [],
+          children: [{
+            kind: 'expression',
+            attributes: [],
+            children: [],
+            expression: 'restProps.controlId || defaultId',
+          }],
+        },
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.template.children[0].expression).toBe('undefined || defaultId');
+    });
+
+    it('removes {...rest} spread from handler bodies', () => {
+      const ir = minimalIR({
+        handlers: [{ name: 'h', body: 'return { disabled, {...rest} };', params: '' }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('rest');
+    });
+
+    it('removes const destructuring from rest', () => {
+      const ir = minimalIR({
+        handlers: [{
+          name: 'h',
+          body: 'const { ariaLabelledby, controlId } = rest; return controlId;',
+          params: '',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('= rest');
+    });
+  });
+
+  describe('__-prefixed variable cleanup', () => {
+    it('strips __xxx && expr in handler bodies', () => {
+      const ir = minimalIR({
+        handlers: [{ name: 'h', body: '__focusable && doStuff();', params: '' }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('__focusable');
+    });
+
+    it('replaces __xxx && expr with false in template classMap', () => {
+      const ir = minimalIR({
+        template: {
+          kind: 'element',
+          tag: 'div',
+          attributes: [{
+            name: 'class',
+            value: { expression: "classMap({ 'no-wrap': __disableActionsWrapping })" },
+            kind: 'attribute',
+          }],
+          children: [],
+        },
+      });
+      const result = removeCloudscapeInternals(ir);
+      const expr = (result.template.attributes[0].value as { expression: string }).expression;
+      expect(expr).not.toContain('__disableActionsWrapping');
+      expect(expr).toContain('false');
+    });
+
+    it('replaces __xxx && complexExpr with false in classMap without eating commas', () => {
+      const ir = minimalIR({
+        template: {
+          kind: 'element',
+          tag: 'div',
+          attributes: [{
+            name: 'class',
+            value: { expression: "classMap({ 'sticky': __stickyHeader && !this._isSticky, 'stuck': this._isStuck })" },
+            kind: 'attribute',
+          }],
+          children: [],
+        },
+      });
+      const result = removeCloudscapeInternals(ir);
+      const expr = (result.template.attributes[0].value as { expression: string }).expression;
+      expect(expr).not.toContain('__stickyHeader');
+      expect(expr).toContain("'sticky': false");
+      expect(expr).toContain("'stuck': this._isStuck");
+    });
+
+    it('preserves expr in !__xxx && expr template expressions', () => {
+      const ir = minimalIR({
+        template: {
+          kind: 'element',
+          tag: 'div',
+          attributes: [],
+          children: [{
+            kind: 'expression',
+            attributes: [],
+            children: [],
+            expression: '!__hideLabel && this.info',
+          }],
+        },
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.template.children[0].expression).toBe('this.info');
+    });
+
+    it('replaces bare __xxx with false in template expressions', () => {
+      const ir = minimalIR({
+        template: {
+          kind: 'element',
+          tag: 'div',
+          attributes: [{
+            name: 'class',
+            value: { expression: "classMap({ 'hidden': __hideLabel })" },
+            kind: 'attribute',
+          }],
+          children: [],
+        },
+      });
+      const result = removeCloudscapeInternals(ir);
+      const expr = (result.template.attributes[0].value as { expression: string }).expression;
+      expect(expr).toContain("'hidden': false");
+    });
+  });
+});

@@ -26,7 +26,8 @@ export interface MapTextOptions {
  *
  * Covers: handlers (.body), effects (.body, .cleanup), helpers (.source),
  *         bodyPreamble, publicMethods (.body), computedValues (.expression),
- *         state (.initialValue), refs (.initialValue).
+ *         state (.initialValue), refs (.initialValue),
+ *         fileTypeDeclarations, fileConstants.
  *
  * When `options.params` is true, also transforms handler/method params
  * and handler returnType.
@@ -72,5 +73,7 @@ export function mapIRText(
       ...r,
       initialValue: fn(r.initialValue),
     })),
+    fileTypeDeclarations: ir.fileTypeDeclarations.map(fn),
+    fileConstants: ir.fileConstants.map(fn),
   };
 }

@@ -30,6 +30,8 @@ function minimalIR(overrides: Partial<ComponentIR> = {}): ComponentIR {
     bodyPreamble: [],
     localVariables: new Set(),
     skippedHookVars: [],
+    fileConstants: [],
+    fileTypeDeclarations: [],
     forwardRef: false,
     ...overrides,
   };
@@ -143,5 +145,21 @@ describe('mapIRText', () => {
     expect(result.name).toBe('Foo');
     expect(result.tagName).toBe('el-foo');
     expect(result.props[0].name).toBe('disabled');
+  });
+
+  it('transforms fileTypeDeclarations', () => {
+    const ir = minimalIR({
+      fileTypeDeclarations: ['interface Foo { bar: React.ReactNode; }'],
+    });
+    const result = mapIRText(ir, toUpper);
+    expect(result.fileTypeDeclarations[0]).toBe('INTERFACE FOO { BAR: REACT.REACTNODE; }');
+  });
+
+  it('transforms fileConstants', () => {
+    const ir = minimalIR({
+      fileConstants: ['const MAX = 100;'],
+    });
+    const result = mapIRText(ir, toUpper);
+    expect(result.fileConstants[0]).toBe('CONST MAX = 100;');
   });
 });

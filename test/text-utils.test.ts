@@ -8,6 +8,7 @@ import {
   splitTopLevel,
   stripFunctionCalls,
   stripIfBlocks,
+  unwrapFunctionCall,
 } from '../src/text-utils.js';
 
 // ---------------------------------------------------------------------------
@@ -162,5 +163,48 @@ describe('stripIfBlocks', () => {
   it('does not strip non-matching if blocks', () => {
     const input = 'if (visible) { show(); }';
     expect(stripIfBlocks(input, /if\s*\(\s*__\w+\s*\)/)).toBe(input);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// unwrapFunctionCall
+// ---------------------------------------------------------------------------
+
+describe('unwrapFunctionCall', () => {
+  it('unwraps a simple two-argument call to its first argument', () => {
+    expect(unwrapFunctionCall('createPortal(content, target)', 'createPortal'))
+      .toBe('content');
+  });
+
+  it('unwraps when the first argument is a template literal', () => {
+    const input = 'return createPortal(html`<div>${id}</div>`, document.body);';
+    const result = unwrapFunctionCall(input, 'createPortal');
+    expect(result).toBe('return html`<div>${id}</div>`;');
+  });
+
+  it('unwraps when the first argument contains nested function calls', () => {
+    expect(unwrapFunctionCall('createPortal(render(a, b), target)', 'createPortal'))
+      .toBe('render(a, b)');
+  });
+
+  it('returns the single argument when there is no comma', () => {
+    expect(unwrapFunctionCall('createPortal(content)', 'createPortal'))
+      .toBe('content');
+  });
+
+  it('does not modify text when the function is not present', () => {
+    const input = 'doStuff(a, b)';
+    expect(unwrapFunctionCall(input, 'createPortal')).toBe(input);
+  });
+
+  it('handles commas inside strings in the first argument', () => {
+    expect(unwrapFunctionCall(`createPortal("a, b", target)`, 'createPortal'))
+      .toBe('"a, b"');
+  });
+
+  it('handles commas inside template literals in the first argument', () => {
+    const input = 'createPortal(html`<div a=${x}, b=${y}></div>`, document.body)';
+    const result = unwrapFunctionCall(input, 'createPortal');
+    expect(result).toBe('html`<div a=${x}, b=${y}></div>`');
   });
 });

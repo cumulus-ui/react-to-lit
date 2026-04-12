@@ -12,13 +12,13 @@
 import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
 import { SKIP_PROPS, REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, INFRA_FUNCTIONS } from '../cloudscape-config.js';
 import { walkTemplate } from '../template-walker.js';
-import { stripFunctionCalls, stripIfBlocks } from '../text-utils.js';
+import { stripFunctionCalls, stripIfBlocks, unwrapFunctionCall } from '../text-utils.js';
 
-/** Matches testUtilStyles/testutilStyles/testStyles bracket access. */
-const TEST_UTIL_STYLES_RE = /\btestUtilStyles\[['"\w-]+\]|\btestutilStyles\[['"\w-]+\]|\btestStyles\[['"\w-]+\]/g;
+/** Matches testUtilStyles/testutilStyles/testStyles bracket or dot access. */
+const TEST_UTIL_STYLES_RE = /\btestUtilStyles(?:\[['"\w-]+\]|\.\w+)|\btestutilStyles(?:\[['"\w-]+\]|\.\w+)|\btestStyles(?:\[['"\w-]+\]|\.\w+)/g;
 
-/** Matches analyticsSelectors bracket access. */
-const ANALYTICS_SELECTORS_RE = /\banalyticsSelectors\[['"\w-]+\]/g;
+/** Matches analyticsSelectors bracket or dot access. */
+const ANALYTICS_SELECTORS_RE = /\banalyticsSelectors(?:\[['"\w-]+\]|\.\w+)/g;
 
 /** Matches `baseProps.className` with optional trailing comma/whitespace. */
 const BASE_PROPS_CLASSNAME_RE = /\bbaseProps\.className\b,?\s*/g;
@@ -128,12 +128,12 @@ function cleanHandlerBody(body: string): string {
   // Remove: applyDisplayName(...)
   result = result.replace(/applyDisplayName\([^)]*\)\s*;?\s*/g, '');
 
-  // Remove rest/restProps/restXxx references (from const { foo, ...rest } = props — meaningless in Lit)
-  result = result.replace(/\{\s*\.\.\.rest\w*\s*\}\s*\n?\s*/g, '');
-  result = result.replace(/,?\s*\.\.\.rest\w*(?:\.\w+)*\s*,?/g, (m) => m.startsWith(',') && m.endsWith(',') ? ',' : '');
-  result = result.replace(/\b(?:rest|restProps)\.\w+(?:\?\.\w+)*/g, 'undefined');
+  // Unwrap: createPortal(content, target) → content
+  // React portals have no Lit equivalent — just render the content directly.
+  result = unwrapFunctionCall(result, 'createPortal');
 
-  // Remove: getAnalyticsMetadataAttribute(...)
+  // Remove rest/spread references (general React pattern)
+  result = cleanRestSpreadRefs(result);
   result = result.replace(/\.\.\.(getAnalyticsMetadataAttribute|getAnalyticsLabelAttribute)\([^)]*\),?\s*/g, '');
 
   // Remove: [DATA_ATTR_FUNNEL_VALUE]: uniqueId
@@ -154,15 +154,8 @@ function cleanHandlerBody(body: string): string {
   // Remove __-prefixed infrastructure: if (__xxx) { ... } blocks (with nested braces)
   result = stripIfBlocks(result, /if\s*\(\s*!?__\w+\s*\)/);
 
-  // Remove destructuring from 'rest' — React rest props are not available in Lit
-  result = result.replace(/const\s*\{[^}]*\}\s*=\s*rest\s*;?\s*/g, '');
-
-  // Remove __xxx && expr patterns
-  result = result.replace(/\b__\w+\s*&&\s*[^;,\n]+[;,]?\s*/g, '');
-  // Remove __xxx ternary patterns: __xxx ? exprA : exprB → exprB
-  result = result.replace(/\b__\w+\s*\?\s*[^:]+:\s*/g, '');
-  // Remove !__xxx ternary patterns: !__xxx ? exprA : exprB → exprA
-  result = result.replace(/!__\w+\s*\?\s*/g, '');
+  // Remove __-prefixed variable references in expressions
+  result = cleanInternalPrefixedRefs(result);
   // Remove spread of __-prefixed vars
   result = result.replace(/,?\s*\.\.\.__\w+,?/g, (m) => m.startsWith(',') && m.endsWith(',') ? ',' : '');
 
@@ -236,5 +229,87 @@ function cleanExpressionText(expr: string): string {
   let result = expr;
   result = result.replace(TEST_UTIL_STYLES_RE, "''");
   result = result.replace(ANALYTICS_SELECTORS_RE, "''");
+  result = cleanRestSpreadRefs(result);
+  result = cleanInternalPrefixedRefsInExpr(result);
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Rest/spread cleanup (general React pattern)
+// ---------------------------------------------------------------------------
+
+/**
+ * Clean rest/spread variable references.
+ *
+ * React components commonly destructure props with rest syntax:
+ *   const { value, disabled, ...rest } = props;
+ * Then use rest.xxx or {...rest} to forward remaining props.
+ *
+ * Lit components don't forward arbitrary attributes, so these references
+ * become dead code.  Replace property accesses with undefined and remove
+ * spread expressions.
+ */
+function cleanRestSpreadRefs(text: string): string {
+  let result = text;
+  // {...rest} or {...restProps} spread in JSX/objects
+  result = result.replace(/\{\s*\.\.\.rest\w*\s*\}\s*\n?\s*/g, '');
+  // ...rest or ...restProps in argument/object positions
+  result = result.replace(/,?\s*\.\.\.rest\w*(?:\.\w+)*\s*,?/g,
+    (m) => m.startsWith(',') && m.endsWith(',') ? ',' : '');
+  // rest.xxx or restProps.xxx property access → undefined
+  result = result.replace(/\b(?:rest|restProps)\.\w+(?:\?\.\w+)*/g, 'undefined');
+  // const { a, b } = rest; → remove (destructuring from rest is meaningless)
+  result = result.replace(/const\s*\{[^}]*\}\s*=\s*rest\s*;?\s*/g, '');
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// __-prefixed internal variable cleanup
+// ---------------------------------------------------------------------------
+
+/**
+ * Clean __-prefixed internal infrastructure variable references.
+ *
+ * React component libraries use __-prefixed props to pass internal
+ * configuration between components (e.g., __disableActionsWrapping,
+ * __fullPage). These props are stripped from the Lit component's
+ * property declarations, but their usage in expressions must also
+ * be cleaned.
+ *
+ * Applied to both code bodies and template expressions.
+ */
+function cleanInternalPrefixedRefs(text: string): string {
+  let result = text;
+  // __xxx && expr → remove (the internal flag is always false/absent)
+  result = result.replace(/\b__\w+\s*&&\s*[^;,\n]+[;,]?\s*/g, '');
+  // __xxx ? exprA : exprB → exprB (take the else branch)
+  result = result.replace(/\b__\w+\s*\?\s*[^:]+:\s*/g, '');
+  // !__xxx ? exprA : exprB → exprA (negated: take the then branch)
+  result = result.replace(/!__\w+\s*\?\s*/g, '');
+  return result;
+}
+
+/**
+ * Expression-safe version of __-prefixed cleanup for template expressions.
+ *
+ * Template expressions appear inside classMap objects, attribute bindings,
+ * and interpolations where commas and braces are structural delimiters.
+ * Uses more conservative patterns than the code-body version to avoid
+ * consuming object literal syntax.
+ */
+function cleanInternalPrefixedRefsInExpr(text: string): string {
+  let result = text;
+  // !__xxx && expr — the negated internal is always true, keep expr
+  // (must run before the non-negated pattern)
+  result = result.replace(/!__\w+\s*&&\s*/g, '');
+  // __xxx && expr — only consume up to the next comma or closing brace/paren
+  // (not greedy past structural delimiters)
+  result = result.replace(/\b__\w+\s*&&\s*[^;,}\n)]+/g, 'false');
+  // !__xxx ? exprA : exprB → exprA
+  result = result.replace(/!__\w+\s*\?\s*/g, '');
+  // __xxx ? exprA : exprB → exprB
+  result = result.replace(/\b__\w+\s*\?\s*[^:]+:\s*/g, '');
+  // Bare __xxx (e.g., classMap value, standalone reference) → false
+  result = result.replace(/\b__\w+\b/g, 'false');
   return result;
 }

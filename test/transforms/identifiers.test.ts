@@ -33,6 +33,8 @@ function minimalIR(overrides: Partial<ComponentIR> = {}): ComponentIR {
     bodyPreamble: [],
     localVariables: new Set(),
     skippedHookVars: [],
+    fileConstants: [],
+    fileTypeDeclarations: [],
     forwardRef: false,
     ...overrides,
   };
@@ -594,6 +596,62 @@ describe('rewriteIdentifiers', () => {
       const result = rewriteIdentifiers(ir);
       // value is locally declared via destructuring, shadows the prop
       expect(result.handlers[0].body).toBe('const { value } = getState(); return value;');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Promoted preamble variables (body-scope vars promoted to computed getters)
+  // ---------------------------------------------------------------------------
+
+  describe('promoted preamble variables as computed values', () => {
+    it('rewrites promoted preamble var to this._name in handler body', () => {
+      // Simulates: const isNarrow = breakpoint === 'default' promoted to ComputedIR
+      // because a handler references it
+      const ir = minimalIR({
+        computedValues: [{ name: 'isNarrow', expression: "breakpoint === 'default'", deps: [] }],
+        handlers: [{ name: 'h', body: 'if (isNarrow) doStuff()', params: '' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.handlers[0].body).toBe('if (this._isNarrow) doStuff()');
+    });
+
+    it('rewrites promoted preamble var in helper source', () => {
+      const ir = minimalIR({
+        computedValues: [{ name: 'matchTriggerWidth', expression: "minWidth === 'trigger'", deps: [] }],
+        helpers: [{ name: 'setPos', source: 'function setPos() { if (matchTriggerWidth) adjust(); }' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.helpers[0].source).toContain('this._matchTriggerWidth');
+    });
+
+    it('rewrites promoted preamble var in effect body', () => {
+      const ir = minimalIR({
+        computedValues: [{ name: 'sliderValue', expression: 'getValue()', deps: [] }],
+        effects: [{ body: 'update(sliderValue)', deps: ['sliderValue'] }],
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.effects[0].body).toBe('update(this._sliderValue)');
+    });
+
+    it('rewrites the computed expression itself (refs to other members)', () => {
+      const ir = minimalIR({
+        props: [prop('minWidth')],
+        computedValues: [{ name: 'matchTriggerWidth', expression: "minWidth === 'trigger'", deps: [] }],
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.computedValues[0].expression).toBe("this.minWidth === 'trigger'");
+    });
+
+    it('rewrites multiple promoted vars in the same handler', () => {
+      const ir = minimalIR({
+        computedValues: [
+          { name: 'isNarrow', expression: "breakpoint === 'default'", deps: [] },
+          { name: 'isMedium', expression: "breakpoint === 'xxs'", deps: [] },
+        ],
+        handlers: [{ name: 'h', body: 'return isNarrow || isMedium', params: '' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.handlers[0].body).toBe('return this._isNarrow || this._isMedium');
     });
   });
 });

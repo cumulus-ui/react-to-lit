@@ -166,6 +166,56 @@ describe('parseComponent', () => {
       expect(ir.template.kind).toBeDefined();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // TopNavigation — preamble variable promotion
+  // -------------------------------------------------------------------------
+  describe('TopNavigation (preamble var promotion)', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'top-navigation'));
+
+    it('should promote isNarrowViewport to computed values', () => {
+      const cv = ir.computedValues.find((c) => c.name === 'isNarrowViewport');
+      expect(cv).toBeDefined();
+      expect(cv!.expression).toContain("breakpoint === 'default'");
+    });
+
+    it('should promote isMediumViewport to computed values', () => {
+      const cv = ir.computedValues.find((c) => c.name === 'isMediumViewport');
+      expect(cv).toBeDefined();
+      expect(cv!.expression).toContain("breakpoint === 'xxs'");
+    });
+
+    it('should remove promoted vars from bodyPreamble', () => {
+      const hasNarrow = ir.bodyPreamble.some((s) => s.includes('isNarrowViewport'));
+      expect(hasNarrow).toBe(false);
+    });
+
+    it('should not include promoted var names in localVariables', () => {
+      expect(ir.localVariables.has('isNarrowViewport')).toBe(false);
+      expect(ir.localVariables.has('isMediumViewport')).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Dropdown — local type declaration preservation
+  // -------------------------------------------------------------------------
+  describe('Dropdown (type preservation)', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'dropdown'));
+
+    it('should preserve DropdownContainerProps type declaration', () => {
+      const hasType = ir.fileTypeDeclarations.some(
+        (t) => t.includes('DropdownContainerProps'),
+      );
+      expect(hasType).toBe(true);
+    });
+
+    it('should preserve TransitionContentProps type declaration', () => {
+      const hasType = ir.fileTypeDeclarations.some(
+        (t) => t.includes('TransitionContentProps'),
+      );
+      expect(hasType).toBe(true);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
