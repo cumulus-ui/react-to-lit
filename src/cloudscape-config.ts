@@ -28,10 +28,11 @@ export const REMOVE_ATTRS = new Set([
   'key', 'ref', 'componentName', 'skipWarnings', 'baseProps',
   'nativeAttributes', 'nativeInputAttributes',
   'nativeButtonAttributes', 'nativeAnchorAttributes',
+  'analyticsAction', 'analyticsMetadata',
 ]);
 
 /** Attribute prefixes to strip from template elements. */
-export const REMOVE_ATTR_PREFIXES = ['__', 'data-analytics'];
+export const REMOVE_ATTR_PREFIXES = ['__', 'data-analytics', 'analytics'];
 
 // ---------------------------------------------------------------------------
 // Infrastructure functions to remove from component bodies
