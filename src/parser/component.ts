@@ -9,6 +9,7 @@
  */
 import ts from 'typescript';
 import { getNodeText } from './program.js';
+import { isExported, isDefault } from './utils.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -161,10 +162,7 @@ function findComponentInFile(sourceFile: ts.SourceFile): RawComponentInFile | nu
     // Look for exported function declarations (with any name)
     for (const stmt of sourceFile.statements) {
       if (ts.isFunctionDeclaration(stmt) && stmt.name && stmt.body) {
-        const hasExport = ts.getModifiers(stmt)?.some(
-          (m) => m.kind === ts.SyntaxKind.ExportKeyword,
-        );
-        if (hasExport) {
+        if (isExported(stmt)) {
           return {
             name: stmt.name.text,
             forwardRef: false,
@@ -179,10 +177,7 @@ function findComponentInFile(sourceFile: ts.SourceFile): RawComponentInFile | nu
     // Look for export const InternalFoo = arrow/forwardRef
     for (const stmt of sourceFile.statements) {
       if (ts.isVariableStatement(stmt)) {
-        const hasExport = ts.getModifiers(stmt)?.some(
-          (m) => m.kind === ts.SyntaxKind.ExportKeyword,
-        );
-        if (!hasExport) continue;
+        if (!isExported(stmt)) continue;
 
         for (const decl of stmt.declarationList.declarations) {
           if (!ts.isIdentifier(decl.name) || !decl.initializer) continue;
@@ -412,10 +407,5 @@ function extractPropsTypeName(
 // ---------------------------------------------------------------------------
 
 function hasExportDefault(node: ts.Node): boolean {
-  if (!ts.canHaveModifiers(node)) return false;
-  const modifiers = ts.getModifiers(node);
-  if (!modifiers) return false;
-  const hasExport = modifiers.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
-  const hasDefault = modifiers.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
-  return hasExport && hasDefault;
+  return isExported(node) && isDefault(node);
 }

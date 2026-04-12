@@ -7,6 +7,26 @@ import type { HandlerIR, HelperIR } from '../ir/types.js';
 import { INFRA_FUNCTIONS } from '../cloudscape-config.js';
 
 // ---------------------------------------------------------------------------
+// Modifier helpers
+// ---------------------------------------------------------------------------
+
+/** Check whether a node carries a specific modifier keyword. */
+export function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+  if (!ts.canHaveModifiers(node)) return false;
+  return ts.getModifiers(node)?.some(m => m.kind === kind) === true;
+}
+
+/** Shorthand: node has the `export` keyword. */
+export function isExported(node: ts.Node): boolean {
+  return hasModifier(node, ts.SyntaxKind.ExportKeyword);
+}
+
+/** Shorthand: node has the `default` keyword. */
+export function isDefault(node: ts.Node): boolean {
+  return hasModifier(node, ts.SyntaxKind.DefaultKeyword);
+}
+
+// ---------------------------------------------------------------------------
 // Handler extraction (event handlers defined in the function body)
 // ---------------------------------------------------------------------------
 
@@ -90,10 +110,7 @@ export function extractHelpers(
       if (isComponentImplementation(name, componentFunctionName)) continue;
 
       // Skip default exports (the main component is often export default function InternalXxx)
-      const isDefaultExport = stmt.modifiers?.some(
-        m => m.kind === ts.SyntaxKind.DefaultKeyword,
-      );
-      if (isDefaultExport) continue;
+      if (isDefault(stmt)) continue;
 
       const source = getNodeText(stmt, sourceFile);
       // Allow all helpers through — JSX pre-transform has already converted JSX to html``
@@ -150,10 +167,7 @@ export function extractFileConstants(
     if (!ts.isVariableStatement(stmt)) continue;
 
     // Skip exported declarations (they're usually the component or re-exports)
-    const isExported = stmt.modifiers?.some(
-      m => m.kind === ts.SyntaxKind.ExportKeyword,
-    );
-    if (isExported) continue;
+    if (isExported(stmt)) continue;
 
     const decls = stmt.declarationList.declarations;
     let skip = false;
@@ -221,8 +235,7 @@ export function extractFileTypeDeclarations(
       // Skip analytics metadata types
       if (name.includes('GeneratedAnalytics')) continue;
       // Skip exported types (they belong in interfaces.ts)
-      const isExported = stmt.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
-      if (isExported) continue;
+      if (isExported(stmt)) continue;
 
       const source = getNodeText(stmt, sourceFile);
       // Skip types that reference React (won't compile in Lit output)
@@ -237,8 +250,7 @@ export function extractFileTypeDeclarations(
       if (name.endsWith('Props') && name.includes(componentName)) continue;
       if (name.includes('React') || name.includes('JSX')) continue;
       if (name.includes('GeneratedAnalytics')) continue;
-      const isExported = stmt.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
-      if (isExported) continue;
+      if (isExported(stmt)) continue;
 
       const source = getNodeText(stmt, sourceFile);
       if (source.includes('React.') || source.includes('JSX.')) continue;
@@ -249,8 +261,7 @@ export function extractFileTypeDeclarations(
     // enum Foo { ... }
     if (ts.isEnumDeclaration(stmt)) {
       const name = stmt.name.text;
-      const isExported = stmt.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
-      if (isExported) continue;
+      if (isExported(stmt)) continue;
       types.push(getNodeText(stmt, sourceFile));
     }
   }

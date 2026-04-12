@@ -182,7 +182,7 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   }));
 
   // Transform template expressions
-  const template = rewriteTemplateNode(ir.template, quickRewrite, astRewrite);
+  const template = rewriteTemplateNode(ir.template, astRewrite);
 
   return {
     ...ir,
@@ -470,7 +470,6 @@ function isDeclarationPosition(node: Node): boolean {
 
 function rewriteTemplateNode(
   node: TemplateNodeIR,
-  _quickRewrite: (text: string) => string,
   astRewrite: (text: string) => string,
 ): TemplateNodeIR {
   return walkTemplate(node, {

@@ -94,12 +94,18 @@ export function findMatchingParen(
 // ---------------------------------------------------------------------------
 
 /**
- * Find the first occurrence of `target` char at the top level — not inside
- * brackets, parens, braces, strings, or template literals.
+ * Scan a string character-by-character, tracking bracket depth and template
+ * literal interpolations. Invokes `onChar(ch, i, depth, inTemplate)` for
+ * every character, indicating whether it is inside a template literal.
  *
- * @returns The index of the target char, or -1 if not found.
+ * Return `true` from the callback to stop scanning early; the scanner
+ * will then return the current index. Returns -1 if the end of string is
+ * reached without an early stop.
  */
-export function findTopLevel(str: string, target: string): number {
+function scanTopLevel(
+  str: string,
+  onChar: (ch: string, i: number, depth: number, inTemplate: boolean) => boolean | void,
+): number {
   let depth = 0;
   let inTemplate = false;
   let templateBraceDepth = 0;
@@ -109,24 +115,42 @@ export function findTopLevel(str: string, target: string): number {
 
     if (ch === '`') {
       inTemplate = !inTemplate;
+      if (onChar(ch, i, depth, /* still toggling */ inTemplate)) return i;
       continue;
     }
     if (inTemplate) {
       if (ch === '$' && str[i + 1] === '{') {
         templateBraceDepth++;
+        if (onChar(ch, i, depth, true)) return i;
         i++;
+        if (onChar('{', i, depth, true)) return i;
       } else if (ch === '}' && templateBraceDepth > 0) {
         templateBraceDepth--;
+        if (onChar(ch, i, depth, true)) return i;
+      } else {
+        if (onChar(ch, i, depth, true)) return i;
       }
       continue;
     }
 
     if (ch === '{' || ch === '[' || ch === '(') depth++;
     if (ch === '}' || ch === ']' || ch === ')') depth--;
-    if (ch === target && depth === 0) return i;
+    if (onChar(ch, i, depth, false)) return i;
   }
 
   return -1;
+}
+
+/**
+ * Find the first occurrence of `target` char at the top level — not inside
+ * brackets, parens, braces, strings, or template literals.
+ *
+ * @returns The index of the target char, or -1 if not found.
+ */
+export function findTopLevel(str: string, target: string): number {
+  return scanTopLevel(str, (ch, _i, depth, inTemplate) =>
+    !inTemplate && ch === target && depth === 0,
+  );
 }
 
 /**
@@ -136,41 +160,15 @@ export function findTopLevel(str: string, target: string): number {
 export function splitTopLevel(str: string, separator: string): string[] {
   const result: string[] = [];
   let current = '';
-  let depth = 0;
-  let inTemplate = false;
-  let templateBraceDepth = 0;
 
-  for (let i = 0; i < str.length; i++) {
-    const ch = str[i];
-
-    if (ch === '`') {
-      inTemplate = !inTemplate;
-      current += ch;
-      continue;
-    }
-    if (inTemplate) {
-      if (ch === '$' && str[i + 1] === '{') {
-        templateBraceDepth++;
-        current += ch + '{';
-        i++;
-      } else if (ch === '}' && templateBraceDepth > 0) {
-        templateBraceDepth--;
-        current += ch;
-      } else {
-        current += ch;
-      }
-      continue;
-    }
-
-    if (ch === '{' || ch === '[' || ch === '(') depth++;
-    if (ch === '}' || ch === ']' || ch === ')') depth--;
-    if (ch === separator && depth === 0) {
+  scanTopLevel(str, (ch, _i, depth, inTemplate) => {
+    if (!inTemplate && ch === separator && depth === 0) {
       result.push(current);
       current = '';
     } else {
       current += ch;
     }
-  }
+  });
 
   if (current.trim()) result.push(current);
   return result;
