@@ -8,11 +8,10 @@ import type { ComponentIR } from '../ir/types.js';
 import { Project, Node, ts } from 'ts-morph';
 import { collectImports } from './imports.js';
 import { emitProperties, emitState, emitControllers, emitContexts, emitComputed, emitRefs, emitSkippedHookVars } from './properties.js';
-import { stripFunctionCalls } from '../text-utils.js';
+import { stripFunctionCalls, findMatchingParen } from '../text-utils.js';
 import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
-import { findMatchingParen } from '../text-utils.js';
 
 // ---------------------------------------------------------------------------
 // Main emission
