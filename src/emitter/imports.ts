@@ -139,9 +139,6 @@ export function collectImports(ir: ComponentIR): ImportCollector {
     collector.addLit('nothing');
   }
 
-  // svg (if template uses svg elements)
-  // TODO: detect svg usage in template
-
   // classMap directive
   if (hasClassMap(ir.template) || hasClassMapInCodeBodies(ir)) {
     collector.addDirective('lit/directives/class-map.js', 'classMap');

@@ -130,11 +130,21 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   }
 
   // --- Render method ---
-  const renderCode = emitRenderMethod(ir.template, collector);
+  let renderCode = emitRenderMethod(ir.template, collector);
 
-  // Body preamble is NOT emitted — it's intermediate React code (attribute builders,
-  // className computations) that has been processed by transforms. The useful parts
-  // (hooks, handlers) are already in the IR. Emitting it would produce broken React syntax.
+  // Inject body preamble into render() before the return statement.
+  // These are transformed variable declarations (className computations,
+  // attribute builders) that the template references.
+  // Filter out statements containing untransformed React patterns.
+  const REACT_PATTERNS = /\buseEffect\b|\buseLayoutEffect\b|\buseState\b|\buseCallback\b|\bclassName\s*=/;
+  const safePreamble = ir.bodyPreamble.filter((stmt) => !REACT_PATTERNS.test(stmt));
+  if (safePreamble.length > 0) {
+    const preambleLines = safePreamble.map((stmt) => `    ${stmt}`).join('\n');
+    renderCode = renderCode.replace(
+      /^(  override render\(\) \{)\n/m,
+      `$1\n${preambleLines}\n\n`,
+    );
+  }
 
   sections.push(renderCode);
 

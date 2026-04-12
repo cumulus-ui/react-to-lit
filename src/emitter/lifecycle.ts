@@ -133,9 +133,20 @@ function indentBody(body: string, indentLevel: number): string {
     text = text.slice(1, -1).trim();
   }
 
+  const lines = text.split('\n');
+  // Find minimum indentation across non-empty lines to preserve relative nesting
+  const minIndent = lines.reduce((min, line) => {
+    if (line.trim().length === 0) return min;
+    const leading = line.match(/^(\s*)/)?.[1].length ?? 0;
+    return Math.min(min, leading);
+  }, Infinity);
+  const strip = minIndent === Infinity ? 0 : minIndent;
+
   const indent = ' '.repeat(indentLevel);
-  return text
-    .split('\n')
-    .map((line) => indent + line.trimStart())
+  return lines
+    .map((line) => {
+      if (line.trim().length === 0) return '';
+      return indent + line.slice(strip);
+    })
     .join('\n');
 }

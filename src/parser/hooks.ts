@@ -146,8 +146,8 @@ function processHookCall(
         }
         return;
       case 'utility':
-        // Utility hooks are kept as regular variable declarations
-        // The emitter will import the utility function
+        // Utility hooks: preserve result variables (same as skip)
+        if (decl) collectPreservedVars(decl, result.preservedVars);
         return;
       case 'inline':
         return;
