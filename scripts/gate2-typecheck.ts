@@ -555,40 +555,49 @@ interface TypeCheckResult {
   rawOutput: string;
 }
 
-function runTypeCheck(): TypeCheckResult {
+function runTypeCheck(generated: GeneratedComponent[]): TypeCheckResult {
   const tscPath = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsc');
-  const tsconfigPath = path.join(OUTPUT_DIR, 'tsconfig.json');
-
-  let rawOutput = '';
-  try {
-    execSync(`"${tscPath}" --project "${tsconfigPath}" --noEmit 2>&1`, {
-      cwd: OUTPUT_DIR,
-      encoding: 'utf-8',
-      timeout: 120_000,
-    });
-    // If tsc exits 0, no errors
-    rawOutput = '';
-  } catch (err: any) {
-    rawOutput = err.stdout || err.stderr || err.message || '';
-  }
-
-  // Parse errors
   const errorsByFile = new Map<string, string[]>();
   let totalErrors = 0;
+  let rawOutput = '';
 
-  if (rawOutput.trim()) {
-    for (const line of rawOutput.split('\n')) {
-      // tsc error format: path/file.ts(line,col): error TS1234: message
-      const match = line.match(/^(.+?\.ts)\(\d+,\d+\):\s+error\s+(TS\d+):\s+(.+)$/);
-      if (match) {
-        const [, filePath, code, message] = match;
-        // Normalize to just component name
-        const relPath = path.relative(OUTPUT_DIR, path.resolve(OUTPUT_DIR, filePath));
-        if (!errorsByFile.has(relPath)) {
-          errorsByFile.set(relPath, []);
+  // Type-check each component individually to prevent error cascade.
+  // Each invocation checks only that component's index.ts against the
+  // shared stubs, types, and declarations in the output directory.
+  for (const comp of generated) {
+    if (comp.error) continue;
+
+    const indexFile = path.join(comp.name, 'index.ts');
+    const absIndex = path.join(OUTPUT_DIR, indexFile);
+    if (!fs.existsSync(absIndex)) continue;
+
+    let compOutput = '';
+    try {
+      compOutput = execSync(
+        `"${tscPath}" --noEmit --strict false --skipLibCheck --experimentalDecorators ` +
+        `--useDefineForClassFields false --target ES2022 --module ES2022 --moduleResolution bundler ` +
+        `--lib ES2022,DOM,DOM.Iterable ` +
+        `--paths '{"lit":["${path.join(PROJECT_ROOT, 'node_modules', 'lit')}"],"lit/*":["${path.join(PROJECT_ROOT, 'node_modules', 'lit', '*')}"],"@lit/context":["${path.join(PROJECT_ROOT, 'node_modules', '@lit', 'context')}"]}' ` +
+        `"${absIndex}" 2>&1`,
+        { cwd: OUTPUT_DIR, encoding: 'utf-8', timeout: 30_000 },
+      );
+    } catch (err: any) {
+      compOutput = err.stdout || err.stderr || err.message || '';
+    }
+
+    if (compOutput.trim()) {
+      rawOutput += compOutput;
+      for (const line of compOutput.split('\n')) {
+        const match = line.match(/^(.+?\.ts)\(\d+,\d+\):\s+error\s+(TS\d+):\s+(.+)$/);
+        if (match) {
+          const [, filePath, code, message] = match;
+          const relPath = path.relative(OUTPUT_DIR, path.resolve(OUTPUT_DIR, filePath));
+          if (!errorsByFile.has(relPath)) {
+            errorsByFile.set(relPath, []);
+          }
+          errorsByFile.get(relPath)!.push(`${code}: ${message}`);
+          totalErrors++;
         }
-        errorsByFile.get(relPath)!.push(`${code}: ${message}`);
-        totalErrors++;
       }
     }
   }
@@ -707,7 +716,7 @@ writeOutputTree(generated);
 console.log('Done.\n');
 
 console.log('Running tsc --noEmit ...');
-const typecheck = runTypeCheck();
+const typecheck = runTypeCheck(generated);
 console.log('Done.\n');
 
 report(components, generated, typecheck);
