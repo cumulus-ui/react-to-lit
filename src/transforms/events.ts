@@ -37,6 +37,17 @@ export function transformEvents(ir: ComponentIR): ComponentIR {
     }
   }
 
+  // Also include prop aliases (e.g., `onFinish: onFinishHandler` → alias
+  // `onFinishHandler` maps to the same event as the original prop `onFinish`).
+  if (ir.propAliases) {
+    for (const [alias, propName] of ir.propAliases) {
+      const eventName = eventProps.get(propName);
+      if (eventName) {
+        eventProps.set(alias, eventName);
+      }
+    }
+  }
+
   if (eventProps.size === 0) return ir;
 
   const rewrite = (text: string) => rewriteEventCalls(text, eventProps);

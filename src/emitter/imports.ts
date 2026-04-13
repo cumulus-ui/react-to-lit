@@ -192,14 +192,14 @@ export function collectImports(ir: ComponentIR): ImportCollector {
     collector.addType('lit', 'PropertyValues');
   }
 
-  // fireNonCancelableEvent for event dispatch — only if not already imported from source
+  // fireNonCancelableEvent for event dispatch — only if not already imported from source.
+  // Check specifically for fireNonCancelableEvent, not just any events import,
+  // because the source may only import fireCancelableEvent.
   const hasEventProps = ir.props.some((p) => p.category === 'event');
-  const eventsAlreadyImported = ir.imports.some(imp =>
-    imp.moduleSpecifier.includes('events') &&
-    (imp.namedImports?.includes('fireNonCancelableEvent') ||
-     imp.namedImports?.includes('fireCancelableEvent')),
+  const fireNonCancelableAlreadyImported = ir.imports.some(imp =>
+    imp.namedImports?.includes('fireNonCancelableEvent'),
   );
-  if (hasEventProps && !eventsAlreadyImported) {
+  if (hasEventProps && !fireNonCancelableAlreadyImported) {
     collector.addNamed('../internal/events.js', 'fireNonCancelableEvent');
   }
 
