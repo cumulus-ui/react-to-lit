@@ -647,8 +647,17 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
   // because `any` typed values don't accept type arguments (TS2347).
   // Handle nested angle brackets (e.g., processAttributes<Foo, Record<string, unknown>>).
   const genericFunctionCalls = new Set<string>();
+  // Also detect functions whose return value is spread: ...funcName(args)
+  // These need to return a tuple type for TypeScript spread-arg checking.
+  const spreadCallFunctions = new Set<string>();
   for (const comp of generated) {
     if (comp.error || !comp.output) continue;
+    // Detect spread calls: ...funcName(
+    const spreadCallPattern = /\.\.\.\s*(\w+)\s*\(/g;
+    let scMatch;
+    while ((scMatch = spreadCallPattern.exec(comp.output)) !== null) {
+      spreadCallFunctions.add(scMatch[1]);
+    }
     // Find all `name<` patterns, then check balanced angle brackets before `(`
     const genericCallPattern = /\b(\w+)<(?=[A-Z])/g;
     let gfMatch;
@@ -703,13 +712,18 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
             `T${i > 0 ? i + 1 : ''} = any`,
           ).join(', ');
           if (useInterface) {
-            stubLines.push(`export interface ${name}<${params}> { __brand?: '${name}'; [key: string]: any; }`);
+            // Type-guard types: use Record<string, any> instead of `any` so that
+            // TS `in` narrowing doesn't collapse union branches to `never`.
+            // Each type gets a unique optional brand to be structurally distinct.
+            const brandProp = `__${name.toLowerCase()}?: true`;
+            stubLines.push(`export declare type ${name}<${params}> = { ${brandProp}; [key: string]: any };`);
           } else {
             stubLines.push(`export declare type ${name}<${params}> = any;`);
           }
         } else {
           if (useInterface) {
-            stubLines.push(`export interface ${name} { __brand?: '${name}'; [key: string]: any; }`);
+            const brandProp = `__${name.toLowerCase()}?: true`;
+            stubLines.push(`export declare type ${name} = { ${brandProp}; [key: string]: any };`);
           } else {
             stubLines.push(`export declare type ${name} = any;`);
           }
@@ -723,6 +737,9 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
             ? Array.from({ length: arity }, (_, i) => `T${i > 0 ? i + 1 : ''} = any`).join(', ')
             : 'T = any';
           stubLines.push(`export declare function ${name}<${params}>(...args: any[]): any;`);
+        } else if (spreadCallFunctions.has(name)) {
+          // Functions whose return value is spread need to return a tuple
+          stubLines.push(`export declare function ${name}(...args: any[]): [any, any];`);
         } else {
           stubLines.push(`export declare const ${name}: any;`);
         }

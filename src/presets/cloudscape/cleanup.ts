@@ -62,6 +62,12 @@ function cleanCloudscapeBody(body: string): string {
   // Remove: applyDisplayName(...)
   result = result.replace(/applyDisplayName\([^)]*\)\s*;?\s*/g, '');
 
+  // Unwrap property access on removed prop-aggregation objects:
+  // buttonProps.tabIndex → tabIndex, anchorProps.href → href
+  // These are local objects that assembled nativeAttributes + hook results;
+  // after cleanup strips all their content, references like buttonProps.xxx survive.
+  result = result.replace(/\b(?:buttonProps|anchorProps|inputProps|linkProps)\.\b(\w+)/g, '$1');
+
   // Strip InternalBaseComponentProps from intersection types
   result = result.replace(/\s*&\s*InternalBaseComponentProps/g, '');
 

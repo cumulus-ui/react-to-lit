@@ -113,8 +113,20 @@ export function applyCoreCleanup(ir: ComponentIR, config?: CleanupConfig): Compo
   // Clean template — remove configured attributes
   const template = cleanCoreTemplate(ir.template, removeAttrs, removeAttrPrefixes, skipProps);
 
-  // Clean body preamble
-  const bodyPreamble = ir.bodyPreamble.map((b) => cleanCoreBody(b, skipProps));
+  // Clean body preamble — collect locally-declared skip-prop names across all
+  // preamble items so that cleanSkipPropRefs won't replace references to
+  // variables declared in a sibling preamble statement (e.g., file-input
+  // declares `const nativeAttributes = {...}` in one statement and uses
+  // `nativeAttributes['aria-invalid']` in another).
+  const preambleDeclaredNames = new Set<string>();
+  for (const stmt of ir.bodyPreamble) {
+    for (const sp of skipProps) {
+      if (new RegExp(`(?:const|let|var)\\s+${sp}\\b`).test(stmt)) {
+        preambleDeclaredNames.add(sp);
+      }
+    }
+  }
+  const bodyPreamble = ir.bodyPreamble.map((b) => cleanCoreBody(b, skipProps, preambleDeclaredNames));
 
   // Clean public methods
   const publicMethods = ir.publicMethods.map((m) => ({
@@ -153,7 +165,17 @@ export function applyCoreCleanup(ir: ComponentIR, config?: CleanupConfig): Compo
  * fields that core cleanup processes.
  */
 export function applyPlugin(ir: ComponentIR, plugin: CleanupPlugin): ComponentIR {
-  const cleanBody = plugin.cleanBody ?? ((t: string) => t);
+  const cleanBody = (text: string) => {
+    let result = plugin.cleanBody ? plugin.cleanBody(text) : text;
+    // Run post-plugin cleanup: remove empty if-blocks left after plugin
+    // stripped function calls (e.g., warnOnce) from inside conditionals.
+    for (let pass = 0; pass < 3; pass++) {
+      const before = result;
+      result = removeEmptyIfBlocks(result);
+      if (result === before) break;
+    }
+    return result;
+  };
 
   const handlers = ir.handlers.map((h) => ({
     ...h,
@@ -236,7 +258,7 @@ function applyPluginToTemplate(node: TemplateNodeIR, plugin: CleanupPlugin): Tem
  * - Configurable skip-prop reference cleanup
  * - Dead-code simplification
  */
-export function cleanCoreBody(body: string, skipProps: Set<string>): string {
+export function cleanCoreBody(body: string, skipProps: Set<string>, declaredNames?: Set<string>): string {
   let result = body;
 
   // Unwrap: createPortal(content, target) → content
@@ -244,7 +266,7 @@ export function cleanCoreBody(body: string, skipProps: Set<string>): string {
   result = unwrapFunctionCall(result, 'createPortal');
 
   // Remove references to SKIP_PROPS (infrastructure props stripped from declarations).
-  result = cleanSkipPropRefs(result, skipProps);
+  result = cleanSkipPropRefs(result, skipProps, declaredNames);
 
   // Remove __-prefixed infrastructure: if (__xxx) { ... } blocks (with nested braces)
   result = stripIfBlocks(result, /if\s*\(\s*!?__\w+\b[^)]*\)/);
@@ -277,6 +299,23 @@ export function cleanCoreBody(body: string, skipProps: Set<string>): string {
   result = result.replace(/\bundefined\?\.\w+/g, 'undefined');
   result = cleanSimplifyUndefined(result);
 
+  // Clean up empty or near-empty object literals left after spread removal:
+  // `const x: Type = { };` or `const x: Type = ;` → `const x: Type = {};`
+  result = result.replace(/=\s*\{\s*,?\s*\}\s*;/g, '= {};');
+  // `= ;` left when all entries including braces were removed
+  result = result.replace(/=\s*;/g, '= {};');
+
+  // Remove if-blocks with undefined/false conditions left after cleanup:
+  // `if (undefined) { ... }` or `if (false) { ... }`
+  result = stripIfBlocks(result, /if\s*\(\s*(?:undefined|false)\s*\)/);
+
+  // Iteratively remove if-blocks with empty bodies (left after inner statements
+  // were stripped). Uses balanced-brace matching for nested blocks.
+  for (let pass = 0; pass < 3; pass++) {
+    const before = result;
+    result = removeEmptyIfBlocks(result);
+    if (result === before) break;
+  }
   return result;
 }
 
@@ -340,15 +379,15 @@ function cleanCoreExpressionText(expr: string, skipProps: Set<string>): string {
  */
 export function cleanRestSpreadRefs(text: string): string {
   let result = text;
-  // {...rest} or {...restProps} spread in JSX/objects
-  result = result.replace(/\{\s*\.\.\.rest\w*\s*\}\s*\n?\s*/g, '');
-  // ...rest or ...restProps in argument/object positions
-  result = result.replace(/,?\s*\.\.\.rest\w*(?:\.\w+)*\s*,?/g,
+  // {...rest} or {...restProps} or {...props} spread in JSX/objects
+  result = result.replace(/\{\s*\.\.\.(?:rest\w*|props)\s*\}\s*\n?\s*/g, '');
+  // ...rest or ...restProps or ...props in argument/object positions
+  result = result.replace(/,?\s*\.\.\.(?:rest\w*|props)(?:\.\w+)*\s*,?/g,
     (m) => m.startsWith(',') && m.endsWith(',') ? ',' : '');
-  // rest.xxx or restProps.xxx property access → undefined
-  result = result.replace(/\b(?:rest|restProps)\.\w+(?:\?\.\w+)*/g, 'undefined');
+  // rest.xxx or restProps.xxx or props.xxx property access → undefined
+  result = result.replace(/\b(?:rest|restProps|props)\.\w+(?:\?\.\w+)*/g, 'undefined');
   // const { a, b } = rest; → remove (destructuring from rest is meaningless)
-  result = result.replace(/const\s*\{[^}]*\}\s*=\s*rest\s*;?\s*/g, '');
+  result = result.replace(/const\s*\{[^}]*\}\s*=\s*(?:rest|props)\s*;?\s*/g, '');
   return result;
 }
 
@@ -367,21 +406,28 @@ export function cleanRestSpreadRefs(text: string): string {
  * Carefully avoids stripping local variable declarations of the same name
  * (e.g., `const nativeAttributes = { ... }` in file-input).
  */
-export function cleanSkipPropRefs(text: string, skipProps: Set<string>): string {
+export function cleanSkipPropRefs(text: string, skipProps: Set<string>, declaredNames?: Set<string>): string {
   let result = text;
   for (const skipProp of skipProps) {
+    // Skip if there's a local declaration of this name (in this text or sibling texts)
     const declPattern = new RegExp(`(?:const|let|var)\\s+${skipProp}\\b`);
     if (declPattern.test(result)) continue;
+    if (declaredNames?.has(skipProp)) continue;
 
+    // Property access: skipProp?.tabIndex or skipProp.xxx → undefined
     const propAccessRe = new RegExp(`\\b${skipProp}(?:\\?\\.|\\.)[\\w.?]+`, 'g');
     result = result.replace(propAccessRe, 'undefined');
 
+    // Bare reference as function argument or standalone:
     const bareRefRe = new RegExp(
       `(?<!(?:const|let|var)\\s)\\b${skipProp}\\b(?!\\s*[=:])`,
       'g',
     );
     result = result.replace(bareRefRe, 'undefined');
   }
+  // Remove assignment statements where `undefined` ended up on the LHS:
+  // undefined.xxx = expr; or undefined['xxx'] = expr; or undefined = expr;
+  result = result.replace(/^\s*undefined(?:\.\w+|\[['"][^'"]*['"]\])?\s*=[^=][^;]*;?\s*$/gm, '');
   return result;
 }
 
@@ -407,9 +453,46 @@ export function cleanInternalPrefixedRefs(text: string): string {
   result = result.replace(/\|\|\s*__\w+\b/g, '');
   result = result.replace(/\b__\w+\s*\?\?\s*/g, '');
   result = result.replace(/\b__\w+\s*\|\|\s*/g, '');
-  result = result.replace(/\b__\w+\s*\?\s*[^:]+:\s*/g, '');
+  // __xxx ? trueBranch : falseBranch → falseBranch
+  // Uses depth-aware matching to find the ternary colon at depth 0,
+  // skipping colons inside nested object literals ({ key: value }).
+  result = replaceInternalPrefixedTernaries(result);
   result = result.replace(/!__\w+\s*\?\s*/g, '');
   result = result.replace(/(\([^)]+!==\s*undefined\))\s*\?\?\s*false/g, '$1');
+  return result;
+}
+
+/**
+ * Replace `__xxx ? trueBranch : falseBranch` with just `falseBranch`.
+ * Uses depth counting to find the ternary `:` at brace/paren depth 0,
+ * handling nested `{ key: value }` objects in the true-branch.
+ */
+function replaceInternalPrefixedTernaries(text: string): string {
+  const pattern = /\b__\w+\s*\?\s*/g;
+  let result = text;
+  let match;
+  while ((match = pattern.exec(result)) !== null) {
+    const start = match.index;
+    const afterQuestion = start + match[0].length;
+    // Walk forward from the true-branch, tracking brace/paren depth
+    let depth = 0;
+    let colonPos = -1;
+    for (let i = afterQuestion; i < result.length; i++) {
+      const ch = result[i];
+      if (ch === '{' || ch === '(' || ch === '[') { depth++; continue; }
+      if (ch === '}' || ch === ')' || ch === ']') { depth--; continue; }
+      if (ch === ':' && depth === 0) { colonPos = i; break; }
+      // Stop at statement terminators at depth 0 (but NOT newlines — ternaries span lines)
+      if (ch === ';' && depth === 0) break;
+    }
+    if (colonPos === -1) continue;
+    // Skip whitespace after the colon (including newlines and indentation)
+    let falseStart = colonPos + 1;
+    while (falseStart < result.length && /\s/.test(result[falseStart])) falseStart++;
+    // Replace the entire `__xxx ? trueBranch : ` with nothing, keeping falseBranch
+    result = result.slice(0, start) + result.slice(falseStart);
+    pattern.lastIndex = start; // reset to re-scan from the replacement point
+  }
   return result;
 }
 
@@ -480,6 +563,55 @@ export function cleanSimplifyUndefined(text: string): string {
   result = result.replace(/!null\b/g, 'true');
   result = result.replace(/\bundefined\s*&&\s*[^;,\n)]+/g, 'undefined');
   result = result.replace(/\(\s*undefined\s*\|\|\s*\{\s*\}\s*\)/g, '{}');
+  return result;
+}
+
+/**
+ * Remove if-blocks whose body is empty (whitespace-only after balanced brace matching).
+ * Handles multiline blocks and nested parentheses in conditions.
+ */
+function removeEmptyIfBlocks(text: string): string {
+  // Find `if` keyword followed by `(`
+  const ifKeyword = /\bif\s*\(/g;
+  let result = text;
+  let match;
+  while ((match = ifKeyword.exec(result)) !== null) {
+    // Find balanced closing paren for the condition
+    const condOpen = match.index + match[0].length - 1; // position of `(`
+    let depth = 1;
+    let i = condOpen + 1;
+    while (i < result.length && depth > 0) {
+      if (result[i] === '(') depth++;
+      else if (result[i] === ')') depth--;
+      i++;
+    }
+    if (depth !== 0) continue;
+    // Skip whitespace to find opening brace
+    let j = i;
+    while (j < result.length && /\s/.test(result[j])) j++;
+    if (result[j] !== '{') continue;
+    const openBrace = j;
+    // Find balanced closing brace
+    depth = 1;
+    let k = openBrace + 1;
+    while (k < result.length && depth > 0) {
+      if (result[k] === '{') depth++;
+      else if (result[k] === '}') depth--;
+      k++;
+    }
+    if (depth !== 0) continue;
+    const closeBrace = k - 1;
+    const body = result.slice(openBrace + 1, closeBrace);
+    if (body.trim() === '') {
+      // Remove the entire if-block including leading whitespace on its line
+      let lineStart = match.index;
+      while (lineStart > 0 && result[lineStart - 1] !== '\n') lineStart--;
+      let lineEnd = closeBrace + 1;
+      while (lineEnd < result.length && (result[lineEnd] === '\n' || result[lineEnd] === '\r')) lineEnd++;
+      result = result.slice(0, lineStart) + result.slice(lineEnd);
+      ifKeyword.lastIndex = lineStart;
+    }
+  }
   return result;
 }
 
