@@ -180,12 +180,39 @@ function extractHelperHooks(
 ): void {
   const hookResult = extractHooks(body, sourceFile, hookRegistry);
 
-  // Only extract standalone handlers from helpers that have effects.
-  // Effects reference handlers by name, and both get promoted to class level.
-  // Helpers without effects keep their handlers as local function scope.
-  const handlers = hookResult.effects.length > 0
-    ? extractHandlers(body, sourceFile)
-    : [];
+  // Only extract standalone handlers and referenced constants from helpers
+  // that have effects. Effects and handlers reference these by name, and
+  // all need class-level scope. Helpers without effects keep their locals.
+  const hasEffects = hookResult.effects.length > 0;
+  const handlers = hasEffects ? extractHandlers(body, sourceFile) : [];
+
+  // Find non-hook, non-handler constants that are referenced by extracted
+  // effects or handlers. Only these specific constants need promotion.
+  const constants: import('../ir/types.js').ComputedIR[] = [];
+  if (hasEffects) {
+    // Collect all names referenced in effect and handler bodies
+    const referencedNames = new Set<string>();
+    for (const e of hookResult.effects) {
+      for (const m of e.body.matchAll(/\b([a-zA-Z_]\w+)\b/g)) referencedNames.add(m[1]);
+    }
+    for (const h of handlers) {
+      for (const m of h.body.matchAll(/\b([a-zA-Z_]\w+)\b/g)) referencedNames.add(m[1]);
+    }
+
+    const handlerNames = new Set(handlers.map(h => h.name));
+    for (const stmt of body.statements) {
+      if (!ts.isVariableStatement(stmt)) continue;
+      for (const decl of stmt.declarationList.declarations) {
+        if (!ts.isIdentifier(decl.name) || !decl.initializer) continue;
+        const name = decl.name.text;
+        if (!referencedNames.has(name)) continue;
+        if (isHookCall(decl.initializer)) continue;
+        if (handlerNames.has(name)) continue;
+        if (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer)) continue;
+        constants.push({ name, expression: getNodeText(decl.initializer, sourceFile), deps: [] });
+      }
+    }
+  }
 
   // Nothing to do if the helper has no hooks or handlers
   const hasHooks =
@@ -197,10 +224,11 @@ function extractHelperHooks(
     hookResult.controllers.length > 0 ||
     hookResult.contexts.length > 0 ||
     hookResult.preservedVars.length > 0;
-  if (!hasHooks && handlers.length === 0) return;
+  if (!hasHooks && handlers.length === 0 && constants.length === 0) return;
 
-  // Merge extracted handlers into the hook result so they're all in one place
+  // Merge extracted handlers and constants into the hook result
   hookResult.handlers.push(...handlers);
+  hookResult.computedValues.push(...constants);
   helper.hooks = hookResult;
 
   // Strip hook call statements AND extracted handler declarations from the
@@ -209,14 +237,15 @@ function extractHelperHooks(
   if (helperStart === -1) return;
 
   const handlerNames = new Set(handlers.map(h => h.name));
+  const constantNames = new Set(constants.map(c => c.name));
   const ranges: Array<{ start: number; end: number }> = [];
   for (const stmt of body.statements) {
     let shouldStrip = false;
     if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
         if (decl.initializer && isHookCall(decl.initializer)) { shouldStrip = true; break; }
-        // Strip handler declarations that were extracted
-        if (ts.isIdentifier(decl.name) && handlerNames.has(decl.name.text)) { shouldStrip = true; break; }
+        // Strip handler and constant declarations that were extracted
+        if (ts.isIdentifier(decl.name) && (handlerNames.has(decl.name.text) || constantNames.has(decl.name.text))) { shouldStrip = true; break; }
       }
     }
     if (ts.isExpressionStatement(stmt) && isHookCall(stmt.expression)) {
