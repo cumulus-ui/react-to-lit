@@ -334,6 +334,23 @@ describe('parseComponent', () => {
   });
 
   // -------------------------------------------------------------------------
+  // PieChart — destructured useMemo
+  // -------------------------------------------------------------------------
+  describe('PieChart (destructured useMemo)', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'pie-chart'));
+
+    it('should capture pieData from destructured useMemo return', () => {
+      // pie-chart has: const { pieData, dataSum } = useMemo(() => { ... }, [...])
+      // Destructured useMemo bindings should be preserved as skippedHookVars.
+      expect(ir.skippedHookVars).toContain('pieData');
+    });
+
+    it('should capture dataSum from destructured useMemo return', () => {
+      expect(ir.skippedHookVars).toContain('dataSum');
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // ButtonGroup — loop body with local variables
   // -------------------------------------------------------------------------
   describe('ButtonGroup (loop-body locals)', () => {

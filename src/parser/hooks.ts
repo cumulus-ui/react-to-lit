@@ -314,24 +314,31 @@ function processUseMemo(
   sourceFile: ts.SourceFile,
   result: HookExtractionResult,
 ): void {
-  if (!ts.isIdentifier(decl.name)) return;
   if (call.arguments.length < 1) return;
 
   const factory = call.arguments[0];
   if (!ts.isArrowFunction(factory) && !ts.isFunctionExpression(factory)) return;
 
-  const expression = getNodeText(factory.body, sourceFile);
+  // Simple case: const foo = useMemo(() => expr, deps)
+  if (ts.isIdentifier(decl.name)) {
+    const expression = getNodeText(factory.body, sourceFile);
 
-  let deps: string[] = [];
-  if (call.arguments.length >= 2 && ts.isArrayLiteralExpression(call.arguments[1])) {
-    deps = call.arguments[1].elements.map((e) => getNodeText(e, sourceFile));
+    let deps: string[] = [];
+    if (call.arguments.length >= 2 && ts.isArrayLiteralExpression(call.arguments[1])) {
+      deps = call.arguments[1].elements.map((e) => getNodeText(e, sourceFile));
+    }
+
+    result.computedValues.push({
+      name: decl.name.text,
+      expression,
+      deps,
+    });
+    return;
   }
 
-  result.computedValues.push({
-    name: decl.name.text,
-    expression,
-    deps,
-  });
+  // Destructured case: const { a, b } = useMemo(() => ({ a, b }), deps)
+  // Preserve the binding names so the identifier rewriter can map them.
+  collectPreservedVars(decl, result.preservedVars);
 }
 
 function processUseCallback(
