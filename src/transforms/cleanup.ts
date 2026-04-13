@@ -213,7 +213,7 @@ function cleanHandlerBody(body: string): string {
   // const analyticsComponentMetadata = { ... };
   // const componentAnalyticsMetadata = { ... };
   result = result.replace(/^\s*const\s+(?:analytics(?:Component)?Metadata|componentAnalyticsMetadata)\s*(?::\s*\w+\s*)?=[^;]*;\s*$/gm, '');
-  result = result.replace(/^\s*(?:analytics(?:Component)?Metadata|componentAnalyticsMetadata)\.\w+\s*=[^;]*;\s*$/gm, '');
+  result = result.replace(/^\s*(?:analytics(?:Component)?Metadata|componentAnalyticsMetadata)(?:\.\w+)+\s*=[^;]*;\s*$/gm, '');
 
   // Note: React type annotations (React.XxxEvent, React.Ref, etc.) are
   // handled by the cleanup-react-types transform — not duplicated here.

@@ -366,7 +366,8 @@ function buildGlobalDeclarations(generated: GeneratedComponent[]): string {
   // Detect generic arity by scanning for Name<T, U> patterns.
   const allOutput = generated.map(g => g.output).join('\n');
   const missingTypes = new Map<string, number>(); // name → max generic arity
-  const missingTypePattern = /\b(?:extends|implements|:|\|)\s*([A-Z]\w+)(?:<([^>]*)>)?/g;
+  // Broader scan: any PascalCase name in type positions
+  const missingTypePattern = /(?:extends|implements|:|\||<|,)\s*([A-Z][a-z]\w*)(?:<([^>]*)>)?/g;
   let m: RegExpExecArray | null;
   const knownNames = new Set([
     'HTMLElement', 'HTMLDivElement', 'HTMLInputElement', 'Element', 'Event',
@@ -381,13 +382,36 @@ function buildGlobalDeclarations(generated: GeneratedComponent[]): string {
   const declaredText = lines.join('\n');
   while ((m = missingTypePattern.exec(allOutput)) !== null) {
     const name = m[1];
+    if (!knownNames.has(name)) {
+      if (!declaredText.includes(`declare type ${name}`) && !declaredText.includes(`declare interface ${name}`)) {
+        const genericArgs = m[2];
+        const arity = genericArgs ? genericArgs.split(',').length : 0;
+        const current = missingTypes.get(name) ?? 0;
+        missingTypes.set(name, Math.max(current, arity));
+      }
+    }
+    // Also scan generic args for type names: ReadonlyArray<Series> → Series
+    if (m[2]) {
+      const innerPattern = /\b([A-Z][a-z]\w*)(?:<([^>]*)>)?/g;
+      let inner: RegExpExecArray | null;
+      while ((inner = innerPattern.exec(m[2])) !== null) {
+        const innerName = inner[1];
+        if (knownNames.has(innerName)) continue;
+        if (declaredText.includes(`declare type ${innerName}`) || declaredText.includes(`declare interface ${innerName}`)) continue;
+        const innerArity = inner[2] ? inner[2].split(',').length : 0;
+        const current = missingTypes.get(innerName) ?? 0;
+        missingTypes.set(innerName, Math.max(current, innerArity));
+      }
+    }
+  }
+  // Also do a direct scan for Name< patterns to detect generic type usage.
+  // [^>]* doesn't handle nested <>, so just look for Name<anything to set arity >= 1.
+  const genericUsagePattern = /\b([A-Z][a-z]\w*)<(?!\/)/g;
+  while ((m = genericUsagePattern.exec(allOutput)) !== null) {
+    const name = m[1];
     if (knownNames.has(name)) continue;
-    if (declaredText.includes(`interface ${name}`) || declaredText.includes(`type ${name}`)) continue;
-    // Count generic params
-    const genericArgs = m[2];
-    const arity = genericArgs ? genericArgs.split(',').length : 0;
     const current = missingTypes.get(name) ?? 0;
-    missingTypes.set(name, Math.max(current, arity));
+    missingTypes.set(name, Math.max(current, 1));
   }
   if (missingTypes.size > 0) {
     lines.push('');
