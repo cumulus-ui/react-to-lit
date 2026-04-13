@@ -236,6 +236,9 @@ function cleanHandlerBody(body: string): string {
   result = result.replace(/\bundefined\s*&&\s*[^;,\n)]+/g, 'undefined');
   // (undefined || {}) → {}
   result = result.replace(/\(\s*undefined\s*\|\|\s*\{\s*\}\s*\)/g, '{}');
+  // (expr !== undefined) ?? false → (expr !== undefined)
+  // The comparison already returns boolean, so ?? false is redundant.
+  result = result.replace(/(\([^)]*!==\s*undefined[^)]*\))\s*\?\?\s*false/g, '$1');
 
   return result;
 }
@@ -300,6 +303,9 @@ function cleanExpressionText(expr: string): string {
   // !undefined → true, !false → true, !null → true
   result = result.replace(/!undefined\b/g, 'true');
   result = result.replace(/!null\b/g, 'true');
+  // (expr !== undefined) ?? false → (expr !== undefined)
+  // The comparison already returns boolean, so ?? false is unreachable
+  result = result.replace(/(\([^)]+!==\s*undefined\))\s*\?\?\s*false/g, '$1');
   return result;
 }
 
@@ -363,6 +369,8 @@ function cleanInternalPrefixedRefs(text: string): string {
   result = result.replace(/\b__\w+\s*\?\s*[^:]+:\s*/g, '');
   // !__xxx ? exprA : exprB → exprA (negated: take the then branch)
   result = result.replace(/!__\w+\s*\?\s*/g, '');
+  // Simplify unreachable nullish coalescing: (expr !== undefined) ?? false → (expr !== undefined)
+  result = result.replace(/(\([^)]+!==\s*undefined\))\s*\?\?\s*false/g, '$1');
   return result;
 }
 
