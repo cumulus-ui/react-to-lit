@@ -361,6 +361,48 @@ function buildGlobalDeclarations(generated: GeneratedComponent[]): string {
     lines.push('}');
   }
 
+  // Scan generated output for undeclared type-like names (PascalCase) that
+  // come from stripped imports. Declare them as ambient types to avoid TS2304.
+  // Detect generic arity by scanning for Name<T, U> patterns.
+  const allOutput = generated.map(g => g.output).join('\n');
+  const missingTypes = new Map<string, number>(); // name → max generic arity
+  const missingTypePattern = /\b(?:extends|implements|:|\|)\s*([A-Z]\w+)(?:<([^>]*)>)?/g;
+  let m: RegExpExecArray | null;
+  const knownNames = new Set([
+    'HTMLElement', 'HTMLDivElement', 'HTMLInputElement', 'Element', 'Event',
+    'EventTarget', 'Node', 'Document', 'Window', 'CustomEvent', 'FocusEvent',
+    'KeyboardEvent', 'MouseEvent', 'PropertyValues', 'TemplateResult',
+    'CSSResult', 'CSSResultGroup', 'LitElement', 'Map', 'Set', 'Array',
+    'Record', 'Partial', 'Required', 'Readonly', 'Promise', 'Date',
+    'RegExp', 'Error', 'Function', 'Object', 'Boolean', 'Number', 'String',
+    'CsBaseElement', 'FormControlMixin', 'ControllableController',
+    'Base', 'Type', 'Keys', 'Key',
+  ]);
+  const declaredText = lines.join('\n');
+  while ((m = missingTypePattern.exec(allOutput)) !== null) {
+    const name = m[1];
+    if (knownNames.has(name)) continue;
+    if (declaredText.includes(`interface ${name}`) || declaredText.includes(`type ${name}`)) continue;
+    // Count generic params
+    const genericArgs = m[2];
+    const arity = genericArgs ? genericArgs.split(',').length : 0;
+    const current = missingTypes.get(name) ?? 0;
+    missingTypes.set(name, Math.max(current, arity));
+  }
+  if (missingTypes.size > 0) {
+    lines.push('');
+    lines.push('// Ambient type stubs for types from stripped imports');
+    const typeParamNames = ['T', 'U', 'V', 'W'];
+    for (const [name, arity] of [...missingTypes.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      if (arity > 0) {
+        const params = typeParamNames.slice(0, arity).map(p => `${p} = any`).join(', ');
+        lines.push(`declare type ${name}<${params}> = any;`);
+      } else {
+        lines.push(`declare type ${name} = any;`);
+      }
+    }
+  }
+
   return lines.join('\n') + '\n';
 }
 

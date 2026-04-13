@@ -113,8 +113,14 @@ function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
   for (const h of ir.helpers) {
     if (map.has(h.name) || fileConstantNames.has(h.name)) continue;
     const trimmed = h.source.trimStart();
-    // Skip constant declarations (not functions)
-    if (trimmed.startsWith('const ') || trimmed.startsWith('let ') || trimmed.startsWith('var ')) continue;
+    // Skip constant declarations that are NOT function expressions/arrows.
+    // Constants that are functions containing html`` DO become class methods
+    // and need to be in the member map.
+    if (trimmed.startsWith('const ') || trimmed.startsWith('let ') || trimmed.startsWith('var ')) {
+      // Check if it's a function (arrow or function expression) with html``
+      const isFuncWithTemplate = /=\s*(?:\([^)]*\)|[\w,\s]+)\s*=>/.test(trimmed) && h.source.includes('html`');
+      if (!isFuncWithTemplate) continue;
+    }
     // Only render helpers (with html`` templates) become class methods
     if (!h.source.includes('html`')) continue;
     map.set(h.name, { member: `_${h.name}` });

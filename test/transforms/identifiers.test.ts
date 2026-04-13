@@ -413,6 +413,20 @@ describe('rewriteIdentifiers', () => {
       const result = rewriteIdentifiers(ir);
       expect(result.bodyPreamble[0]).toBe('const doubled = this.value * 2;');
     });
+
+    it('rewrites const arrow render helper references in other helpers', () => {
+      // const typeToIcon = (size) => ({ ... html`...` })
+      // Used as typeToIcon(size) in another helper — should become this._typeToIcon(size)
+      const ir = minimalIR({
+        helpers: [
+          { name: 'typeToIcon', source: "const typeToIcon = (size) => ({ error: html`<el-icon name=\"error\" .size=${size}></el-icon>` })" },
+          { name: 'renderIcon', source: 'function renderIcon(type, size) { return html`<span>${typeToIcon(size)[type]}</span>`; }' },
+        ],
+      });
+      const result = rewriteIdentifiers(ir);
+      // typeToIcon should be in member map as a render helper (const arrow with html``)
+      expect(result.helpers[1].source).toContain('this._typeToIcon(size)');
+    });
   });
 
   // ---------------------------------------------------------------------------
