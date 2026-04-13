@@ -153,6 +153,21 @@ describe('stripFunctionCalls', () => {
     const input = 'warnOnce(\n  \'Comp\',\n  `The \\`dateOnly\\` flag changed from "${prevDateOnly}" to "${dateOnly}"`\n);\nbar();';
     expect(stripFunctionCalls(input, 'warnOnce')).toBe('bar();');
   });
+
+  it('handles the exact date-range-picker warnOnce pattern', () => {
+    const input = `{
+      if (prevDateOnly !== undefined && prevDateOnly !== dateOnly) {
+        warnOnce(
+          'DateRangePicker',
+          \`The provided \\\`dateOnly\\\` flag has been changed from "\${prevDateOnly}" to "\${dateOnly}" which can lead to unexpected value format. Consider using separate components.\`
+        );
+      }
+    }`;
+    const result = stripFunctionCalls(input, 'warnOnce');
+    expect(result).toContain('prevDateOnly !== undefined');
+    expect(result).toContain('prevDateOnly !== dateOnly');
+    expect(result).not.toContain('warnOnce');
+  });
 });
 
 // ---------------------------------------------------------------------------
