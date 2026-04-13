@@ -48,8 +48,6 @@ export function transformEvents(ir: ComponentIR): ComponentIR {
     }
   }
 
-  if (eventProps.size === 0) return ir;
-
   const rewrite = (text: string) => rewriteEventCalls(text, eventProps);
 
   // Transform all code bodies
@@ -217,6 +215,20 @@ function rewriteEventCalls(
       `fireNonCancelableEvent(this, '${eventName}', `,
     );
   }
+
+  // Catch-all: fire*Event(expr.onXxx, ...) where onXxx was not matched
+  // by per-prop patterns above. Handles nested event callbacks in compound
+  // props, e.g., fireCancelableEvent(identity.onFollow, {}, event).
+  // The event name is derived from the onXxx callback name using the
+  // standard React event naming convention (onFollow → follow).
+  result = result.replace(
+    /\bfire(NonCancelable|Cancelable|Keyboard)Event\(\s*[\w.]+\.(on[A-Z]\w*)\b/g,
+    (_match, type: string, callbackName: string) => {
+      const eventName = toCustomEventName(callbackName);
+      const funcName = type === 'Keyboard' ? 'fireNonCancelableEvent' : `fire${type}Event`;
+      return `${funcName}(this, '${eventName}'`;
+    },
+  );
 
   return result;
 }
