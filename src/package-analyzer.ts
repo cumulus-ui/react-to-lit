@@ -3,7 +3,18 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
-export type PropClassification = 'prop' | 'event' | 'slot';
+export type PropClassification = 'prop' | 'event' | 'slot' | 'passthrough';
+
+export interface ClassifiedProp {
+  classification: PropClassification;
+  deprecated: boolean;
+}
+
+export interface RefMethod {
+  name: string;
+  signature: string;
+  jsDoc: string;
+}
 
 export class PackageAnalyzer {
   readonly program: ts.Program;
@@ -38,16 +49,18 @@ export class PackageAnalyzer {
     return this.checker.getDeclaredTypeOfSymbol(propsSym);
   }
 
-  classifyProp(memberSym: ts.Symbol): PropClassification {
+  classifyProp(memberSym: ts.Symbol): ClassifiedProp {
+    const deprecated = memberSym.getJsDocTags().some(t => t.name === 'deprecated');
     const type = this.checker.getTypeOfSymbol(memberSym);
     const stripped = this.stripNullUndefined(type);
-    if (this.isEventHandler(stripped)) return 'event';
-    if (this.isReactType(stripped)) return 'slot';
-    return 'prop';
+    if (this.isEventHandler(stripped)) return { classification: 'event', deprecated };
+    if (this.isReactType(stripped)) return { classification: 'slot', deprecated };
+    if (this.isPassthrough(stripped)) return { classification: 'passthrough', deprecated };
+    return { classification: 'prop', deprecated };
   }
 
-  classifyAllProps(propsType: ts.Type): Map<string, PropClassification> {
-    const result = new Map<string, PropClassification>();
+  classifyAllProps(propsType: ts.Type): Map<string, ClassifiedProp> {
+    const result = new Map<string, ClassifiedProp>();
     for (const member of propsType.getProperties()) {
       result.set(member.name, this.classifyProp(member));
     }
@@ -117,6 +130,49 @@ export class PackageAnalyzer {
     return sym.getDeclarations()?.some(d =>
       d.getSourceFile().fileName.includes('lib.dom'),
     ) ?? false;
+  }
+
+  getRefMethods(propsTypeName: string, propsFile: string): RefMethod[] {
+    const sf = this.program.getSourceFile(propsFile);
+    if (!sf) return [];
+    const modSym = this.checker.getSymbolAtLocation(sf);
+    if (!modSym) return [];
+    const propsSym = this.checker.getExportsOfModule(modSym).find(e => e.name === propsTypeName);
+    if (!propsSym?.exports) return [];
+    const refSym = propsSym.exports.get('Ref' as ts.__String);
+    if (!refSym) return [];
+    const refType = this.checker.getDeclaredTypeOfSymbol(refSym);
+    const methods: RefMethod[] = [];
+    for (const member of refType.getProperties()) {
+      const memberType = this.checker.getTypeOfSymbol(member);
+      const sigs = memberType.getCallSignatures();
+      if (!sigs.length) continue;
+      methods.push({
+        name: member.name,
+        signature: this.checker.typeToString(memberType),
+        jsDoc: ts.displayPartsToString(member.getDocumentationComment(this.checker)),
+      });
+    }
+    return methods;
+  }
+
+  private isPassthrough(type: ts.Type): boolean {
+    const members = type.getProperties();
+    if (members.length < 20) return false;
+    for (const member of members) {
+      const memberType = this.checker.getTypeOfSymbol(member);
+      const stripped = this.stripNullUndefined(memberType);
+      const sigs = stripped.getCallSignatures();
+      if (!sigs.length) continue;
+      const params = sigs[0].getParameters();
+      if (!params.length) continue;
+      const paramType = this.checker.getTypeOfSymbol(params[0]);
+      const paramSym = paramType.aliasSymbol ?? paramType.getSymbol?.();
+      if (paramSym?.getDeclarations()?.some(d => d.getSourceFile().fileName.includes('@types/react'))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private isReactType(type: ts.Type): boolean {
