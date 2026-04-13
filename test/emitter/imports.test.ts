@@ -2,7 +2,36 @@
  * Unit tests for emitter/imports.ts — ImportCollector.
  */
 import { describe, it, expect } from 'vitest';
-import { ImportCollector } from '../../src/emitter/imports.js';
+import { ImportCollector, collectImports } from '../../src/emitter/imports.js';
+import type { ComponentIR } from '../../src/ir/types.js';
+
+function minimalIR(overrides: Partial<ComponentIR> = {}): ComponentIR {
+  return {
+    name: 'Test',
+    tagName: 'el-test',
+    sourceFiles: [],
+    mixins: [],
+    props: [],
+    state: [],
+    effects: [],
+    refs: [],
+    handlers: [],
+    template: { kind: 'fragment', attributes: [], children: [] },
+    computedValues: [],
+    controllers: [],
+    contexts: [],
+    imports: [],
+    publicMethods: [],
+    helpers: [],
+    bodyPreamble: [],
+    localVariables: new Set(),
+    skippedHookVars: [],
+    fileConstants: [],
+    fileTypeDeclarations: [],
+    forwardRef: false,
+    ...overrides,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // ImportCollector.emit()
@@ -101,5 +130,55 @@ describe('ImportCollector', () => {
   it('handles empty collector', () => {
     const c = new ImportCollector();
     expect(c.emit()).toBe('');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// collectImports — IR import processing
+// ---------------------------------------------------------------------------
+
+describe('collectImports', () => {
+  it('preserves named imports alongside default imports from the same module', () => {
+    const ir = minimalIR({
+      // getChartStatus is used in a handler body
+      handlers: [{ name: 'h', body: 'const s = getChartStatus(data);', params: '' }],
+      imports: [{
+        moduleSpecifier: '../internal/components/chart-status',
+        defaultImport: 'ChartStatusContainer',
+        namedImports: ['getChartStatus'],
+      }],
+    });
+    const collector = collectImports(ir);
+    const output = collector.emit();
+    expect(output).toContain('getChartStatus');
+  });
+
+  it('includes named imports that are referenced in code', () => {
+    const ir = minimalIR({
+      handlers: [{ name: 'h', body: 'return isRtl(el);', params: '' }],
+      imports: [{
+        moduleSpecifier: '@lib/utils',
+        namedImports: ['isRtl', 'unusedFn'],
+      }],
+    });
+    const collector = collectImports(ir);
+    const output = collector.emit();
+    expect(output).toContain('isRtl');
+    expect(output).not.toContain('unusedFn');
+  });
+
+  it('drops default import when not referenced but keeps named imports', () => {
+    const ir = minimalIR({
+      handlers: [{ name: 'h', body: 'bar();', params: '' }],
+      imports: [{
+        moduleSpecifier: './mod',
+        defaultImport: 'Unused',
+        namedImports: ['bar'],
+      }],
+    });
+    const collector = collectImports(ir);
+    const output = collector.emit();
+    expect(output).toContain('bar');
+    expect(output).not.toContain('Unused');
   });
 });
