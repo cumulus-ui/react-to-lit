@@ -179,9 +179,9 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   const quickRewrite = (text: string) => rewriteQuickPatterns(text, ir);
 
   // AST-based rewrite using ts-morph
-  const astRewrite = (text: string, wrapperParams?: string) => {
+  const astRewrite = (text: string, wrapperParams?: string, isExpression?: boolean) => {
     const quick = quickRewrite(text);
-    return rewriteWithMorph(quick, memberMap, ir.localVariables, wrapperParams);
+    return rewriteWithMorph(quick, memberMap, ir.localVariables, wrapperParams, isExpression);
   };
 
   // Transform handlers (pass params so they're treated as locals in the body)
@@ -209,25 +209,25 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   // Transform prop default values (they may reference other props)
   const props = ir.props.map((p) => ({
     ...p,
-    default: p.default ? astRewrite(p.default) : p.default,
+    default: p.default ? astRewrite(p.default, undefined, true) : p.default,
   }));
 
   // Transform state initial values
   const state = ir.state.map((s) => ({
     ...s,
-    initialValue: astRewrite(s.initialValue),
+    initialValue: astRewrite(s.initialValue, undefined, true),
   }));
 
   // Transform ref initial values
   const refs = ir.refs.map((r) => ({
     ...r,
-    initialValue: astRewrite(r.initialValue),
+    initialValue: astRewrite(r.initialValue, undefined, true),
   }));
 
   // Transform controller constructor args
   const controllers = ir.controllers.map((c) => ({
     ...c,
-    constructorArgs: astRewrite(c.constructorArgs),
+    constructorArgs: astRewrite(c.constructorArgs, undefined, true),
   }));
 
   // Transform helpers
@@ -367,6 +367,7 @@ function rewriteWithMorph(
   memberMap: Map<string, MemberMapping>,
   componentLocalVars: Set<string>,
   wrapperParams?: string,
+  isExpression?: boolean,
 ): string {
   // Quick check: does the text contain any member names?
   let hasAny = false;
@@ -379,11 +380,17 @@ function rewriteWithMorph(
   if (!hasAny) return text;
 
   // Wrap in a function to make it a valid source file.
-  // If text looks like an object literal (starts with '{', no semicolons),
-  // wrap as an expression so the parser doesn't treat it as a block statement.
+  // If text looks like an object literal (starts with '{'), wrap as an
+  // expression so the parser doesn't treat it as a block statement.
+  // When the caller knows the text is an expression (computed values,
+  // initial values, etc.), always apply expression wrapping for '{'.
+  // Without this, object literals containing nested arrow functions
+  // with semicolons are misdetected as block statements.
   // Include wrapperParams so handler/method params are in scope as locals.
   const trimmed = text.trimStart();
-  const needsExprWrap = trimmed.startsWith('{') && !trimmed.includes(';');
+  const needsExprWrap = isExpression
+    ? trimmed.startsWith('{')
+    : (trimmed.startsWith('{') && !trimmed.includes(';'));
   const exprPrefix = needsExprWrap ? 'const __expr = ' : '';
   const prefix = `function __wrapper(${wrapperParams ?? ''}) {\n${exprPrefix}`;
   const suffix = '\n}';

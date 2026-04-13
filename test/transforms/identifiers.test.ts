@@ -817,4 +817,24 @@ describe('rewriteIdentifiers', () => {
       expect(tagProp?.default).toBe("this.sortable ? 'ol' : 'ul'");
     });
   });
+
+  describe('expression wrapping for object literals', () => {
+    it('handles shorthand properties in prop default object literals', () => {
+      // Prop default values are always expressions. Object literals starting
+      // with { that contain semicolons in nested arrow bodies must still be
+      // parsed as expressions, not block statements.
+      const ir = minimalIR({
+        props: [
+          { name: 'name', type: 'string', category: 'attribute' as const },
+          { name: 'config', type: 'object', category: 'property' as const,
+            default: `{ name, onBlur: e => { console.log(e); } }` },
+        ],
+      });
+      const result = rewriteIdentifiers(ir);
+      // Shorthand property must be expanded: name → name: this.name
+      expect(result.props[1].default).toContain('name: this.name');
+      // Must NOT produce bare `this.name` (invalid shorthand in object literal)
+      expect(result.props[1].default).not.toMatch(/{\s*this\.name/);
+    });
+  });
 });
