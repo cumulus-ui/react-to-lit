@@ -6,6 +6,7 @@
  */
 import type { ComponentIR } from '../ir/types.js';
 import { someInTemplate } from '../template-walker.js';
+import { collectIRText } from '../ir/transform-helpers.js';
 
 // ---------------------------------------------------------------------------
 // Import collector
@@ -141,18 +142,22 @@ export function collectImports(ir: ComponentIR): ImportCollector {
     collector.addDecorator('query');
   }
 
+  // Collect all IR text for reference-checking (used below for imports,
+  // directives, and any name-based decisions).
+  const allCode = collectIRText(ir);
+
   // nothing (for conditional rendering or other Lit patterns)
   if (hasConditionalRendering(ir.template)) {
     collector.addLit('nothing');
   }
 
   // classMap directive
-  if (irContains(ir, 'classMap(')) {
+  if (allCode.includes('classMap(')) {
     collector.addDirective('lit/directives/class-map.js', 'classMap');
   }
 
   // ifDefined directive
-  if (irContains(ir, 'ifDefined(')) {
+  if (allCode.includes('ifDefined(')) {
     collector.addDirective('lit/directives/if-defined.js', 'ifDefined');
   }
 
@@ -216,22 +221,6 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   const interfaceName = `${ir.name}Props`;
   collector.addType('./interfaces.js', interfaceName);
 
-  // Transform-added imports (from ir.imports) — only emit if identifiers are used
-  const allCode = [
-    ...ir.handlers.map(h => h.body + (h.params ?? '')),
-    ...ir.effects.map(e => e.body + (e.cleanup ?? '')),
-    ...ir.helpers.map(h => h.source),
-    ...ir.fileConstants,
-    ...ir.fileTypeDeclarations,
-    ...ir.bodyPreamble,
-    ...ir.computedValues.map(c => c.expression + (c.type ?? '')),
-    ...ir.publicMethods.map(m => m.body),
-    ...ir.state.map(s => s.initialValue + (s.type ?? '')),
-    ...ir.refs.map(r => r.initialValue + (r.type ?? '')),
-    ...ir.props.map(p => p.type),
-    templateToText(ir.template),
-  ].join('\n');
-
   // Also import 'nothing' if used anywhere in the output (not just templates)
   if (/\bnothing\b/.test(allCode)) {
     collector.addLit('nothing');
@@ -265,66 +254,12 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   return collector;
 }
 
-/** Flatten a template tree into text for identifier scanning. */
-function templateToText(node: import('../ir/types.js').TemplateNodeIR): string {
-  const parts: string[] = [];
-  if (node.expression) parts.push(node.expression);
-  for (const attr of node.attributes) {
-    if (attr.value) {
-      parts.push(typeof attr.value === 'string' ? attr.value : attr.value.expression);
-    }
-  }
-  if (node.condition) {
-    parts.push(node.condition.expression);
-    if (node.condition.alternate) parts.push(templateToText(node.condition.alternate));
-  }
-  if (node.loop) {
-    parts.push(node.loop.iterable);
-    if (node.loop.variable) parts.push(node.loop.variable);
-  }
-  for (const child of node.children) {
-    parts.push(templateToText(child));
-  }
-  return parts.join('\n');
-}
-
 // ---------------------------------------------------------------------------
 // Template analysis helpers
 // ---------------------------------------------------------------------------
 
 function hasConditionalRendering(node: import('../ir/types.js').TemplateNodeIR): boolean {
   return someInTemplate(node, (n) => !!n.condition);
-}
-
-/** Check if any attribute or expression in the template tree contains the given text. */
-function templateContains(node: import('../ir/types.js').TemplateNodeIR, needle: string): boolean {
-  return someInTemplate(node, (n) => {
-    for (const attr of n.attributes) {
-      if (attr.kind === 'classMap' && needle === 'classMap(') return true;
-      if (typeof attr.value === 'object' && attr.value.expression.includes(needle)) return true;
-      if (typeof attr.value === 'string' && attr.value.includes(needle)) return true;
-    }
-    return n.expression?.includes(needle) ?? false;
-  });
-}
-
-/** Check if any IR code body (handlers, effects, helpers, etc.) contains the given text. */
-function codeBodyContains(ir: ComponentIR, needle: string): boolean {
-  for (const h of ir.handlers) { if (h.body.includes(needle)) return true; }
-  for (const e of ir.effects) {
-    if (e.body.includes(needle)) return true;
-    if (e.cleanup?.includes(needle)) return true;
-  }
-  for (const h of ir.helpers) { if (h.source.includes(needle)) return true; }
-  for (const s of ir.bodyPreamble) { if (s.includes(needle)) return true; }
-  for (const m of ir.publicMethods) { if (m.body.includes(needle)) return true; }
-  for (const c of ir.computedValues) { if (c.expression.includes(needle)) return true; }
-  return false;
-}
-
-/** Check if any part of the IR (template + code bodies) contains the given text. */
-function irContains(ir: ComponentIR, needle: string): boolean {
-  return templateContains(ir.template, needle) || codeBodyContains(ir, needle);
 }
 
 // ---------------------------------------------------------------------------

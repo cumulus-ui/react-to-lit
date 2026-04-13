@@ -15,7 +15,7 @@
  * Scans all code: handlers, effects, helpers, and template expressions.
  */
 import type { ComponentIR, TemplateNodeIR } from '../ir/types.js';
-import { mapIRText } from '../ir/transform-helpers.js';
+import { mapIRText, collectIRText } from '../ir/transform-helpers.js';
 import { toCustomEventName, escapeRegex } from '../naming.js';
 import { walkTemplate } from '../template-walker.js';
 
@@ -59,13 +59,7 @@ export function transformEvents(ir: ComponentIR): ComponentIR {
   const template = rewriteTemplateEvents(ir.template, eventProps);
 
   // Check if we need event import
-  const allCode = [
-    ...transformed.handlers.map((h) => h.body),
-    ...transformed.effects.map((e) => e.body),
-    ...transformed.helpers.map((h) => h.source),
-    ...transformed.publicMethods.map((m) => m.body),
-    ...transformed.bodyPreamble,
-  ].join('\n');
+  const allCode = collectIRText({ ...transformed, template });
 
   const needsNonCancelableImport = allCode.includes('fireNonCancelableEvent(this,');
   const needsCancelableImport = hasCancelable && allCode.includes('fireCancelableEvent(this,');

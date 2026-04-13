@@ -7,6 +7,7 @@
  * new IR fields are never forgotten.
  */
 import type { ComponentIR } from './types.js';
+import { walkTemplate } from '../template-walker.js';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -80,4 +81,61 @@ export function mapIRText(
     fileTypeDeclarations: ir.fileTypeDeclarations.map(fn),
     fileConstants: ir.fileConstants.map(fn),
   };
+}
+
+// ---------------------------------------------------------------------------
+// IR text collection — for reference-checking (imports, code scanning)
+// ---------------------------------------------------------------------------
+
+/**
+ * Collect all code text from the IR into a single string.
+ *
+ * Used for reference-checking: determining whether a name (import, type,
+ * function) appears anywhere in the generated output. Includes code bodies,
+ * type annotations, template expressions, and constant declarations.
+ */
+export function collectIRText(ir: ComponentIR): string {
+  const parts: string[] = [];
+
+  for (const h of ir.handlers) {
+    parts.push(h.body);
+    if (h.params) parts.push(h.params);
+    if (h.returnType) parts.push(h.returnType);
+  }
+  for (const e of ir.effects) {
+    parts.push(e.body);
+    if (e.cleanup) parts.push(e.cleanup);
+  }
+  for (const h of ir.helpers) parts.push(h.source);
+  for (const m of ir.publicMethods) {
+    parts.push(m.body);
+    if (m.params) parts.push(m.params);
+  }
+  for (const c of ir.computedValues) {
+    parts.push(c.expression);
+    if (c.type) parts.push(c.type);
+  }
+  for (const s of ir.state) {
+    parts.push(s.initialValue);
+    if (s.type) parts.push(s.type);
+  }
+  for (const r of ir.refs) {
+    parts.push(r.initialValue);
+    if (r.type) parts.push(r.type);
+  }
+  for (const c of ir.controllers) parts.push(c.constructorArgs);
+  for (const p of ir.props) parts.push(p.type);
+  parts.push(...ir.bodyPreamble);
+  parts.push(...ir.fileConstants);
+  parts.push(...ir.fileTypeDeclarations);
+
+  // Template expressions
+  walkTemplate(ir.template, {
+    expression: (expr) => { parts.push(expr); return expr; },
+    attributeExpression: (expr) => { parts.push(expr); return expr; },
+    conditionExpression: (expr) => { parts.push(expr); return expr; },
+    loopIterable: (expr) => { parts.push(expr); return expr; },
+  });
+
+  return parts.join('\n');
 }

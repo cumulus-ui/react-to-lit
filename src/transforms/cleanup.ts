@@ -224,22 +224,31 @@ function cleanHandlerBody(body: string): string {
   // Simplify dead-code patterns left by rest/__ variable cleanup.
   // undefined?.xxx → undefined (optional chain on undefined)
   result = result.replace(/\bundefined\?\.\w+/g, 'undefined');
+  result = cleanSimplifyUndefined(result);
+
+  return result;
+}
+
+/**
+ * Simplify expressions involving `undefined` that result from stripping
+ * infrastructure variables. Applied in both code bodies and template
+ * expressions to reduce always-true/always-false patterns.
+ */
+function cleanSimplifyUndefined(text: string): string {
+  let result = text;
   // undefined ?? expr → expr
   result = result.replace(/\bundefined\s*\?\?\s*/g, '');
   // (expr !== undefined) ?? false → (expr !== undefined) — comparison is never nullish
-  result = result.replace(/(!==\s*undefined\))\s*\?\?\s*false/g, '$1');
+  result = result.replace(/(\([^)]*!==\s*undefined[^)]*\))\s*\?\?\s*false/g, '$1');
   // undefined || expr → expr
   result = result.replace(/\bundefined\s*\|\|\s*/g, '');
-  // !undefined → true
+  // !undefined → true, !null → true
   result = result.replace(/!undefined\b/g, 'true');
+  result = result.replace(/!null\b/g, 'true');
   // undefined && expr → remove (undefined is falsy)
   result = result.replace(/\bundefined\s*&&\s*[^;,\n)]+/g, 'undefined');
   // (undefined || {}) → {}
   result = result.replace(/\(\s*undefined\s*\|\|\s*\{\s*\}\s*\)/g, '{}');
-  // (expr !== undefined) ?? false → (expr !== undefined)
-  // The comparison already returns boolean, so ?? false is redundant.
-  result = result.replace(/(\([^)]*!==\s*undefined[^)]*\))\s*\?\?\s*false/g, '$1');
-
   return result;
 }
 
@@ -299,13 +308,7 @@ function cleanExpressionText(expr: string): string {
   result = result.replace(ANALYTICS_SELECTORS_RE, "''");
   result = cleanRestSpreadRefs(result);
   result = cleanInternalPrefixedRefsInExpr(result);
-  // Simplify always-true/always-false expressions from cleanup artifacts:
-  // !undefined → true, !false → true, !null → true
-  result = result.replace(/!undefined\b/g, 'true');
-  result = result.replace(/!null\b/g, 'true');
-  // (expr !== undefined) ?? false → (expr !== undefined)
-  // The comparison already returns boolean, so ?? false is unreachable
-  result = result.replace(/(\([^)]+!==\s*undefined\))\s*\?\?\s*false/g, '$1');
+  result = cleanSimplifyUndefined(result);
   return result;
 }
 

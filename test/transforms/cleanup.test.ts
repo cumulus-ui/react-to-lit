@@ -189,7 +189,8 @@ describe('removeCloudscapeInternals', () => {
         },
       });
       const result = removeCloudscapeInternals(ir);
-      expect(result.template.children[0].expression).toBe('undefined || defaultId');
+      // restProps.controlId → undefined, then undefined || defaultId → defaultId
+      expect(result.template.children[0].expression).toBe('defaultId');
     });
 
     it('removes {...rest} spread from handler bodies', () => {

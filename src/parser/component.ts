@@ -113,7 +113,7 @@ export function findComponent(
   }
 
   // The entry delegates to the second file — find the implementation there
-  const internalComponent = findComponentInFile(internalFile);
+  const internalComponent = findComponentInFile(internalFile, true);
   if (!internalComponent) {
     throw new Error(`No component function found in ${internalFile.fileName}`);
   }
@@ -145,7 +145,7 @@ interface RawComponentInFile {
   propsTypeName?: string;
 }
 
-function findComponentInFile(sourceFile: ts.SourceFile): RawComponentInFile | null {
+function findComponentInFile(sourceFile: ts.SourceFile, isSecondaryFile = false): RawComponentInFile | null {
   // Strategy 1: export default function Foo(props) { ... }
   for (const stmt of sourceFile.statements) {
     if (ts.isFunctionDeclaration(stmt) && hasExportDefault(stmt) && stmt.body) {
@@ -189,9 +189,10 @@ function findComponentInFile(sourceFile: ts.SourceFile): RawComponentInFile | nu
     if (resolved) return resolved;
   }
 
-  // Strategy 5: For internal.tsx or implementation.tsx — look for the "main" export
-  const fileName = sourceFile.fileName.split('/').pop()?.replace(/\.(tsx?|jsx?)$/, '');
-  if (fileName === 'internal' || fileName === 'implementation') {
+  // Strategy 5: For secondary source files (implementation files that the entry
+  // delegates to) — look for exported components more broadly, since they may
+  // not follow the default-export or forwardRef patterns.
+  if (isSecondaryFile) {
     // Look for exported function declarations (with any name)
     for (const stmt of sourceFile.statements) {
       if (ts.isFunctionDeclaration(stmt) && stmt.name && stmt.body) {
