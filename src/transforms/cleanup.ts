@@ -196,6 +196,18 @@ function cleanHandlerBody(body: string): string {
   // Note: React type annotations (React.XxxEvent, React.Ref, etc.) are
   // handled by the cleanup-react-types transform — not duplicated here.
 
+  // Simplify dead-code patterns left by rest/__ variable cleanup.
+  // undefined ?? expr → expr
+  result = result.replace(/\bundefined\s*\?\?\s*/g, '');
+  // undefined || expr → expr
+  result = result.replace(/\bundefined\s*\|\|\s*/g, '');
+  // !undefined → true
+  result = result.replace(/!undefined\b/g, 'true');
+  // undefined && expr → remove (undefined is falsy)
+  result = result.replace(/\bundefined\s*&&\s*[^;,\n)]+/g, 'undefined');
+  // (undefined || {}) → {}
+  result = result.replace(/\(\s*undefined\s*\|\|\s*\{\s*\}\s*\)/g, '{}');
+
   return result;
 }
 
