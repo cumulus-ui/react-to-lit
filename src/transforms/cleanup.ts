@@ -296,6 +296,10 @@ function cleanExpressionText(expr: string): string {
   result = result.replace(ANALYTICS_SELECTORS_RE, "''");
   result = cleanRestSpreadRefs(result);
   result = cleanInternalPrefixedRefsInExpr(result);
+  // Simplify always-true/always-false expressions from cleanup artifacts:
+  // !undefined → true, !false → true, !null → true
+  result = result.replace(/!undefined\b/g, 'true');
+  result = result.replace(/!null\b/g, 'true');
   return result;
 }
 
