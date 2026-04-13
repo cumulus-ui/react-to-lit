@@ -392,5 +392,17 @@ describe('removeCloudscapeInternals', () => {
       expect(result.handlers[0].body).not.toContain('fireNonCancelableEvent');
       expect(result.handlers[0].body).toContain('this._visible = true');
     });
+
+    it('removes fire*Event calls with __xxx as first of multiple arguments', () => {
+      const ir = minimalIR({
+        handlers: [{
+          name: 'onBlur',
+          body: '            fireNonCancelableEvent(__onBlurWithDetail, { relatedTarget: e.relatedTarget });',
+          params: 'e: FocusEvent',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('fireNonCancelableEvent');
+    });
   });
 });

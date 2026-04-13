@@ -183,6 +183,9 @@ function cleanHandlerBody(body: string): string {
   // Remove function calls whose only argument is a __-prefixed var:
   // fireNonCancelableEvent(__onOpen); → remove entire statement
   result = result.replace(/^\s*\w+\(__\w+\)\s*;?\s*$/gm, '');
+  // Also remove fire*Event calls where the first argument is __-prefixed (multi-arg):
+  // fireNonCancelableEvent(__onBlurWithDetail, { relatedTarget }) → remove entire statement
+  result = result.replace(/^\s*fire\w+Event\(__\w+\b[^)]*\)\s*;?\s*$/gm, '');
 
   // Remove __-prefixed key-value pairs and shorthand properties from object literals.
   result = removeInternalPrefixedProperties(result);
