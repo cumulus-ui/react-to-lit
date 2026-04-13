@@ -32,13 +32,3 @@ export const REMOVE_ATTR_PREFIXES = config.cleanup.removeAttributePrefixes;
 
 /** Cloudscape helper functions that should be stripped. */
 export const INFRA_FUNCTIONS = new Set(config.cleanup.infraFunctions);
-
-// ---------------------------------------------------------------------------
-// Components to unwrap (keep children, discard wrapper)
-// ---------------------------------------------------------------------------
-
-/**
- * All components that should be unwrapped (children kept, wrapper removed).
- * Used by both the JSX pre-transformer and the IR component resolver.
- */
-export const UNWRAP_COMPONENTS = new Set(config.cleanup.unwrapComponents);

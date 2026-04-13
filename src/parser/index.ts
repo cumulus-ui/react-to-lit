@@ -25,7 +25,7 @@ import { createHookRegistry, type HookRegistry } from '../hooks/registry.js';
 import { containsHtmlTemplate } from '../text-utils.js';
 import { transformJsxToLit } from './jsx-transform.js';
 import { toTagName, escapeRegex } from '../naming.js';
-import { INFRA_FUNCTIONS, UNWRAP_COMPONENTS } from '../cloudscape-config.js';
+import { INFRA_FUNCTIONS } from '../cloudscape-config.js';
 import type { CompilerConfig } from '../config.js';
 
 // ---------------------------------------------------------------------------
@@ -752,12 +752,6 @@ function buildSkipImportNames(hookRegistry: HookRegistry, config?: CompilerConfi
     names.add('fireNonCancelableEvent');
     names.add('fireCancelableEvent');
     names.add('fireKeyboardEvent');
-  }
-
-  if (!knownComponents) {
-    for (const name of UNWRAP_COMPONENTS) {
-      names.add(name);
-    }
   }
 
   return names;
