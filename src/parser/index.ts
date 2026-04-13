@@ -25,7 +25,7 @@ import { createHookRegistry, type HookRegistry } from '../hooks/registry.js';
 import { containsHtmlTemplate } from '../text-utils.js';
 import { transformJsxToLit } from './jsx-transform.js';
 import { toTagName, escapeRegex } from '../naming.js';
-import { INFRA_FUNCTIONS } from '../cloudscape-config.js';
+import { INFRA_FUNCTIONS, UNWRAP_COMPONENTS } from '../cloudscape-config.js';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -239,7 +239,7 @@ export function parseComponent(
     controllers: hookResult.controllers,
     mixins,
     contexts: hookResult.contexts,
-    imports: extractSourceImports(sourceFile),
+    imports: extractSourceImports(sourceFile, buildSkipImportNames(hookRegistry)),
     styleImport,
     publicMethods: hookResult.publicMethods,
     helpers,
@@ -622,40 +622,50 @@ const SKIP_IMPORT_MODULES = new Set([
   'react', 'react-dom', 'react-dom/client', 'clsx',
 ]);
 
-/** Module specifier prefixes to exclude. */
-const SKIP_IMPORT_PREFIXES: string[] = [
-  // Individual hook names from @cloudscape-design/component-toolkit are
-  // in SKIP_IMPORT_NAMES instead — utility functions like getIsRtl and
-  // getLogicalBoundingClientRect should be preserved.
-];
+/**
+ * Build the set of import names to skip, derived from:
+ * - The hook registry (all registered hooks are handled by the hook pipeline)
+ * - Infrastructure functions (handled by the cleanup pipeline)
+ * - The emitter's own generated names (to avoid duplicates)
+ * - Wrapper components that are unwrapped by the template transform
+ *
+ * This keeps the parser general-purpose — no hardcoded library-specific names.
+ */
+function buildSkipImportNames(hookRegistry: HookRegistry): Set<string> {
+  const names = new Set<string>();
 
-/** Named imports to exclude (handled by other parts of the pipeline). */
-const SKIP_IMPORT_NAMES = new Set([
-  'applyDisplayName', 'getBaseProps', 'useBaseComponent', 'InternalBaseComponentProps',
-  'getAnalyticsMetadataProps', 'getAnalyticsMetadataAttribute', 'getAnalyticsLabelAttribute',
-  'copyAnalyticsMetadataAttribute',
-  'checkSafeUrl', 'warnOnce', 'FunnelMetrics',
-  // Event dispatchers — the emitter generates its own import
-  'fireNonCancelableEvent', 'fireCancelableEvent', 'fireKeyboardEvent',
-  // Toolkit hooks — handled by the hook registry / controller system
-  'useContainerQuery', 'useCurrentMode', 'useDensityMode', 'useResizeObserver',
-  'useSingleTabStopNavigation', 'useStableCallback', 'useUniqueId',
-  // Portal is a React component — no Lit equivalent
-  'Portal',
-  // React wrapper components converted by the component transform
-  'WithNativeAttributes',
-]);
+  // All registered hooks are handled by the hook extraction pipeline
+  for (const hookName of Object.keys(hookRegistry)) {
+    names.add(hookName);
+  }
 
-function extractSourceImports(sourceFile: ts.SourceFile): ImportIR[] {
+  // Infrastructure functions stripped by cleanup transforms
+  for (const fn of INFRA_FUNCTIONS) {
+    names.add(fn);
+  }
+
+  // Names the emitter generates its own imports for
+  names.add('fireNonCancelableEvent');
+  names.add('fireCancelableEvent');
+  names.add('fireKeyboardEvent');
+
+  // Wrapper components unwrapped by the template transform
+  for (const name of UNWRAP_COMPONENTS) {
+    names.add(name);
+  }
+
+  return names;
+}
+
+function extractSourceImports(sourceFile: ts.SourceFile, skipNames: Set<string>): ImportIR[] {
   const imports: ImportIR[] = [];
 
   for (const stmt of sourceFile.statements) {
     if (!ts.isImportDeclaration(stmt)) continue;
     const specifier = (stmt.moduleSpecifier as ts.StringLiteral).text;
 
-    // Skip React, clsx, toolkit hooks
+    // Skip React, clsx
     if (SKIP_IMPORT_MODULES.has(specifier)) continue;
-    if (SKIP_IMPORT_PREFIXES.some(p => specifier.startsWith(p))) continue;
     // Skip CSS module imports (handled by styleImport)
     if (specifier.endsWith('.css') || specifier.endsWith('.css.js')) continue;
     // Skip relative imports to React component files (index, internal) —
@@ -676,13 +686,13 @@ function extractSourceImports(sourceFile: ts.SourceFile): ImportIR[] {
 
     if (clause.name) {
       defaultImport = clause.name.text;
-      if (SKIP_IMPORT_NAMES.has(defaultImport)) defaultImport = undefined;
+      if (skipNames.has(defaultImport)) defaultImport = undefined;
     }
     if (clause.namedBindings) {
       if (ts.isNamedImports(clause.namedBindings)) {
         for (const el of clause.namedBindings.elements) {
           const name = (el.propertyName ?? el.name).text;
-          if (SKIP_IMPORT_NAMES.has(name)) continue;
+          if (skipNames.has(name)) continue;
           // Track individual type-only imports: import { type Foo } from '...'
           if (el.isTypeOnly) {
             typeOnlyNames.push(el.name.text);

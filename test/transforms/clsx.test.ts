@@ -90,7 +90,7 @@ describe('transformClsx — template attributes', () => {
     // A single styles.xxx reference becomes a plain class name string,
     // not a classMap object — classMap is unnecessary for a static class.
     expect(expr).toContain("'root'");
-    expect(attr.kind).toBe('attribute');
+    expect(attr.kind).toBe('static');
   });
 });
 

@@ -50,7 +50,7 @@ function transformClsxInTemplate(node: TemplateNodeIR): TemplateNodeIR {
         const expr = attr.value.expression.trim();
         if (/^styles[.[']/.test(expr) && !expr.includes(',') && !expr.includes('{')) {
           const className = replaceStylesInText(expr);
-          return { ...attr, kind: 'attribute' as const, value: { expression: className } };
+          return { ...attr, kind: 'static' as const, value: { expression: className } };
         }
         return transformClassAttribute(attr);
       }

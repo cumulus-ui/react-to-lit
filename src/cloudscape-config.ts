@@ -41,7 +41,8 @@ export const REMOVE_ATTR_PREFIXES = ['__', 'data-analytics', 'analytics'];
 /** Cloudscape helper functions that should be stripped. */
 export const INFRA_FUNCTIONS = new Set([
   'applyDisplayName', 'getBaseProps', 'getAnalyticsMetadataProps', 'checkSafeUrl',
-  'warnOnce', 'applyDefaults',
+  'warnOnce', 'applyDefaults', 'FunnelMetrics', 'copyAnalyticsMetadataAttribute',
+  'getAnalyticsLabelAttribute',
 ]);
 
 // ---------------------------------------------------------------------------
