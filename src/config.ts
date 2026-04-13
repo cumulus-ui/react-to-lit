@@ -140,13 +140,16 @@ export function createDefaultConfig(): CompilerConfig {
 export interface PackageComponent {
   name: string;
   dir: string;
+  propsType?: string;
+  propsFile?: string;
 }
 
 /**
  * Discover public components from an npm package's barrel export.
  *
- * Reads the package's index.d.ts and extracts every default export,
- * each of which is a React component.
+ * Uses the TypeScript type checker (with @types/react in scope) to
+ * resolve each export, determine if it's a React component, and
+ * extract its props type and source file from the type graph.
  */
 export function discoverComponents(packageName: string): PackageComponent[] {
   const require = createRequire(import.meta.url);
@@ -157,28 +160,93 @@ export function discoverComponents(packageName: string): PackageComponent[] {
   const mainEntry = pkgJson.main ?? pkgJson.module ?? './index.js';
   const dtsPath = path.join(pkgRoot, mainEntry.replace(/\.js$/, '.d.ts'));
 
-  const { statements } = ts.createSourceFile(
-    dtsPath, readFileSync(dtsPath, 'utf-8'), ts.ScriptTarget.Latest, true,
-  );
+  const program = ts.createProgram([dtsPath], {
+    target: ts.ScriptTarget.Latest,
+    moduleResolution: ts.ModuleResolutionKind.Node10,
+    baseUrl: pkgRoot,
+  });
 
+  const checker = program.getTypeChecker();
+  const sourceFile = program.getSourceFile(dtsPath);
+  if (!sourceFile) return [];
+
+  const moduleSymbol = checker.getSymbolAtLocation(sourceFile);
+  if (!moduleSymbol) return [];
+
+  const exports = checker.getExportsOfModule(moduleSymbol);
   const components: PackageComponent[] = [];
 
-  for (const statement of statements) {
+  for (const sym of exports) {
+    const resolved = sym.flags & ts.SymbolFlags.Alias
+      ? checker.getAliasedSymbol(sym)
+      : sym;
+
+    const type = checker.getTypeOfSymbol(resolved);
+    const callSignatures = type.getCallSignatures();
+    if (!callSignatures.length) continue;
+
+    const firstParam = callSignatures[0].getParameters()[0];
+    if (!firstParam) continue;
+
+    const returnType = callSignatures[0].getReturnType();
+    if (!isJsxReturnType(returnType, checker)) continue;
+
+    const dir = resolveExportDir(sym, sourceFile);
+    if (!dir) continue;
+
+    const paramType = checker.getTypeOfSymbol(firstParam);
+    const component: PackageComponent = { name: sym.name, dir };
+
+    const propsSymbol = resolvePropsSymbol(paramType);
+    if (propsSymbol) {
+      component.propsType = propsSymbol.getName();
+      const declarations = propsSymbol.getDeclarations();
+      if (declarations?.length) {
+        component.propsFile = declarations[0].getSourceFile().fileName;
+      }
+    }
+
+    components.push(component);
+  }
+
+  return components;
+}
+
+function isJsxReturnType(type: ts.Type, checker: ts.TypeChecker): boolean {
+  const typeName = checker.typeToString(type);
+  return typeName.includes('Element') || typeName.includes('ReactNode');
+}
+
+function resolveExportDir(sym: ts.Symbol, barrelFile: ts.SourceFile): string | undefined {
+  for (const statement of barrelFile.statements) {
     if (!ts.isExportDeclaration(statement)) continue;
     if (!statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
     if (!statement.exportClause || !ts.isNamedExports(statement.exportClause)) continue;
 
-    const dir = statement.moduleSpecifier.text;
-
     for (const specifier of statement.exportClause.elements) {
-      if (specifier.propertyName?.text === 'default') {
-        components.push({ name: specifier.name.text, dir });
-        break;
+      if (specifier.name.text === sym.name) {
+        return statement.moduleSpecifier.text;
       }
     }
   }
+  return undefined;
+}
 
-  return components;
+function resolvePropsSymbol(paramType: ts.Type): ts.Symbol | undefined {
+  const direct = paramType.aliasSymbol ?? paramType.getSymbol?.();
+  if (direct && direct.getName() !== '__type') return direct;
+
+  // Intersection: Props & RefAttributes<...> → find the non-React member
+  if (paramType.isIntersection()) {
+    for (const member of paramType.types) {
+      const sym = member.aliasSymbol ?? member.getSymbol?.();
+      if (!sym) continue;
+      const name = sym.getName();
+      if (name !== '__type' && name !== 'RefAttributes') return sym;
+    }
+  }
+
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
