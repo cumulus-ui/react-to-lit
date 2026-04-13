@@ -5,6 +5,10 @@
  * of the React → Lit transpilation pipeline: input resolution, output
  * naming, cleanup rules, component mapping, and event dispatch.
  */
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import ts from 'typescript';
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -127,6 +131,54 @@ export function createDefaultConfig(): CompilerConfig {
       dispatchMode: 'native',
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Package discovery
+// ---------------------------------------------------------------------------
+
+export interface PackageComponent {
+  name: string;
+  dir: string;
+}
+
+/**
+ * Discover public components from an npm package's barrel export.
+ *
+ * Reads the package's index.d.ts and extracts every default export,
+ * each of which is a React component.
+ */
+export function discoverComponents(packageName: string): PackageComponent[] {
+  const require = createRequire(import.meta.url);
+  const pkgJsonPath = require.resolve(`${packageName}/package.json`);
+  const pkgRoot = path.dirname(pkgJsonPath);
+
+  const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
+  const mainEntry = pkgJson.main ?? pkgJson.module ?? './index.js';
+  const dtsPath = path.join(pkgRoot, mainEntry.replace(/\.js$/, '.d.ts'));
+
+  const { statements } = ts.createSourceFile(
+    dtsPath, readFileSync(dtsPath, 'utf-8'), ts.ScriptTarget.Latest, true,
+  );
+
+  const components: PackageComponent[] = [];
+
+  for (const statement of statements) {
+    if (!ts.isExportDeclaration(statement)) continue;
+    if (!statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    if (!statement.exportClause || !ts.isNamedExports(statement.exportClause)) continue;
+
+    const dir = statement.moduleSpecifier.text;
+
+    for (const specifier of statement.exportClause.elements) {
+      if (specifier.propertyName?.text === 'default') {
+        components.push({ name: specifier.name.text, dir });
+        break;
+      }
+    }
+  }
+
+  return components;
 }
 
 // ---------------------------------------------------------------------------
