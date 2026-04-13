@@ -9,7 +9,7 @@ The test bed is Cloudscape Design System (91 components). **Every fix MUST be ge
 **Current state:**
 - **91/91 components** generate valid Lit output (gate2 per-component: 0 errors)
 - **681 tests** passing, TypeScript compiles clean
-- **Shared tsc**: 55 errors across 23 components (down from 526 → 166 → 94 → 55)
+- **Shared tsc**: 51 errors across 23 components (down from 526 → 166 → 94 → 51)
 - **68/91 components** fully error-free in shared compilation
 - All 7 original issues (#11-#18) are closed
 
@@ -121,18 +121,23 @@ Each entry has a test reference. If you modify the related code, run that test t
 | `fireNonCancelableEvent` import specificity | (verified via gate2) | Import emitter checks for `fireNonCancelableEvent` specifically, not just any events module import |
 | Ref deferred initialization | (verified via gate2) | `emitRefs()` now returns `{ code, deferred }` and defers `this.`-referencing initializers to `firstUpdated()` |
 | `JSX.Element` → `unknown` | (verified via gate2) | React-specific `JSX.Element` namespace type cleaned to `unknown` |
+| Ref `.current` on subexpressions | (verified via gate2) | `(cond ? refA : refB).current` → `(cond ? refA : refB)` — `.current` stripped after `)` since inner refs are already unwrapped |
+| `!undefined` → `true` simplification | (verified via gate2) | Cleanup artifacts from `__`-prefixed prop stripping simplified |
+| `(expr !== undefined) ?? false` removal | (verified via gate2) | Redundant `?? false` after boolean comparison stripped in code bodies |
 
 ---
 
-## Remaining 55 errors — categorized
+## Remaining 51 errors — categorized
 
 ### TS2304: Cannot find name (40 errors)
 
 | Category | Count | Examples | Root cause | Correct fix |
 |----------|-------|---------|------------|-------------|
-| SCOPE vars | ~25 | `step`, `buttonProps`, `internalTags`, `itemContent`, `shouldAddDivider` | Variables from hook returns, `useMemo` bodies, loop callbacks, or local component body that weren't promoted to class scope | Complex: these include loop-body locals (`.map()` callback vars), composite props objects (gutted by cleanup), and vars from `implementation.tsx` (not scanned by parser). Each subcategory needs a different fix. |
-| IMPORT/hook funcs | ~10 | `useModalContext`, `useContainerBreakpoints`, `formatDndStarted`, `i18n`, `funnelSubmit` | Hooks/functions from stripped modules where the return values are used, OR hook is in `implementation.tsx` which parser doesn't scan | Extend parser to scan `implementation.tsx` files; improve hook return preservation for unknown hooks |
-| Remaining | ~5 | `rest`, `props`, `analyticsComponentMetadata`, `isRefresh` | Rest-spread from props not handled; raw props reference; helper using var from different component function in same file | Case-by-case: `rest` → rest-spread pattern; `props` → raw props ref; `isRefresh` → cross-function var in helper |
+| Hook returns from helper components | ~8 | `i18n` (form-field, modal, breadcrumb-group) | `useInternalI18n()` is inside `FormFieldError` / `FormFieldWarning` helper components in the same file, not the main component. Parser only extracts hooks from the main component. | Extract hooks from all exported component functions in the file, or inline helper component bodies. |
+| Hook returns from unscanned files | ~6 | `i18n` (breadcrumb-group), `funnelSubmit`, `instanceUniqueId`, `useContainerBreakpoints`, `useModalContext` | Hooks in `implementation.tsx` (breadcrumb-group) or from stripped modules (useFunnel, useContainerBreakpoints) | Extend parser to scan `implementation.tsx`; improve unknown hook return preservation |
+| Loop-body locals | ~6 | `step` (steps), `shouldAddDivider`/`itemContent` (button-group) | Variables inside `.map()` callbacks not captured by any extractor | Template restructuring: keep loop body inline instead of decomposing |
+| Composite props / rest-spread | ~8 | `buttonProps` (button), `nativeAttributes` (item-card), `rest` (input) | Props aggregation objects gutted by cleanup; rest-spread var not in scope | Recognize props-aggregation pattern; handle rest-spread as computed getter |
+| Remaining | ~12 | `prevDateOnly`, `kvPairId`, `defaultDisplayedDate`, `S3InContextRef`, etc. | Various: useMemo not captured, refs from stripped hooks, local variable from hooks | Case-by-case; mostly require deeper hook return parsing |
 
 ### TS2339: Property does not exist (7 errors)
 
@@ -144,11 +149,9 @@ Each entry has a test reference. If you modify the related code, run that test t
 - cards: analytics type leftover
 - top-navigation: `{}` not assignable to `string`
 
-### Other (8 errors)
-- TS2869 (2): unreachable `??` right operand (annotation-context) — harmless warnings
+### Other (5 errors)
 - TS2345 (2): argument type mismatch (cards analytics, top-navigation nested event prop)
 - TS2322 (2): type mismatch (breadcrumb-group array vs function, dropdown union narrowing)
-- TS2873 (1): always-falsy expression (slider — `!undefined` from `__` cleanup)
 - TS2556 (1): spread argument (dropdown)
 
 ---
