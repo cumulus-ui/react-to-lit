@@ -642,6 +642,33 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
     }
   }
 
+  // Detect names called as generic functions: name<Type>(...).
+  // These need `declare function` stubs instead of `const: any`
+  // because `any` typed values don't accept type arguments (TS2347).
+  // Handle nested angle brackets (e.g., processAttributes<Foo, Record<string, unknown>>).
+  const genericFunctionCalls = new Set<string>();
+  for (const comp of generated) {
+    if (comp.error || !comp.output) continue;
+    // Find all `name<` patterns, then check balanced angle brackets before `(`
+    const genericCallPattern = /\b(\w+)<(?=[A-Z])/g;
+    let gfMatch;
+    while ((gfMatch = genericCallPattern.exec(comp.output)) !== null) {
+      const startPos = gfMatch.index + gfMatch[0].length - 1; // position of `<`
+      let depth = 1;
+      let pos = startPos + 1;
+      while (pos < comp.output.length && depth > 0) {
+        if (comp.output[pos] === '<') depth++;
+        else if (comp.output[pos] === '>') depth--;
+        pos++;
+      }
+      // After balanced `>`, check if `(` follows (possibly with whitespace)
+      const afterClose = comp.output.slice(pos, pos + 5).trimStart();
+      if (afterClose.startsWith('(')) {
+        genericFunctionCalls.add(gfMatch[1]);
+      }
+    }
+  }
+
   // Create stub declaration files
   for (const [modulePath, names] of neededModules) {
     const stubDir = path.join(OUTPUT_DIR, path.dirname(modulePath));
@@ -659,7 +686,17 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
       // with a unique brand property so TypeScript can structurally distinguish
       // them in unions (preventing narrowing to `never`).
       if (/^[A-Z]/.test(name)) {
-        stubLines.push(`export declare const ${name}: any;`);
+        // If called as a generic function, emit a function declaration
+        // instead of `const: any` so type arguments are accepted.
+        if (genericFunctionCalls.has(name)) {
+          const arity = detectGenericArity(name, generated);
+          const params = arity > 0
+            ? Array.from({ length: arity }, (_, i) => `T${i > 0 ? i + 1 : ''} = any`).join(', ')
+            : 'T = any';
+          stubLines.push(`export declare function ${name}<${params}>(...args: any[]): any;`);
+        } else {
+          stubLines.push(`export declare const ${name}: any;`);
+        }
         const useInterface = typeGuardTypes.has(name);
         if (genericArity > 0) {
           const params = Array.from({ length: genericArity }, (_, i) =>
@@ -678,7 +715,17 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
           }
         }
       } else {
-        stubLines.push(`export declare const ${name}: any;`);
+        // If called as a generic function, emit a function declaration
+        // instead of `const: any` so type arguments are accepted.
+        if (genericFunctionCalls.has(name)) {
+          const arity = detectGenericArity(name, generated);
+          const params = arity > 0
+            ? Array.from({ length: arity }, (_, i) => `T${i > 0 ? i + 1 : ''} = any`).join(', ')
+            : 'T = any';
+          stubLines.push(`export declare function ${name}<${params}>(...args: any[]): any;`);
+        } else {
+          stubLines.push(`export declare const ${name}: any;`);
+        }
       }
     }
     // Catch-all for any other imports
