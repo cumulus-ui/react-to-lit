@@ -285,6 +285,12 @@ function emitAttribute(
     // Visit the expression to transform any nested JSX
     const visitedExpr = ts.visitNode(attr.initializer.expression, visitor) as ts.Expression;
 
+    // String literal in expression container: <div className={'child'} /> → class="child"
+    if (ts.isStringLiteral(visitedExpr) || ts.isNoSubstitutionTemplateLiteral(visitedExpr)) {
+      builder.appendStatic(` ${litName}="${visitedExpr.text}"`);
+      return;
+    }
+
     // Special handling for className → class with classMap
     if (name === 'className') {
       builder.appendStatic(` class=`);

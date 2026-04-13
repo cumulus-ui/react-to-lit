@@ -342,6 +342,9 @@ function replaceStylesInText(text: string): string {
   result = result.replace(/classMap\(('[^']+')\)/g, '$1');
   result = result.replace(/classMap\((`[^`]+`)\)/g, '$1');
 
+  // class=${'literal'} → class="literal" — static string in dynamic binding is redundant
+  result = result.replace(/\bclass=\$\{'([^']*)'\}/g, 'class="$1"');
+
   return result;
 }
 
