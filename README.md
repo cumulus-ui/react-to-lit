@@ -154,38 +154,29 @@ React source. Everything downstream is the consumer's domain.
 ## Usage
 
 ```bash
-# With a custom config file
-npx react-to-lit --config react-to-lit.config.ts \
-  --input vendor/my-lib/src/button --output src/button/internal.ts
+# Convert all components from a React package
+npx react-to-lit \
+  --package @cloudscape-design/components \
+  --source vendor/cloudscape-source/src \
+  --output src
 
-# With a built-in preset
-npx react-to-lit --preset cloudscape \
-  --input vendor/source/src --output src --batch
-
-# Zero-config (sensible defaults for simple libraries)
-npx react-to-lit --input vendor/source/src/badge --output src/badge/internal.ts
+# Convert a single component
+npx react-to-lit \
+  --package @cloudscape-design/components \
+  --source vendor/cloudscape-source/src \
+  --output src \
+  --component Button
 ```
 
 | Flag | Description |
 |------|-------------|
-| `-i, --input <path>` | Input directory (single component or source root) |
-| `-o, --output <path>` | Output directory or file |
-| `-b, --batch` | Batch mode: process all component directories under `--input` |
-| `-c, --component <name>` | Process a single component from a batch input |
-| `--config <path>` | Path to a config file (JS/TS module exporting a `CompilerConfig`) |
-| `--preset <name>` | Use a built-in preset (e.g., `cloudscape`) |
+| `-p, --package <name>` | **(required)** npm package to discover components from |
+| `-s, --source <path>` | **(required)** Source directory containing implementations |
+| `-o, --output <path>` | **(required)** Output directory |
+| `-c, --component <name>` | Process a single component by name |
 | `--dry-run` | Print output to stdout instead of writing files |
 | `--verbose` | Log parsing decisions |
-
-### Cloudscape preset
-
-The Cloudscape Design System has a built-in preset that pre-configures
-cleanup rules, skip directories, class naming, and infrastructure stripping:
-
-```bash
-npx react-to-lit --preset cloudscape \
-  --input vendor/source/src --output src --batch
-```
+| `--preset <name>` | Use a built-in preset (e.g., `cloudscape`) |
 
 ## Quality gates
 
