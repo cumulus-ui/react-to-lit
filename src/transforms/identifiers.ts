@@ -15,6 +15,7 @@
 import { Project, SyntaxKind, Node, ts } from 'ts-morph';
 import tsLib from 'typescript';
 import { jsxToLitTransformerFactory } from './jsx-to-lit.js';
+import { fixTaggedTemplatePrinting } from '../naming.js';
 import type {
   ComponentIR,
   TemplateNodeIR,
@@ -738,7 +739,7 @@ function convertRemainingJsx(text: string): string {
   const result = tsLib.transform(tempFile, [jsxToLitTransformerFactory]);
   const printer = tsLib.createPrinter({ newLine: tsLib.NewLineKind.LineFeed });
   let printed = printer.printFile(result.transformed[0]);
-  printed = printed.replace(/\b(html|svg) `/g, '$1`');
+    printed = fixTaggedTemplatePrinting(printed);
   result.dispose();
 
   // Extract expression from `const __jsxExpr = <converted>;`

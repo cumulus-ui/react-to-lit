@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import ts from 'typescript';
 import { transformJsxToLit } from '../../src/parser/jsx-transform.js';
 import { createJsxToLitTransformerFactory, type JsxToLitConfig } from '../../src/transforms/jsx-to-lit.js';
+import { fixTaggedTemplatePrinting } from '../../src/naming.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -39,7 +40,7 @@ function transformWithFactory(source: string, config?: JsxToLitConfig): string {
   const result = ts.transform(sourceFile, [factory]);
   const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
   let printed = printer.printFile(result.transformed[0]);
-  printed = printed.replace(/\b(html|svg) `/g, '$1`');
+  printed = fixTaggedTemplatePrinting(printed);
   result.dispose();
   return printed;
 }
@@ -176,7 +177,7 @@ describe('jsxToLitTransformerFactory config', () => {
       const result = ts.transform(sourceFile, [factory]);
       const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
       let printed = printer.printFile(result.transformed[0]);
-      printed = printed.replace(/\b(html|svg) `/g, '$1`');
+      printed = fixTaggedTemplatePrinting(printed);
       result.dispose();
 
       expect(printed).not.toContain('data-custom');

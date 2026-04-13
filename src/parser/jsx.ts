@@ -13,8 +13,8 @@ import type {
   LoopIR,
 } from '../ir/types.js';
 import { getNodeText } from './program.js';
-import { getBooleanAttributes, getHtmlTagNames } from '../standards.js';
-import { isEventProp } from '../naming.js';
+import { getHtmlTagNames } from '../standards.js';
+import { classifyBinding, fixTaggedTemplatePrinting } from '../naming.js';
 import { jsxToLitTransformerFactory } from '../transforms/jsx-to-lit.js';
 
 // ---------------------------------------------------------------------------
@@ -222,47 +222,10 @@ function parseJsxAttribute(
       };
     }
 
-    // Detect event handlers: onClick, onFocus, etc.
-    if (isEventProp(name)) {
-      return {
-        name,
-        value: { expression: exprText },
-        kind: 'event',
-      };
-    }
-
-    // Detect boolean bindings: ?disabled=${expr}
-    if (isBooleanAttributeName(name)) {
-      return {
-        name,
-        value: { expression: exprText },
-        kind: 'boolean',
-      };
-    }
-
-    // Property bindings: .value=${expr}
-    if (isPropertyBinding(name)) {
-      return {
-        name,
-        value: { expression: exprText },
-        kind: 'property',
-      };
-    }
-
-    // Attribute bindings: aria-*, role, data-* are always HTML attributes
-    if (isAttributeBinding(name)) {
-      return {
-        name,
-        value: { expression: exprText },
-        kind: 'attribute',
-      };
-    }
-
-    // Default: dynamic attribute
     return {
       name,
       value: { expression: exprText },
-      kind: 'property',
+      kind: classifyBinding(name),
     };
   }
 
@@ -488,22 +451,6 @@ function isHtmlTag(tag: string): boolean {
   return getHtmlTagNames().has(tag);
 }
 
-function isBooleanAttributeName(name: string): boolean {
-  return getBooleanAttributes().has(name);
-}
-
-function isPropertyBinding(name: string): boolean {
-  // Properties that should use .prop= binding instead of attr=
-  const propertyBindings = new Set([
-    'value', 'checked', 'indeterminate', 'selectedIndex',
-  ]);
-  return propertyBindings.has(name);
-}
-
-function isAttributeBinding(name: string): boolean {
-  return name.startsWith('aria-') || name.startsWith('data-') || name === 'role';
-}
-
 function findReturnStatement(block: ts.Block): ts.ReturnStatement | undefined {
   // Find the last return statement (there might be early returns)
   let lastReturn: ts.ReturnStatement | undefined;
@@ -557,7 +504,7 @@ function jsxExpressionToLitText(expr: ts.Expression, sourceFile: ts.SourceFile):
   const result = ts.transform(tempFile, [jsxToLitTransformerFactory]);
   const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
   let printed = printer.printFile(result.transformed[0]);
-  printed = printed.replace(/\b(html|svg) `/g, '$1`');
+    printed = fixTaggedTemplatePrinting(printed);
   result.dispose();
 
   // Extract the expression from `const __jsxExpr = <converted>;`

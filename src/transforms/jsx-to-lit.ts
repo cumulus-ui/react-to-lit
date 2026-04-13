@@ -10,8 +10,8 @@
  */
 import ts from 'typescript';
 import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, shouldUnwrapComponent } from '../cloudscape-config.js';
-import { getBooleanAttributes, getHtmlTagNames } from '../standards.js';
-import { toTagName, toLitEventName, isEventProp, reactAttrToHtml } from '../naming.js';
+import { getHtmlTagNames } from '../standards.js';
+import { toTagName, toLitEventName, classifyBinding, reactAttrToHtml } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Configuration interface
@@ -285,30 +285,24 @@ function emitAttribute(
       return;
     }
 
-    // Event handlers: onXxx → @xxx
-    if (isEventProp(name)) {
-      const eventName = toLitEventName(name);
-      builder.appendStatic(` @${eventName}=`);
-      builder.addExpression(visitedExpr);
-      return;
+    const kind = classifyBinding(litName);
+    switch (kind) {
+      case 'event': {
+        const eventName = toLitEventName(name);
+        builder.appendStatic(` @${eventName}=`);
+        break;
+      }
+      case 'boolean':
+        builder.appendStatic(` ?${litName}=`);
+        break;
+      case 'attribute':
+        builder.appendStatic(` ${litName}=`);
+        break;
+      case 'property':
+      default:
+        builder.appendStatic(` .${litName}=`);
+        break;
     }
-
-    // Boolean attributes
-    if (getBooleanAttributes().has(litName)) {
-      builder.appendStatic(` ?${litName}=`);
-      builder.addExpression(visitedExpr);
-      return;
-    }
-
-    // Attribute bindings: aria-*, role, data-* are HTML attributes, not properties
-    if (litName.startsWith('aria-') || litName.startsWith('data-') || litName === 'role') {
-      builder.appendStatic(` ${litName}=`);
-      builder.addExpression(visitedExpr);
-      return;
-    }
-
-    // Default: property binding
-    builder.appendStatic(` .${litName}=`);
     builder.addExpression(visitedExpr);
     return;
   }

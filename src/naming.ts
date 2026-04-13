@@ -4,6 +4,7 @@
  * Single-source-of-truth for name conversions used across
  * parser, transforms, and emitter.
  */
+import { getBooleanAttributes } from './standards.js';
 
 // ---------------------------------------------------------------------------
 // Case conversion
@@ -111,4 +112,37 @@ export function toTagName(reactComponentName: string): string {
  */
 export function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Fix TypeScript printer quirk: it inserts a space between tag function
+ * name and backtick (e.g. `html \`` → `html\``).
+ */
+export function fixTaggedTemplatePrinting(text: string): string {
+  return text.replace(/\b(html|svg) `/g, '$1`');
+}
+
+// ---------------------------------------------------------------------------
+// Attribute binding classification
+// ---------------------------------------------------------------------------
+
+export type BindingKind = 'event' | 'boolean' | 'property' | 'attribute' | 'classMap';
+
+const PROPERTY_BINDINGS = new Set([
+  'value', 'checked', 'indeterminate', 'selectedIndex',
+]);
+
+/**
+ * Classify how a dynamic JSX attribute should bind in Lit.
+ *
+ * Used by both the IR parser (parser/jsx.ts) and the JSX-to-Lit
+ * transform (transforms/jsx-to-lit.ts) to ensure consistent decisions.
+ * The name should already be mapped to its HTML equivalent (e.g. class, not className).
+ */
+export function classifyBinding(htmlName: string): BindingKind {
+  if (isEventProp(htmlName)) return 'event';
+  if (getBooleanAttributes().has(htmlName)) return 'boolean';
+  if (PROPERTY_BINDINGS.has(htmlName)) return 'property';
+  if (htmlName.startsWith('aria-') || htmlName.startsWith('data-') || htmlName === 'role') return 'attribute';
+  return 'property';
 }

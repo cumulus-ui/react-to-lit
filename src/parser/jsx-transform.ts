@@ -6,6 +6,7 @@
  */
 import ts from 'typescript';
 import { jsxToLitTransformerFactory, createJsxToLitTransformerFactory, type JsxToLitConfig } from '../transforms/jsx-to-lit.js';
+import { fixTaggedTemplatePrinting } from '../naming.js';
 
 /**
  * Transform all JSX in a source file to Lit html`` tagged templates.
@@ -33,7 +34,7 @@ export function transformJsxToLit(sourceFile: ts.SourceFile, config?: JsxToLitCo
 
   // The TS printer inserts a space between the tag and the backtick
   // (e.g. `html \`...\``). Remove it so we emit `html\`...\``.
-  printed = printed.replace(/\b(html|svg) `/g, '$1`');
+  printed = fixTaggedTemplatePrinting(printed);
 
   result.dispose();
 
