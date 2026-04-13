@@ -345,6 +345,11 @@ function rewriteQuickPatterns(text: string, ir: ComponentIR): string {
     );
   }
 
+  // Clean up `.current` on expressions where individual refs inside were
+  // already rewritten. E.g., `(cond ? this._mainActionRef : this._triggerRef).current`
+  // → the refs are unwrapped but `.current` remains on the outer expression.
+  result = result.replace(/\)\.current\b/g, ')');
+
   // props.foo → this.foo
   result = result.replace(/\bprops\.(\w+)/g, 'this.$1');
 
