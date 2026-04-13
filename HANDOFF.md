@@ -8,9 +8,9 @@ The test bed is Cloudscape Design System (91 components). **Every fix MUST be ge
 
 **Current state:**
 - **91/91 components** generate valid Lit output (gate2 per-component: 0 errors)
-- **682 tests** passing, TypeScript compiles clean
-- **Shared tsc**: 42 errors across 20 components (down from 526 → 166 → 94 → 42)
-- **71/91 components** fully error-free in shared compilation
+- **791 tests** passing, TypeScript compiles clean
+- **Shared tsc**: 16 errors across 11 components (down from 526 → 166 → 94 → 42 → 16)
+- **80/91 components** fully error-free in shared compilation
 - All 7 original issues (#11-#18) are closed
 
 ---
@@ -132,32 +132,33 @@ Each entry has a test reference. If you modify the related code, run that test t
 
 ---
 
-## Remaining 42 errors — categorized
+## Remaining 16 errors — categorized
 
-### TS2304: Cannot find name (31 errors)
+### TS2304: Cannot find name (10 errors)
 
-| Category | Count | Examples | Root cause | Correct fix |
-|----------|-------|---------|------------|-------------|
-| Hook returns from helper components | ~8 | `i18n` (form-field, modal, breadcrumb-group) | `useInternalI18n()` is inside `FormFieldError` / `FormFieldWarning` helper components in the same file, not the main component. Parser only extracts hooks from the main component. | Extract hooks from all exported component functions in the file, or inline helper component bodies. |
-| Hook returns from unscanned files | ~6 | `i18n` (breadcrumb-group), `funnelSubmit`, `instanceUniqueId`, `useContainerBreakpoints`, `useModalContext` | Hooks in `implementation.tsx` (breadcrumb-group) or from stripped modules (useFunnel, useContainerBreakpoints) | Extend parser to scan `implementation.tsx`; improve unknown hook return preservation |
-| Loop-body locals | ~6 | `step` (steps), `shouldAddDivider`/`itemContent` (button-group) | Variables inside `.map()` callbacks not captured by any extractor | Template restructuring: keep loop body inline instead of decomposing |
-| Composite props / rest-spread | ~8 | `buttonProps` (button), `nativeAttributes` (item-card), `rest` (input) | Props aggregation objects gutted by cleanup; rest-spread var not in scope | Recognize props-aggregation pattern; handle rest-spread as computed getter |
-| Remaining | ~12 | `prevDateOnly`, `kvPairId`, `defaultDisplayedDate`, `S3InContextRef`, etc. | Various: useMemo not captured, refs from stripped hooks, local variable from hooks | Case-by-case; mostly require deeper hook return parsing |
+| Category | Count | Components | Root cause |
+|----------|-------|-----------|------------|
+| Skipped prop refs | 4 | button (`nativeButtonAttributes`, `nativeAnchorAttributes`, `buttonProps` ×2) | Props in SKIP_PROPS are removed from the class but preamble variables still reference them. Fundamental React props-as-object mismatch. |
+| Rest-spread / props object | 3 | input (`rest`), item-card (`nativeAttributes`), table (`props`) | `...rest` from prop destructuring and raw `props` object don't exist in Lit. Native attributes are set directly on the host element. |
+| Helper-body constants | 1 | modal (`MODAL_READY_TIMEOUT`) | Plain `const` inside helper function body referenced by extracted effect. Handler extraction now works but non-function locals need similar treatment. |
+| Analytics infrastructure | 1 | modal (`analyticsComponentMetadata`) | Analytics variable partially stripped by cleanup — declaration removed but stray reference and malformed expression remain. |
+| JSX pre-transform edge case | 1 | date-range-picker (`prevDateOnly`) | Effect body with escaped backticks in template literal (`\`dateOnly\``) gets mangled during JSX pre-transform, truncating the condition expression. `stripFunctionCalls` works correctly (confirmed by test). |
 
-### TS2339: Property does not exist (7 errors)
+### TS2339: Property does not exist (2 errors)
 
-- **4 are context issues**: error-boundary (`_errorBoundariesContext`), header (`_collectionLabelContext`). These are `useContext` calls the parser didn't convert to `@consume` fields.
-- **3 are misc**: breadcrumb-group (`.href` on generic T, `.slice` on wrong type), button-dropdown (`.current` on HTMLElement — ref not fully converted), pie-chart (`.filter` on wrong type).
+| Component | Error | Root cause |
+|-----------|-------|------------|
+| pie-chart | `.filter` on `() => any` | Preamble variable with JSX (`data.map(d => ({ marker: <Marker/> }))`) misclassified as render helper method instead of data array. |
+| tag-editor | `.current` on `any[]` | Ref from index wrapper typed as `any[]` instead of `Ref<T[]>`. Ref extraction doesn't preserve array-of-refs pattern. |
 
-### TS2345: Argument type mismatch (4 errors)
-- code-editor (2): `fireNonCancelableEvent(this.onValidate, ...)` — first arg should be `this` (EventTarget), not a callback prop. Partially converted event dispatch.
-- cards: analytics type leftover
-- top-navigation: `{}` not assignable to `string`
+### TS2345/TS2322/TS2556: Type mismatches (4 errors)
 
-### Other (5 errors)
-- TS2345 (2): argument type mismatch (cards analytics, top-navigation nested event prop)
-- TS2322 (2): type mismatch (breadcrumb-group array vs function, dropdown union narrowing)
-- TS2556 (1): spread argument (dropdown)
+| Component | Error | Root cause |
+|-----------|-------|------------|
+| cards | analytics type mismatch | Partially-stripped analytics metadata literal doesn't match `GeneratedAnalyticsMetadataFragment` type. |
+| dropdown | spread argument | `...calculatePosition(...)` return not tuple-typed. TypeScript strictness issue. |
+| dropdown | union narrowing | `DropdownPosition \| InteriorDropdownPosition` not assignable to `DropdownPosition`. Missing type narrowing. |
+| top-navigation | `{}` not assignable to `string` | `fireCancelableEvent(this.identity.onFollow, {}, event)` — event transform didn't fire because first arg is nested property access, not direct prop. |
 
 ---
 
@@ -197,15 +198,15 @@ npx tsc --noEmit --strict false --skipLibCheck --experimentalDecorators -p .gate
 
 ## Highest-impact next steps (in priority order)
 
-1. **Entry/secondary file disambiguation for self-contained entries** (~4 errors, tag-editor): When the entry file has the main forwardRef component but the secondary file only exports helper components, the parser picks the wrong body. The general signal — default vs named imports — doesn't reliably distinguish delegation from child usage. Needs a structural approach: compare body complexity or check if the entry's body contains a JSX return statement with hooks.
+1. **Skipped prop references in preamble** (~7 errors, button + input + item-card + table): Props in `SKIP_PROPS` and `...rest` from destructuring are removed from the class but preamble variables still reference them. Preamble statements that reference undefined names should be filtered or the variables should be mapped to `this`.
 
-2. **Loop-body local variable extraction** (~7 errors, steps + button-group): Variables defined inside `.map()` callbacks (e.g., `step`, `shouldAddDivider`, `itemContent`) are not captured. The template decomposition hoists ternaries outside loops, losing the loop variable binding. Fix requires keeping the ternary inside the loop in the template IR.
+2. **JSX pre-transform escaped backtick handling** (~1 error, date-range-picker): The JSX pre-transform mangles non-JSX template literals containing escaped backticks (`\`dateOnly\``), truncating effect bodies. `stripFunctionCalls` works correctly (confirmed by test) — issue is upstream in the pre-transform.
 
-3. **Hook returns from helper component functions** (~3 errors, form-field + key-value-pairs): `useInternalI18n()` and `useUniqueId()` are inside helper components (`FormFieldError`, `InternalKeyValuePair`) in the same file. The parser only extracts hooks from the main component. Needs multi-function-per-file hook extraction.
+3. **Preamble variable with JSX misclassified as render helper** (~1 error, pie-chart): `const filterItems = data.map(d => ({ marker: <Marker/> }))` contains JSX but is a data array, not a render helper. `extractBodyPreamble` treats any variable with `html\`` as a render helper method, changing its type from array to function.
 
-4. **Preamble variable inlining for state initializers** (~2 errors, calendar): `const defaultDisplayedDate = memoizedValue ?? new Date()` is used as a `useState` initializer. The preamble var is only available in render() but the state field initializer runs at construction. Either inline the expression or defer the state init.
+4. **Helper-body non-function locals** (~2 errors, modal): Plain `const` declarations and analytics preamble variables inside helper bodies need extraction when effects reference them, same as handler extraction.
 
-5. **`usePrevious` hook mapping** (~1 error, date-range-picker): `usePrevious(value)` returns the previous render's value. In Lit, this maps to storing old values in `willUpdate()`. The current auto-skip preserves the var but the effect conversion incorrectly puts it in `changed.has()` checks.
+5. **Event transform for nested property access** (~1 error, top-navigation): `fireCancelableEvent(identity.onFollow, {}, event)` — first arg is a property access, not a direct prop name. Event transform regex doesn't match.
 
 ---
 
