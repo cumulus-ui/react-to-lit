@@ -50,7 +50,9 @@ function transformClsxInTemplate(node: TemplateNodeIR): TemplateNodeIR {
         const expr = attr.value.expression.trim();
         if (/^styles[.[']/.test(expr) && !expr.includes(',') && !expr.includes('{')) {
           const className = replaceStylesInText(expr);
-          return { ...attr, kind: 'static' as const, value: { expression: className } };
+          // Strip JS string quotes — static HTML attributes don't need them
+          const bare = className.replace(/^['"`]|['"`]$/g, '');
+          return { ...attr, name: 'class', kind: 'static' as const, value: bare };
         }
         return transformClassAttribute(attr);
       }
@@ -85,6 +87,7 @@ function transformClassAttribute(attr: AttributeIR): AttributeIR {
 
   return {
     ...attr,
+    name: 'class',
     value: { expression: converted },
   };
 }

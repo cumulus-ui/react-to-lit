@@ -86,11 +86,46 @@ describe('transformClsx — template attributes', () => {
     });
     const result = transformClsx(ir);
     const attr = result.template.attributes[0];
-    const expr = typeof attr.value === 'string' ? attr.value : attr.value.expression;
-    // A single styles.xxx reference becomes a plain class name string,
-    // not a classMap object — classMap is unnecessary for a static class.
-    expect(expr).toContain("'root'");
+    expect(attr.name).toBe('class');
+    expect(attr.value).toBe('root');
     expect(attr.kind).toBe('static');
+  });
+
+  it('renames className to class for styles.xxx static conversion', () => {
+    const ir = minimalIR({
+      template: element('div', [
+        dynamicAttr('className', 'styles.child', 'classMap'),
+      ]),
+    });
+    const result = transformClsx(ir);
+    const attr = result.template.attributes[0];
+    expect(attr.name).toBe('class');
+    expect(attr.value).toBe('child');
+    expect(attr.kind).toBe('static');
+  });
+
+  it('renames className to class for clsx() conversion', () => {
+    const ir = minimalIR({
+      template: element('div', [
+        dynamicAttr('className', 'clsx(styles.root, styles.active)', 'classMap'),
+      ]),
+    });
+    const result = transformClsx(ir);
+    const attr = result.template.attributes[0];
+    expect(attr.name).toBe('class');
+    expect(attr.kind).toBe('classMap');
+  });
+
+  it('never produces [object Object] as a static attribute value', () => {
+    const ir = minimalIR({
+      template: element('div', [
+        dynamicAttr('className', 'styles.child', 'classMap'),
+      ]),
+    });
+    const result = transformClsx(ir);
+    const attr = result.template.attributes[0];
+    const rendered = typeof attr.value === 'string' ? attr.value : JSON.stringify(attr.value);
+    expect(rendered).not.toContain('[object Object]');
   });
 });
 
