@@ -143,6 +143,16 @@ describe('stripFunctionCalls', () => {
     const input = 'foo(\n  a,\n  b\n);\nbar();';
     expect(stripFunctionCalls(input, 'foo')).toBe('bar();');
   });
+
+  it('handles template literal arguments with interpolations', () => {
+    const input = 'warnOnce(\n  \'Comp\',\n  `msg ${prevDateOnly} to ${dateOnly}`\n);\nbar();';
+    expect(stripFunctionCalls(input, 'warnOnce')).toBe('bar();');
+  });
+
+  it('handles escaped backticks in template literal arguments', () => {
+    const input = 'warnOnce(\n  \'Comp\',\n  `The \\`dateOnly\\` flag changed from "${prevDateOnly}" to "${dateOnly}"`\n);\nbar();';
+    expect(stripFunctionCalls(input, 'warnOnce')).toBe('bar();');
+  });
 });
 
 // ---------------------------------------------------------------------------
