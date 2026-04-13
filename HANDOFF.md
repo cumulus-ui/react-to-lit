@@ -8,8 +8,8 @@ The test bed is Cloudscape Design System (91 components). **Every fix MUST be ge
 
 **Current state:**
 - **91/91 components** generate valid Lit output (gate2 per-component: 0 errors)
-- **674 tests** passing, TypeScript compiles clean
-- **Shared tsc**: 94 errors across 26 components (down from 526 → 166 → 94)
+- **679 tests** passing, TypeScript compiles clean
+- **Shared tsc**: 71 errors across 26 components (down from 526 → 166 → 94 → 71)
 - **65/91 components** fully error-free in shared compilation
 - All 7 original issues (#11-#18) are closed
 
@@ -51,7 +51,7 @@ Read each rule. Understand WHY it exists. The "why" is learned from painful debu
 
 ### 6. Test every fix. No exceptions.
 - Add a unit test in `test/transforms/` or `test/emitter/` that covers the specific pattern.
-- Run `npx vitest run` (must be 674+ passing).
+- Run `npx vitest run` (must be 679+ passing).
 - Run `npm run gate2` (must complete with no failures).
 - Run the shared tsc command and verify error count went down, not up.
 - **Check for TS1xxx syntax errors** — these mean your change broke the output.
@@ -80,7 +80,7 @@ React TSX → Parser → IR → Transforms → Emitter → Lit TS
 |------|---------|---------------|
 | `src/transforms/identifiers.ts` | Rewrites bare names to `this.xxx` / `this._xxx` | Don't flatten the scope analysis. The `buildMemberMap` + `isShadowedByNestedScope` + `topLevelLocals` trio is intentionally complex. |
 | `src/transforms/cleanup.ts` | Strips Cloudscape infrastructure | Line-level regex only. No multi-line `[^}]*` patterns. |
-| `src/transforms/cleanup-react-types.ts` | React → DOM type conversions | Applied via `mapIRText` to all text fields + template walker. |
+| `src/transforms/cleanup-react-types.ts` | React → DOM type conversions | Applied via `mapIRText` to all text fields + template walker + prop types. |
 | `src/emitter/properties.ts` | Emits `@property()`, `@state()`, controllers | Returns `{ code, deferred }` — the deferred inits MUST be passed to lifecycle. |
 | `src/emitter/lifecycle.ts` | Emits lifecycle methods | Receives `deferredInits` and injects into `firstUpdated()`. Strips cleanup returns (both block and expression body). |
 | `src/emitter/template.ts` | Emits `html\`` templates | `classMap` must NOT wrap expressions containing `html\``. |
@@ -110,45 +110,51 @@ Each entry has a test reference. If you modify the related code, run that test t
 | Analytics metadata removal | (verified via gate2) | Line-level `const` and deep property assignment removal |
 | Ambient type stubs with generic arity | (verified via gate2) | Scans type positions + `Name<` patterns + inner generic args |
 | `SomeRequired` real type definition | (verified via gate2) | Stub append logic checks by NAME to avoid re-declaring |
+| Type guard branded stubs | `parse-components.test.ts` "List" | Types in type guards (e.g., `t is TokenGroup`) get branded interface stubs instead of `= any` — prevents union narrowing to `never` |
+| Render callback prop classification | `parse-components.test.ts` "List", `cleanup-react-types.test.ts` "prop type cleanup" | Function types `(args) => ReactNode` are properties, not slots. Prop types also get React type cleanup. |
+| Expression wrapping for identifiers | `identifiers.test.ts` "expression wrapping" | `rewriteWithMorph` accepts `isExpression` flag so object literals with nested arrow semicolons are parsed correctly |
 
 ---
 
-## Remaining 94 errors — categorized
+## Remaining 71 errors — categorized
 
 ### TS2304: Cannot find name (47 errors)
 
 | Category | Count | Examples | Root cause | Correct fix |
 |----------|-------|---------|------------|-------------|
-| SCOPE vars | ~35 | `i18n`, `step`, `onPreviousClick`, `buttonProps`, `customCssProps`, `pieData`, `internalTags` | Variables from hook returns, `useMemo` bodies, or local component body that weren't promoted to class scope | **Deeper preamble promotion** — detect variables referenced in template expressions (not just handlers/helpers/effects). The promotion iterates up to 5 rounds but only checks handler/helper/effect bodies, missing template references. |
+| SCOPE vars | ~35 | `i18n`, `step`, `onPreviousClick`, `buttonProps`, `customCssProps`, `pieData`, `internalTags` | Variables from hook returns, `useMemo` bodies, or local component body that weren't promoted to class scope | **Preamble promotion for template-referenced vars** — but this is HARD. Naive promotion causes TS1xxx/TS2540/TS2663 regressions because (a) object literals with shorthand properties break when identifiers get `this.` prefix, (b) multi-statement block bodies are misidentified as object literals, (c) promoted getters become read-only but downstream code reassigns them. See "Traps" section. |
 | IMPORT funcs | ~7 | `useModalContext`, `useContainerBreakpoints`, `formatDndStarted` | Hooks/functions from stripped modules where the return values are used | Better hook return parsing — detect that the variables produced by these hooks need to be preserved |
-| Remaining | ~5 | `rest`, `props`, `analyticsComponentMetadata`, `fireNonCancelableEvent` | Cleanup gaps, partial event conversion | Case-by-case: `rest` → rest-spread cleanup missed a path; `props` → raw props ref not rewritten; `analyticsComponentMetadata` → multi-line const not fully stripped |
+| Remaining | ~5 | `rest`, `props`, `analyticsComponentMetadata` | Cleanup gaps, partial event conversion | Case-by-case: `rest` → rest-spread cleanup missed a path; `props` → raw props ref not rewritten; `analyticsComponentMetadata` → multi-line const not fully stripped |
 
-### TS2339: Property does not exist (27 errors)
+### TS2339: Property does not exist (7 errors)
 
-- **20 are "on type `never`"** — ALL in property-filter. The `SomeRequired<T, K>` type is now correct, but `InternalToken = any` and `InternalTokenGroup = any` in stubs cause type guards (`'tokens' in x`) to narrow to `never`.
-  - **Fix**: Give `InternalToken` and `InternalTokenGroup` discriminant properties in their stub interfaces: `interface InternalToken { propertyKey?: string; operator?: string; value?: string; }` and `interface InternalTokenGroup { operation: string; tokens: InternalToken[]; }`.
-  - This is a gate2 stub fix in `scripts/gate2-typecheck.ts`, NOT a transform fix.
 - **4 are context issues**: error-boundary (`_errorBoundariesContext`), header (`_collectionLabelContext`). These are `useContext` calls the parser didn't convert to `@consume` fields.
-- **3 are misc**: breadcrumb-group, tabs stub types.
-
-### TS2349: This expression is not callable (4 errors)
-- ALL in list component. `renderItem` was misclassified as a `slot` (the slot getter returns boolean) but the code calls it as `this.renderItem(item)`.
-- **Fix**: Improve prop category detection in the parser — props with function types (`(item: T) => { ... }`) or named `renderXxx` should be `property`, not `slot`.
+- **3 are misc**: breadcrumb-group (`.href` on generic T, `.slice` on wrong type), button-dropdown (`.current` on HTMLElement — ref not fully converted), pie-chart (`.filter` on wrong type).
 
 ### TS2345: Argument type mismatch (4 errors)
 - code-editor (2): `fireNonCancelableEvent(this.onValidate, ...)` — first arg should be `this` (EventTarget), not a callback prop. Partially converted event dispatch.
 - cards: analytics type leftover
 - top-navigation: `{}` not assignable to `string`
 
-### Other (12 errors)
-- TS2869 (2), TS2554 (2), TS2347 (2), TS2873 (1), TS2729 (1), TS2694 (1), TS2556 (1), TS2552 (1), TS2322 (1)
+### TS2347: Untyped function calls may not accept type arguments (2 errors)
+- property-filter, item-card: `tokenGroupToTokens<InternalToken>(...)` / `getItemAttributes<T>(...)` — the functions are stub-typed as `any`, which doesn't accept type args.
+
+### Other (11 errors)
+- TS2869 (2): unreachable `??` right operand (annotation-context)
+- TS2554 (2): wrong arg count (annotation-context, input)
+- TS2322 (2): type mismatch (breadcrumb-group, input)
+- TS2873 (1): always-falsy expression (slider)
+- TS2729 (1): used before initialization (autosuggest)
+- TS2694 (1): JSX namespace member (date-range-picker)
+- TS2556 (1): spread argument (dropdown)
+- TS2552 (1): similar name suggestion (breadcrumb-group)
 
 ---
 
 ## Commands
 
 ```bash
-# Run unit tests (fast, 674 tests)
+# Run unit tests (fast, 679 tests)
 npx vitest run
 
 # Run gate2 (generates all 91 components + type-checks each individually)
@@ -181,13 +187,13 @@ npx tsc --noEmit --strict false --skipLibCheck --experimentalDecorators -p .gate
 
 ## Highest-impact next steps (in priority order)
 
-1. **Property-filter stub quality** (~20 errors, one file change): Give `InternalToken` and `InternalTokenGroup` actual shapes in `scripts/gate2-typecheck.ts`. This is the single highest-bang fix available.
+1. **Preamble promotion for template-referenced vars** (~35 errors, but HARD): The promotion in `src/parser/index.ts` scans handler/helper/effect bodies for preamble var references but NOT template expressions. Adding template scanning to `collectTemplateExpressionText` → `outsideTexts` causes regressions: (a) promoted vars with object-literal shorthand properties break when identifiers get `this.` prefix — the identifier rewriter has an `isExpression` flag for simple expression contexts but computed value expressions can be either expressions OR block bodies; (b) promoted getters are read-only, but downstream code reassigns them; (c) some vars need to stay local in render() because they're consumed by later render-body code. The correct approach may be to promote ONLY vars that are referenced in non-render contexts AND template expressions, while keeping render-only vars as locals.
 
-2. **Preamble promotion for template-referenced vars** (~15 errors): Extend the preamble promotion in `src/parser/` to scan template expression text for bare variable names, not just handler/helper/effect bodies.
+2. **Context conversion for useContext calls** (~4 errors): error-boundary and header components use `useContext()` to get values like `_errorBoundariesContext` and `_collectionLabelContext`. The parser doesn't convert these to `@consume()` decorator fields. Implementing this would eliminate TS2339 errors.
 
-3. **`renderItem` prop misclassification** (4 errors): In the parser's prop categorization, props with function types or `renderXxx` naming pattern should be `property`, not `slot`.
+3. **Hook return parsing for stripped hooks** (~7 errors): Functions like `useModalContext`, `useContainerBreakpoints`, `formatDndStarted` are imported from infrastructure modules that get stripped. Their return values are used but the variables aren't preserved. Need better detection of which hook return variables feed into the component output.
 
-4. **Import preservation for used types** (~5 errors): When a type-only import name appears in the final output code, preserve the import. Currently the emitter strips imports from infrastructure modules even when the type is still referenced.
+4. **Stub function typing for generic calls** (2 errors): `tokenGroupToTokens<InternalToken>(...)` fails because the stub declares `const tokenGroupToTokens: any` — `any` doesn't accept type arguments. Fix: when a function is called with type arguments, generate a generic function stub instead of `const: any`.
 
 ---
 
@@ -202,3 +208,7 @@ npx tsc --noEmit --strict false --skipLibCheck --experimentalDecorators -p .gate
 | `const` render helpers skipped | `const typeToIcon = (size) => ({ html\`...\` })` was skipped from member map because line 117 said "skip const declarations". | Now checks if the const is an arrow function with `html\``. |
 | `prop.default` not rewritten | Prop default values like `loopFocus = expandToViewport` weren't going through the identifier rewriter. | Added `prop.default` rewriting in identifiers transform + `props` to the return value. |
 | Cleanup return not stripped (expression body) | `return () => clearTimeout(ref);` wasn't matched by the block-body pattern `return () => { ... }`. | Added a second pass for expression-body arrows in `stripCleanupReturns`. |
+| `type = any` in stubs breaks union narrowing | When two types in a union are both `= any`, TypeScript collapses the union to `any`. Type guards produce `never` in the else branch. | Auto-detect type guard patterns (`t is Foo`) and generate branded interface stubs with `__brand?: 'Name'` for structural distinction. |
+| `interface` stubs break string types | Changing ALL stubs from `type = any` to `interface { [key: string]: any }` breaks types like `PaneStatus` that are compared with string literals. | Only change types detected in type guard unions. Keep `= any` as default for non-guard types. |
+| Template preamble promotion causes cascading regressions | Extending `promotePreambleVars` to scan template expressions promotes variables that (a) have shorthand properties in object literals (breaks with `this.` prefix), (b) are multi-statement blocks (misidentified as expressions), (c) are reassigned later (getters are read-only). | Don't naively scan templates for promotion. The correct approach requires distinguishing render-only vars from cross-scope vars, and handling shorthand properties + block bodies in the identifier rewriter. |
+| `isFunctionProp` bailed on ReactNode in return types | `(item: T) => { content: ReactNode }` was classified as a slot because `isFunctionProp` rejected any type containing ReactNode. | Now checks if the type STARTS with `(` — function signatures always start with `(`, while slot unions start with the type name. |
