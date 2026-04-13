@@ -14,14 +14,6 @@ import { createCloudscapeConfig } from './presets/cloudscape.js';
 
 const config = createCloudscapeConfig();
 
-// ---------------------------------------------------------------------------
-// Props to skip — Cloudscape internal infrastructure, not part of public API
-// ---------------------------------------------------------------------------
-
-/** Props that should never appear in the generated Lit component. */
-export const SKIP_PROPS = new Set(config.cleanup.skipProps);
-
-/** Prop name prefixes that indicate internal infrastructure. */
 export const SKIP_PREFIXES = config.cleanup.skipPrefixes;
 
 // ---------------------------------------------------------------------------

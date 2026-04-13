@@ -103,10 +103,6 @@ export function createCloudscapeConfig(): CompilerConfig {
       importExtension: '.js',
     },
     cleanup: {
-      skipProps: [
-        'nativeAttributes', 'nativeInputAttributes', 'nativeButtonAttributes',
-        'nativeAnchorAttributes', 'analyticsAction', 'analyticsMetadata',
-      ],
       skipPrefixes: ['__'],
       removeAttributes: [
         'key', 'ref', 'componentName', 'skipWarnings', 'baseProps',

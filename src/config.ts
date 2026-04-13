@@ -52,15 +52,9 @@ export interface OutputConfig {
 
 /** Rules for stripping React/infrastructure artefacts from the output. */
 export interface CleanupConfig {
-  /** Props to completely remove from generated components. */
-  skipProps: string[];
-  /** Prop name prefixes indicating internal infrastructure. */
   skipPrefixes: string[];
-  /** Template attributes to strip. */
   removeAttributes: string[];
-  /** Attribute prefixes to strip. */
   removeAttributePrefixes: string[];
-  /** Infrastructure function names to strip. */
   infraFunctions: string[];
   /** Component names to unwrap (keep children, discard wrapper). */
   unwrapComponents: string[];
@@ -108,7 +102,6 @@ export function createDefaultConfig(): CompilerConfig {
       importExtension: '.js',
     },
     cleanup: {
-      skipProps: [],
       skipPrefixes: ['__'],
       removeAttributes: ['key', 'ref'],
       removeAttributePrefixes: ['__'],

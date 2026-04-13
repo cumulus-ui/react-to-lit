@@ -46,15 +46,6 @@ describe('createDefaultConfig', () => {
 // ---------------------------------------------------------------------------
 
 describe('createCloudscapeConfig', () => {
-  it('has matching skipProps', () => {
-    const config = createCloudscapeConfig();
-    const expected = [
-      'nativeAttributes', 'nativeInputAttributes', 'nativeButtonAttributes',
-      'nativeAnchorAttributes', 'analyticsAction', 'analyticsMetadata',
-    ];
-    expect(config.cleanup.skipProps).toEqual(expected);
-  });
-
   it('has matching skipPrefixes', () => {
     const config = createCloudscapeConfig();
     expect(config.cleanup.skipPrefixes).toEqual(['__']);
@@ -121,7 +112,6 @@ describe('createCloudscapeConfig', () => {
     const legacy = await import('../src/cloudscape-config.js');
 
     // Verify the shim-derived Sets match the config arrays
-    expect([...legacy.SKIP_PROPS]).toEqual(config.cleanup.skipProps);
     expect(legacy.SKIP_PREFIXES).toEqual(config.cleanup.skipPrefixes);
     expect([...legacy.REMOVE_ATTRS]).toEqual(config.cleanup.removeAttributes);
     expect(legacy.REMOVE_ATTR_PREFIXES).toEqual(config.cleanup.removeAttributePrefixes);
@@ -173,6 +163,6 @@ describe('CLI --config and --preset flags', () => {
 
   it('Commander program accepts --preset flag', async () => {
     const config = await loadConfig(undefined, 'cloudscape');
-    expect(config.cleanup.skipProps.length).toBeGreaterThan(0);
+    expect(config.cleanup.skipPrefixes.length).toBeGreaterThan(0);
   });
 });
