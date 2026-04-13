@@ -101,6 +101,10 @@ function replaceReactTypes(text: string): string {
   // React component props are often generic (CardsProps<T>) but Lit versions are not.
   result = result.replace(/\b(\w+Props)<[^>]+>/g, '$1');
 
+  // React return null → Lit return nothing
+  // React components return null to render nothing; Lit uses the nothing sentinel.
+  result = result.replace(/\breturn\s+null\s*;/g, 'return nothing;');
+
   // Bare React handler/callback types imported from 'react' without namespace.
   // FocusEventHandler<T> → (e: FocusEvent) => void, etc.
   // Use negative lookbehind to avoid matching React.MouseEventHandler (handled later).
