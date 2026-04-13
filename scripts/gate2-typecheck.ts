@@ -516,10 +516,20 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
       `// Auto-generated stub for ${modulePath}`,
     ];
     for (const name of [...names].sort()) {
+      // Detect generic arity by scanning the output for Name<T, U, ...> patterns
+      const genericArity = detectGenericArity(name, generated);
+
       // Declare as both value and type (covers classes, enums, type aliases, and constants)
       if (/^[A-Z]/.test(name)) {
         stubLines.push(`export declare const ${name}: any;`);
-        stubLines.push(`export declare type ${name} = any;`);
+        if (genericArity > 0) {
+          const params = Array.from({ length: genericArity }, (_, i) =>
+            `T${i > 0 ? i + 1 : ''} = any`,
+          ).join(', ');
+          stubLines.push(`export declare type ${name}<${params}> = any;`);
+        } else {
+          stubLines.push(`export declare type ${name} = any;`);
+        }
       } else {
         stubLines.push(`export declare const ${name}: any;`);
       }
@@ -543,6 +553,35 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
       }
     }
   }
+}
+
+/**
+ * Detect the generic arity of a type name by scanning all generated output
+ * for patterns like `Name<T>`, `Name<T, U>`, etc.
+ * Returns the maximum number of type params found, or 0 if not generic.
+ */
+function detectGenericArity(name: string, generated: GeneratedComponent[]): number {
+  const pattern = new RegExp(`\\b${name}<([^>]+)>`, 'g');
+  let maxArity = 0;
+
+  for (const comp of generated) {
+    if (!comp.output) continue;
+    let match;
+    while ((match = pattern.exec(comp.output)) !== null) {
+      // Count top-level commas in the generic params to determine arity
+      const params = match[1];
+      let depth = 0;
+      let commas = 0;
+      for (const ch of params) {
+        if (ch === '<' || ch === '(' || ch === '{') depth++;
+        else if (ch === '>' || ch === ')' || ch === '}') depth--;
+        else if (ch === ',' && depth === 0) commas++;
+      }
+      maxArity = Math.max(maxArity, commas + 1);
+    }
+  }
+
+  return maxArity;
 }
 
 // ---------------------------------------------------------------------------
