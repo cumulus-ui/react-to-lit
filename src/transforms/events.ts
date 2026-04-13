@@ -59,8 +59,15 @@ export function transformEvents(ir: ComponentIR): ComponentIR {
   const needsNonCancelableImport = allCode.includes('fireNonCancelableEvent(this,');
   const needsCancelableImport = hasCancelable && allCode.includes('fireCancelableEvent(this,');
 
+  // Only add event imports if not already present from the source
+  const alreadyHasEventImport = ir.imports.some(imp =>
+    imp.moduleSpecifier.includes('events') &&
+    (imp.namedImports?.includes('fireNonCancelableEvent') ||
+     imp.namedImports?.includes('fireCancelableEvent')),
+  );
+
   const imports = [...ir.imports];
-  if (needsNonCancelableImport || needsCancelableImport) {
+  if ((needsNonCancelableImport || needsCancelableImport) && !alreadyHasEventImport) {
     const namedImports: string[] = [];
     if (needsNonCancelableImport) namedImports.push('fireNonCancelableEvent');
     if (needsCancelableImport) namedImports.push('fireCancelableEvent');

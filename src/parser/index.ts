@@ -623,14 +623,6 @@ const SKIP_IMPORT_MODULES = new Set([
 ]);
 
 /**
- * Names that the emitter generates its own imports for.
- * Source imports with these names must be skipped to avoid duplicates.
- */
-const EMITTER_GENERATED_NAMES = new Set([
-  'fireNonCancelableEvent', 'fireCancelableEvent', 'fireKeyboardEvent',
-]);
-
-/**
  * Build the set of import names to skip, derived from:
  * - The hook registry (all registered hooks are handled by the hook pipeline)
  * - Infrastructure functions (handled by the cleanup pipeline)
@@ -700,10 +692,8 @@ function extractSourceImports(sourceFile: ts.SourceFile, skipNames: Set<string>)
       if (ts.isNamedImports(clause.namedBindings)) {
         for (const el of clause.namedBindings.elements) {
           const name = (el.propertyName ?? el.name).text;
-          // Skip names that the emitter generates its own imports for,
-          // to avoid duplicates. Other names are kept — the emitter
-          // filters unused ones by reference checking.
-          if (EMITTER_GENERATED_NAMES.has(name)) continue;
+          // Named imports are preserved — the emitter filters unused
+          // ones by reference checking and handles deduplication.
           // Track individual type-only imports: import { type Foo } from '...'
           if (el.isTypeOnly) {
             typeOnlyNames.push(el.name.text);

@@ -196,7 +196,8 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   const hasEventProps = ir.props.some((p) => p.category === 'event');
   const eventsAlreadyImported = ir.imports.some(imp =>
     imp.moduleSpecifier.includes('events') &&
-    imp.namedImports?.includes('fireNonCancelableEvent'),
+    (imp.namedImports?.includes('fireNonCancelableEvent') ||
+     imp.namedImports?.includes('fireCancelableEvent')),
   );
   if (hasEventProps && !eventsAlreadyImported) {
     collector.addNamed('../internal/events.js', 'fireNonCancelableEvent');
