@@ -71,7 +71,7 @@ export function extractHooks(
     if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
         if (decl.initializer && ts.isCallExpression(decl.initializer)) {
-          processHookCall(decl, decl.initializer, sourceFile, hookRegistry, result);
+          processHookCall(decl, decl.initializer, sourceFile, hookRegistry, result, body);
         }
       }
       continue;
@@ -79,7 +79,7 @@ export function extractHooks(
 
     // Expression statements: useEffect(() => { ... }, [deps])
     if (ts.isExpressionStatement(stmt) && ts.isCallExpression(stmt.expression)) {
-      processHookCall(null, stmt.expression, sourceFile, hookRegistry, result);
+      processHookCall(null, stmt.expression, sourceFile, hookRegistry, result, body);
       continue;
     }
   }
@@ -97,6 +97,7 @@ function processHookCall(
   sourceFile: ts.SourceFile,
   hookRegistry: HookRegistry,
   result: HookExtractionResult,
+  body: ts.Block,
 ): void {
   const hookName = getHookName(call);
   if (!hookName) return;
@@ -104,7 +105,7 @@ function processHookCall(
   // Standard React hooks
   switch (hookName) {
     case 'useState':
-      if (decl) processUseState(decl, call, sourceFile, result);
+      if (decl) processUseState(decl, call, sourceFile, result, body);
       return;
     case 'useEffect':
       processUseEffect(call, sourceFile, result, false);
@@ -189,6 +190,7 @@ function processUseState(
   call: ts.CallExpression,
   sourceFile: ts.SourceFile,
   result: HookExtractionResult,
+  body: ts.Block,
 ): void {
   // const [name, setName] = useState(initialValue)
   if (!ts.isArrayBindingPattern(decl.name)) return;
@@ -206,9 +208,20 @@ function processUseState(
     ? elements[1].name.text
     : `set${nameElement.name.text.charAt(0).toUpperCase()}${nameElement.name.text.slice(1)}`;
 
-  const initialValue = call.arguments.length > 0
+  let initialValue = call.arguments.length > 0
     ? getNodeText(call.arguments[0], sourceFile)
     : 'undefined';
+
+  // If the initial value is a bare identifier that matches a preamble variable
+  // in the same body, inline the variable's initializer. Preamble variables
+  // are render-time locals that won't be in scope at class field level.
+  if (call.arguments.length > 0 && ts.isIdentifier(call.arguments[0])) {
+    const argName = call.arguments[0].text;
+    const inlined = findPreambleVarInitializer(argName, body, sourceFile);
+    if (inlined !== undefined) {
+      initialValue = inlined;
+    }
+  }
 
   // Extract type from generic: useState<boolean>(false) → 'boolean'
   let type: string | undefined;
@@ -222,6 +235,28 @@ function processUseState(
     setter: setterName,
     type,
   });
+}
+
+/**
+ * Find a preamble variable declaration in the body and return its initializer text.
+ * Preamble variables are `const/let/var name = expr` statements that appear
+ * before hooks in the function body. These are render-time locals that won't
+ * be available at class field scope.
+ */
+function findPreambleVarInitializer(
+  name: string,
+  body: ts.Block,
+  sourceFile: ts.SourceFile,
+): string | undefined {
+  for (const stmt of body.statements) {
+    if (!ts.isVariableStatement(stmt)) continue;
+    for (const decl of stmt.declarationList.declarations) {
+      if (ts.isIdentifier(decl.name) && decl.name.text === name && decl.initializer) {
+        return getNodeText(decl.initializer, sourceFile);
+      }
+    }
+  }
+  return undefined;
 }
 
 function processUseEffect(

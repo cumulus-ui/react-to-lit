@@ -334,6 +334,24 @@ describe('parseComponent', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Calendar — preamble variable inlined into state initializer
+  // -------------------------------------------------------------------------
+  describe('Calendar (state init inlining)', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'calendar'));
+
+    it('should inline preamble variable into state initializer', () => {
+      // calendar has: const defaultDisplayedDate = memoizedValue ?? new Date();
+      //               const [displayedDate, setDisplayedDate] = useState(defaultDisplayedDate);
+      // The state initializer should NOT be the bare name 'defaultDisplayedDate'
+      // (which is a render-time local), but the inlined expression.
+      const state = ir.state.find(s => s.name === 'displayedDate');
+      expect(state).toBeDefined();
+      expect(state!.initialValue).not.toBe('defaultDisplayedDate');
+      expect(state!.initialValue).toContain('new Date()');
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // PieChart — destructured useMemo
   // -------------------------------------------------------------------------
   describe('PieChart (destructured useMemo)', () => {
