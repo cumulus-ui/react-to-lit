@@ -623,17 +623,25 @@ const SKIP_IMPORT_MODULES = new Set([
 ]);
 
 /** Module specifier prefixes to exclude. */
-const SKIP_IMPORT_PREFIXES = [
-  '@cloudscape-design/component-toolkit',  // hooks → controllers, handled by registry
+const SKIP_IMPORT_PREFIXES: string[] = [
+  // Individual hook names from @cloudscape-design/component-toolkit are
+  // in SKIP_IMPORT_NAMES instead — utility functions like getIsRtl and
+  // getLogicalBoundingClientRect should be preserved.
 ];
 
 /** Named imports to exclude (handled by other parts of the pipeline). */
 const SKIP_IMPORT_NAMES = new Set([
   'applyDisplayName', 'getBaseProps', 'useBaseComponent', 'InternalBaseComponentProps',
   'getAnalyticsMetadataProps', 'getAnalyticsMetadataAttribute', 'getAnalyticsLabelAttribute',
+  'copyAnalyticsMetadataAttribute',
   'checkSafeUrl', 'warnOnce', 'FunnelMetrics',
-  // Event dispatchers — hardcoded by the emitter
+  // Event dispatchers — the emitter generates its own import
   'fireNonCancelableEvent', 'fireCancelableEvent', 'fireKeyboardEvent',
+  // Toolkit hooks — handled by the hook registry / controller system
+  'useContainerQuery', 'useCurrentMode', 'useDensityMode', 'useResizeObserver',
+  'useSingleTabStopNavigation', 'useStableCallback', 'useUniqueId',
+  // Portal is a React component — no Lit equivalent
+  'Portal',
   // React wrapper components converted by the component transform
   'WithNativeAttributes',
 ]);
