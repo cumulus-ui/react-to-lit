@@ -178,40 +178,51 @@ function extractHelperHooks(
   sourceFile: ts.SourceFile,
   hookRegistry: HookRegistry,
 ): void {
-  const result = extractHooks(body, sourceFile, hookRegistry);
+  const hookResult = extractHooks(body, sourceFile, hookRegistry);
 
-  // Nothing to do if the helper has no hooks
+  // Only extract standalone handlers from helpers that have effects.
+  // Effects reference handlers by name, and both get promoted to class level.
+  // Helpers without effects keep their handlers as local function scope.
+  const handlers = hookResult.effects.length > 0
+    ? extractHandlers(body, sourceFile)
+    : [];
+
+  // Nothing to do if the helper has no hooks or handlers
   const hasHooks =
-    result.state.length > 0 ||
-    result.effects.length > 0 ||
-    result.refs.length > 0 ||
-    result.computedValues.length > 0 ||
-    result.handlers.length > 0 ||
-    result.controllers.length > 0 ||
-    result.contexts.length > 0 ||
-    result.preservedVars.length > 0;
-  if (!hasHooks) return;
+    hookResult.state.length > 0 ||
+    hookResult.effects.length > 0 ||
+    hookResult.refs.length > 0 ||
+    hookResult.computedValues.length > 0 ||
+    hookResult.handlers.length > 0 ||
+    hookResult.controllers.length > 0 ||
+    hookResult.contexts.length > 0 ||
+    hookResult.preservedVars.length > 0;
+  if (!hasHooks && handlers.length === 0) return;
 
-  helper.hooks = result;
+  // Merge extracted handlers into the hook result so they're all in one place
+  hookResult.handlers.push(...handlers);
+  helper.hooks = hookResult;
 
-  // Strip hook call statements from the helper source text.
-  // Collect ranges (relative to sourceFile) of statements that are hook calls,
-  // then remove them from helper.source.
+  // Strip hook call statements AND extracted handler declarations from the
+  // helper source text. Collect ranges of statements to remove.
   const helperStart = sourceFile.text.indexOf(helper.source);
   if (helperStart === -1) return;
 
+  const handlerNames = new Set(handlers.map(h => h.name));
   const ranges: Array<{ start: number; end: number }> = [];
   for (const stmt of body.statements) {
-    let isHook = false;
+    let shouldStrip = false;
     if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
-        if (decl.initializer && isHookCall(decl.initializer)) { isHook = true; break; }
+        if (decl.initializer && isHookCall(decl.initializer)) { shouldStrip = true; break; }
+        // Strip handler declarations that were extracted
+        if (ts.isIdentifier(decl.name) && handlerNames.has(decl.name.text)) { shouldStrip = true; break; }
       }
     }
     if (ts.isExpressionStatement(stmt) && isHookCall(stmt.expression)) {
-      isHook = true;
+      shouldStrip = true;
     }
-    if (isHook) {
+    if (shouldStrip) {
       ranges.push({
         start: stmt.getStart(sourceFile) - helperStart,
         end: stmt.getEnd() - helperStart,

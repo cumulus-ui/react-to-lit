@@ -334,6 +334,33 @@ describe('parseComponent', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Modal — helper-body handlers extracted
+  // -------------------------------------------------------------------------
+  describe('Modal (helper-body handlers)', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'modal'));
+
+    it('should have PortaledModal as a helper with hooks', () => {
+      const helper = ir.helpers.find(h => h.name === 'PortaledModal');
+      expect(helper, 'PortaledModal should be in helpers').toBeDefined();
+      expect(helper!.hooks, 'PortaledModal should have hooks extracted').toBeDefined();
+    });
+
+    it('should extract resetModalPerformanceData handler from PortaledModal', () => {
+      const helper = ir.helpers.find(h => h.name === 'PortaledModal');
+      // Check if handler is in helper's hooks
+      const helperHandler = helper?.hooks?.handlers.find(h => h.name === 'resetModalPerformanceData');
+      // Or in the main IR handlers
+      const mainHandler = ir.handlers.find(h => h.name === 'resetModalPerformanceData');
+      expect(helperHandler ?? mainHandler, 'resetModalPerformanceData should be found somewhere').toBeDefined();
+    });
+
+    it('should extract emitTimeToContentReadyInModal handler from PortaledModal', () => {
+      const handler = ir.handlers.find(h => h.name === 'emitTimeToContentReadyInModal');
+      expect(handler, 'emitTimeToContentReadyInModal should be in ir.handlers').toBeDefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Calendar — preamble variable inlined into state initializer
   // -------------------------------------------------------------------------
   describe('Calendar (state init inlining)', () => {

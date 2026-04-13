@@ -159,9 +159,6 @@ export function parseComponent(
     ? extractHandlers(component.body, sourceFile)
     : [];
 
-  // Merge handlers from useCallback with standalone handlers
-  const allHandlers = [...hookResult.handlers, ...handlers];
-
   // 6b. Collect local variable names for scope-aware identifier rewriting
   const localVariables = ts.isBlock(component.body)
     ? collectLocalVariables(component.body)
@@ -211,6 +208,9 @@ export function parseComponent(
       if (!existingPreservedVars.has(v)) { hookResult.preservedVars.push(v); existingPreservedVars.add(v); }
     }
   }
+
+  // 9c. Merge all handlers: useCallback + standalone + helper-extracted
+  const allHandlers = [...hookResult.handlers, ...handlers];
 
   // 9d. Promote preamble variables that are referenced by handlers, helpers,
   //     or effects to computed values — they need class-level scope since
