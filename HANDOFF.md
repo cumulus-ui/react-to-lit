@@ -8,9 +8,9 @@ The test bed is Cloudscape Design System (91 components). **Every fix MUST be ge
 
 **Current state:**
 - **91/91 components** generate valid Lit output (gate2 per-component: 0 errors)
-- **680 tests** passing, TypeScript compiles clean
-- **Shared tsc**: 62 errors across 25 components (down from 526 → 166 → 94 → 62)
-- **67/91 components** fully error-free in shared compilation
+- **681 tests** passing, TypeScript compiles clean
+- **Shared tsc**: 55 errors across 23 components (down from 526 → 166 → 94 → 55)
+- **68/91 components** fully error-free in shared compilation
 - All 7 original issues (#11-#18) are closed
 
 ---
@@ -51,7 +51,7 @@ Read each rule. Understand WHY it exists. The "why" is learned from painful debu
 
 ### 6. Test every fix. No exceptions.
 - Add a unit test in `test/transforms/` or `test/emitter/` that covers the specific pattern.
-- Run `npx vitest run` (must be 680+ passing).
+- Run `npx vitest run` (must be 681+ passing).
 - Run `npm run gate2` (must complete with no failures).
 - Run the shared tsc command and verify error count went down, not up.
 - **Check for TS1xxx syntax errors** — these mean your change broke the output.
@@ -116,10 +116,15 @@ Each entry has a test reference. If you modify the related code, run that test t
 | Generic function stubs | (verified via gate2) | Functions called with type arguments (e.g., `foo<T>(...)`) get `declare function` stubs instead of `const: any` — supports nested angle brackets |
 | Zero-param expression-body arrow extraction | `parse-components.test.ts` "Wizard" | `() => doSomething()` expression-body arrows with function-call bodies are now extracted as handlers. Previously fell into gap between `isHandlerDeclaration` (skipped from preamble) and `isSignificantFunction` (rejected from handlers). |
 | Internal generated module import preservation | (verified via gate2) | `isComponentImportPath` no longer skips `/index.js` imports from `/generated/` utility modules (CSS custom properties, etc.) |
+| Event prop alias matching | (verified via gate2) | Event transform includes `propAliases` (e.g., `onFinish: onFinishHandler`) and matches `props.propName` patterns in fire*Event calls |
+| `fire*Event(__xxx, ...)` multi-arg cleanup | `cleanup.test.ts` | Strips entire `fire*Event` calls when first arg is `__`-prefixed (not just single-arg calls) |
+| `fireNonCancelableEvent` import specificity | (verified via gate2) | Import emitter checks for `fireNonCancelableEvent` specifically, not just any events module import |
+| Ref deferred initialization | (verified via gate2) | `emitRefs()` now returns `{ code, deferred }` and defers `this.`-referencing initializers to `firstUpdated()` |
+| `JSX.Element` → `unknown` | (verified via gate2) | React-specific `JSX.Element` namespace type cleaned to `unknown` |
 
 ---
 
-## Remaining 62 errors — categorized
+## Remaining 55 errors — categorized
 
 ### TS2304: Cannot find name (40 errors)
 
@@ -139,22 +144,19 @@ Each entry has a test reference. If you modify the related code, run that test t
 - cards: analytics type leftover
 - top-navigation: `{}` not assignable to `string`
 
-### Other (9 errors)
-- TS2869 (2): unreachable `??` right operand (annotation-context)
-- TS2554 (2): wrong arg count (annotation-context, input)
-- TS2322 (2): type mismatch (breadcrumb-group, dropdown)
-- TS2873 (1): always-falsy expression (slider)
-- TS2729 (1): used before initialization (autosuggest)
-- TS2694 (1): JSX namespace member (date-range-picker)
+### Other (8 errors)
+- TS2869 (2): unreachable `??` right operand (annotation-context) — harmless warnings
+- TS2345 (2): argument type mismatch (cards analytics, top-navigation nested event prop)
+- TS2322 (2): type mismatch (breadcrumb-group array vs function, dropdown union narrowing)
+- TS2873 (1): always-falsy expression (slider — `!undefined` from `__` cleanup)
 - TS2556 (1): spread argument (dropdown)
-- TS2552 (1): similar name suggestion (breadcrumb-group)
 
 ---
 
 ## Commands
 
 ```bash
-# Run unit tests (fast, 680 tests)
+# Run unit tests (fast, 681 tests)
 npx vitest run
 
 # Run gate2 (generates all 91 components + type-checks each individually)
