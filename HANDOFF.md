@@ -8,7 +8,7 @@ The test bed is Cloudscape Design System (91 components). **Every fix MUST be ge
 
 **Current state:**
 - **91/91 components** generate valid Lit output (gate2 per-component: 0 errors)
-- **681 tests** passing, TypeScript compiles clean
+- **682 tests** passing, TypeScript compiles clean
 - **Shared tsc**: 42 errors across 20 components (down from 526 → 166 → 94 → 42)
 - **71/91 components** fully error-free in shared compilation
 - All 7 original issues (#11-#18) are closed
@@ -51,7 +51,7 @@ Read each rule. Understand WHY it exists. The "why" is learned from painful debu
 
 ### 6. Test every fix. No exceptions.
 - Add a unit test in `test/transforms/` or `test/emitter/` that covers the specific pattern.
-- Run `npx vitest run` (must be 681+ passing).
+- Run `npx vitest run` (must be 682+ passing).
 - Run `npm run gate2` (must complete with no failures).
 - Run the shared tsc command and verify error count went down, not up.
 - **Check for TS1xxx syntax errors** — these mean your change broke the output.
@@ -164,7 +164,7 @@ Each entry has a test reference. If you modify the related code, run that test t
 ## Commands
 
 ```bash
-# Run unit tests (fast, 681 tests)
+# Run unit tests (fast, 682 tests)
 npx vitest run
 
 # Run gate2 (generates all 91 components + type-checks each individually)
