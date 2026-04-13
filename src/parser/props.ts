@@ -272,6 +272,18 @@ function classifyProp(
     };
   }
 
+  // Function/callback props — not serializable as attributes.
+  // Detect by type string (arrow functions, Function, etc.) or default value.
+  if (isFunctionProp(typeText, defaultValue)) {
+    return {
+      name,
+      type: typeText,
+      default: defaultValue,
+      category: 'property' as const,
+      attribute: false,
+    };
+  }
+
   // String/enum props (most common case)
   return {
     name,
@@ -296,6 +308,16 @@ function isSlotProp(name: string, typeText: string): boolean {
 function isBooleanProp(_name: string, _typeText: string, defaultValue?: string): boolean {
   // Infer from default value only — type inference handles the rest
   return defaultValue === 'false' || defaultValue === 'true';
+}
+
+function isFunctionProp(typeText: string, defaultValue?: string): boolean {
+  // Detect from type: arrow function types, Function keyword, callable signatures
+  if (/\(\s*\w*.*\)\s*=>/.test(typeText)) return true;
+  if (typeText === 'Function' || typeText.includes('Handler')) return true;
+  // Detect from default value: () => ..., function ...
+  if (defaultValue && /^\s*\(/.test(defaultValue) && defaultValue.includes('=>')) return true;
+  if (defaultValue && defaultValue.startsWith('function')) return true;
+  return false;
 }
 
 // ---------------------------------------------------------------------------
