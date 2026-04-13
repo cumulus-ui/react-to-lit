@@ -318,6 +318,10 @@ function cleanInternalPrefixedRefs(text: string): string {
   let result = text;
   // __xxx && expr → remove (the internal flag is always false/absent)
   result = result.replace(/\b__\w+\s*&&\s*[^;,\n]+[;,]?\s*/g, '');
+  // __xxx ?? fallback → fallback (the internal prop is always absent)
+  result = result.replace(/\b__\w+\s*\?\?\s*/g, '');
+  // __xxx || fallback → fallback (the internal prop is always falsy)
+  result = result.replace(/\b__\w+\s*\|\|\s*/g, '');
   // __xxx ? exprA : exprB → exprB (take the else branch)
   result = result.replace(/\b__\w+\s*\?\s*[^:]+:\s*/g, '');
   // !__xxx ? exprA : exprB → exprA (negated: take the then branch)
