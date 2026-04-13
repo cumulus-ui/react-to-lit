@@ -1,12 +1,13 @@
 # react-to-lit
 
-A build-time compiler that transforms React function components into Lit web
-component classes.
+A build-time compiler that transforms React component libraries into Lit web
+components. Give it a published npm package and its source -- it discovers
+components from the barrel export, classifies props, events, and slots from
+the TypeScript type system, and generates idiomatic Lit classes.
 
-The output is **framework-neutral** -- pure Lit classes with placeholder `el-`
-tag prefixes and no `@customElement()` registration. Consumers adopt the
-generated code into their own project, wire up their own base classes, tag
-names, styles, and custom element registration. The compiler handles the
+The output is **framework-neutral** -- pure Lit classes with no
+`@customElement()` registration. Consumers wire up their own base classes,
+tag names, styles, and custom element registration. The compiler handles the
 mechanical translation; the consumer owns the design system.
 
 ## Who is this for?
