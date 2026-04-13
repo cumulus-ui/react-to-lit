@@ -10,7 +10,7 @@ import { containsHtmlTemplate } from '../text-utils.js';
 import { collectImports } from './imports.js';
 import { emitProperties, emitState, emitControllers, emitContexts, emitComputed, emitRefs, emitSkippedHookVars } from './properties.js';
 import type { DeferredInit } from './properties.js';
-import { stripFunctionCalls, findMatchingParen } from '../text-utils.js';
+import { findMatchingParen } from '../text-utils.js';
 import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
@@ -169,8 +169,7 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
 
   // --- Render helpers (as private methods) ---
   for (const helper of renderHelpers) {
-    const cleaned = stripReactHooks(helper.source);
-    const method = convertToPrivateMethod(cleaned);
+    const method = convertToPrivateMethod(helper.source);
     sections.push(method);
     sections.push('');
   }
@@ -181,11 +180,17 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   // Inject body preamble into render() before the return statement.
   // These are transformed variable declarations (className computations,
   // attribute builders) that the template references.
-  // Filter out statements containing untransformed React patterns.
+  // Filter out statements that are standalone React hook calls.
+  // Statements where a hook call is embedded in a larger expression
+  // (e.g., `const x = { ref: useMergeRefs(...) }`) are NOT filtered —
+  // those need the hook call cleaned up, not the whole statement removed.
   // Note: className assignments that have been converted to classMap() are valid Lit code.
-  const REACT_PATTERNS = /\buseEffect\b|\buseLayoutEffect\b|\buseState\b|\buseCallback\b|\bcheckControlled\(/;
   const safePreamble = ir.bodyPreamble.filter((stmt) => {
-    if (REACT_PATTERNS.test(stmt)) return false;
+    // Standalone hook call: `useEffect(...)` or `useLayoutEffect(...)`
+    const trimmed = stmt.trimStart();
+    if (/^use[A-Z]\w*\s*\(/.test(trimmed)) return false;
+    // Variable initialized purely from a hook: `const x = useFoo(...)`
+    if (/^(?:const|let|var)\s+(?:\{[^}]*\}|\[[^\]]*\]|\w+)\s*=\s*use[A-Z]\w*\s*\(/.test(trimmed)) return false;
     // Filter className assignments that still use clsx() or styles.xxx (unconverted)
     if (/\bclassName\s*=/.test(stmt) && !stmt.includes('classMap(')) return false;
     // Filter orphaned assignments from clsx → classMap rewrites (e.g. "= classMap({...})")
@@ -325,52 +330,4 @@ function toPrivateMethodName(name: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Hook stripping for render helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Strip residual React hook calls (useEffect, useLayoutEffect) from a render
- * helper's source text.  These are full statement-level calls of the form
- *   useEffect(() => { ... }, [...]);
- * We use a balanced-paren approach to find the matching `)` and then consume
- * the trailing semicolon.
- */
-function stripReactHooks(source: string): string {
-  const hookNames = [
-    'useEffect', 'useLayoutEffect', 'useInternalI18n', 'useFunnel',
-    'useFunnelStep', 'useFunnelSubStep', 'useVisualRefresh', 'useUniqueId',
-    'useMergeRefs',
-  ];
-
-  let result = source;
-
-  // First pass: strip variable declarations with hook calls (const x = useHook(...))
-  for (const hook of hookNames) {
-    const declPattern = new RegExp(`(?:const|let|var)\\s+(?:\\{[^}]*\\}|\\[[^\\]]*\\]|\\w+)\\s*=\\s*${hook}\\s*\\(`);
-    for (let safety = 0; safety < 50; safety++) {
-      const m = declPattern.exec(result);
-      if (!m) break;
-      const openParen = result.indexOf('(', m.index + m[0].length - 1);
-      if (openParen === -1) break;
-      const closeParen = findMatchingParen(result, openParen);
-      if (closeParen === -1) break;
-      let end = closeParen + 1;
-      while (end < result.length && (result[end] === ' ' || result[end] === '\t')) end++;
-      if (end < result.length && result[end] === ';') end++;
-      if (end < result.length && result[end] === '\n') end++;
-      result = result.slice(0, m.index) + result.slice(end);
-    }
-  }
-
-  // Second pass: strip bare hook calls via shared utility
-  for (const hook of hookNames) {
-    result = stripFunctionCalls(result, hook);
-  }
-
-  // Strip comments that mention React hooks (gate3 checks for \buseEffect\b etc.)
-  result = result.replace(/\/\/.*\b(useEffect|useLayoutEffect|useState|useCallback|useContext)\b.*\n?/g, '');
-  result = result.replace(/\/\*[\s\S]*?\b(useEffect|useLayoutEffect|useState|useCallback|useContext)\b[\s\S]*?\*\//g, '');
-
-  return result;
-}
 

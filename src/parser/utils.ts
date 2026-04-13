@@ -6,6 +6,8 @@ import { getNodeText } from './program.js';
 import type { HandlerIR, HelperIR } from '../ir/types.js';
 import { INFRA_FUNCTIONS } from '../cloudscape-config.js';
 import { containsHtmlTemplate } from '../text-utils.js';
+import { extractHooks } from './hooks.js';
+import type { HookRegistry } from '../hooks/registry.js';
 
 // ---------------------------------------------------------------------------
 // Modifier helpers
@@ -98,6 +100,7 @@ export function extractHandlers(
 export function extractHelpers(
   sourceFile: ts.SourceFile,
   componentFunctionName: string,
+  hookRegistry?: HookRegistry,
 ): HelperIR[] {
   const helpers: HelperIR[] = [];
 
@@ -118,7 +121,11 @@ export function extractHelpers(
       // Any remaining React patterns will be cleaned up by post-processing
       if (containsJSX(source) && !containsHtmlTemplate(source)) continue;
 
-      helpers.push({ name, source });
+      const helper: HelperIR = { name, source };
+      if (hookRegistry && stmt.body) {
+        extractHelperHooks(helper, stmt.body, sourceFile, hookRegistry);
+      }
+      helpers.push(helper);
     }
 
     // Variable declarations with function values
@@ -140,13 +147,90 @@ export function extractHelpers(
           // Any remaining React patterns will be cleaned up by post-processing
           if (containsJSX(source) && !containsHtmlTemplate(source)) continue;
 
-          helpers.push({ name, source });
+          const helper: HelperIR = { name, source };
+          if (hookRegistry) {
+            const fn = decl.initializer;
+            const body = ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)
+              ? fn.body : undefined;
+            if (body && ts.isBlock(body)) {
+              extractHelperHooks(helper, body, sourceFile, hookRegistry);
+            }
+          }
+          helpers.push(helper);
         }
       }
     }
   }
 
   return helpers;
+}
+
+/**
+ * Extract hooks from a helper function body and strip the hook call
+ * statements from the helper's source text.
+ *
+ * Reuses `extractHooks` (the same logic that processes the main component)
+ * and `isHookCall` (already used for handler extraction and preamble detection).
+ */
+function extractHelperHooks(
+  helper: HelperIR,
+  body: ts.Block,
+  sourceFile: ts.SourceFile,
+  hookRegistry: HookRegistry,
+): void {
+  const result = extractHooks(body, sourceFile, hookRegistry);
+
+  // Nothing to do if the helper has no hooks
+  const hasHooks =
+    result.state.length > 0 ||
+    result.effects.length > 0 ||
+    result.refs.length > 0 ||
+    result.computedValues.length > 0 ||
+    result.handlers.length > 0 ||
+    result.controllers.length > 0 ||
+    result.contexts.length > 0 ||
+    result.preservedVars.length > 0;
+  if (!hasHooks) return;
+
+  helper.hooks = result;
+
+  // Strip hook call statements from the helper source text.
+  // Collect ranges (relative to sourceFile) of statements that are hook calls,
+  // then remove them from helper.source.
+  const helperStart = sourceFile.text.indexOf(helper.source);
+  if (helperStart === -1) return;
+
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (const stmt of body.statements) {
+    let isHook = false;
+    if (ts.isVariableStatement(stmt)) {
+      for (const decl of stmt.declarationList.declarations) {
+        if (decl.initializer && isHookCall(decl.initializer)) { isHook = true; break; }
+      }
+    }
+    if (ts.isExpressionStatement(stmt) && isHookCall(stmt.expression)) {
+      isHook = true;
+    }
+    if (isHook) {
+      ranges.push({
+        start: stmt.getStart(sourceFile) - helperStart,
+        end: stmt.getEnd() - helperStart,
+      });
+    }
+  }
+
+  // Remove ranges in reverse order to preserve offsets
+  let cleaned = helper.source;
+  for (let i = ranges.length - 1; i >= 0; i--) {
+    const { start, end } = ranges[i];
+    // Also consume trailing newline/whitespace
+    let trimEnd = end;
+    while (trimEnd < cleaned.length && (cleaned[trimEnd] === '\n' || cleaned[trimEnd] === '\r')) {
+      trimEnd++;
+    }
+    cleaned = cleaned.slice(0, start) + cleaned.slice(trimEnd);
+  }
+  helper.source = cleaned;
 }
 
 // ---------------------------------------------------------------------------

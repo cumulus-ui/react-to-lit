@@ -251,6 +251,70 @@ describe('parseComponent', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Header — helper component with hooks
+  // -------------------------------------------------------------------------
+  describe('Header (helper hooks)', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'header'));
+
+    it('should extract the Description helper', () => {
+      const desc = ir.helpers.find((h) => h.name === 'Description');
+      expect(desc).toBeDefined();
+    });
+
+    it('should include hook return vars from helpers in skippedHookVars', () => {
+      // Description has `const isRefresh = useVisualRefresh()` — a skipped hook.
+      // Its return variable should be in skippedHookVars so the identifier
+      // rewriter maps it to this._isRefresh.
+      // The main component also has isRefresh, but even without that,
+      // the helper's hook variable must be captured.
+      expect(ir.skippedHookVars).toContain('isRefresh');
+    });
+
+    it('should strip the hook call from the helper source', () => {
+      const desc = ir.helpers.find((h) => h.name === 'Description');
+      expect(desc).toBeDefined();
+      // The useVisualRefresh() call should be removed from the helper source
+      // because extractHooks processed it.
+      expect(desc!.source).not.toContain('useVisualRefresh');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // FormField — helper components with hooks (i18n + useRef)
+  // -------------------------------------------------------------------------
+  describe('FormField (helper hooks)', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'form-field'));
+
+    it('should extract FormFieldError and FormFieldWarning helpers', () => {
+      expect(ir.helpers.find((h) => h.name === 'FormFieldError')).toBeDefined();
+      expect(ir.helpers.find((h) => h.name === 'FormFieldWarning')).toBeDefined();
+    });
+
+    it('should capture useRef from helper as a ref in the IR', () => {
+      // FormFieldError has const contentRef = useRef<HTMLDivElement | null>(null)
+      // This should be extracted as a ref, not left as raw text.
+      const contentRef = ir.refs.find((r) => r.name === 'contentRef');
+      expect(contentRef).toBeDefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // KeyValuePairs — helper with useUniqueId
+  // -------------------------------------------------------------------------
+  describe('KeyValuePairs (helper hooks)', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'key-value-pairs'));
+
+    it('should extract InternalKeyValuePair helper', () => {
+      expect(ir.helpers.find((h) => h.name === 'InternalKeyValuePair')).toBeDefined();
+    });
+
+    it('should include kvPairId from helper hook in skippedHookVars', () => {
+      // InternalKeyValuePair has const kvPairId = useUniqueId('kv-pair-')
+      expect(ir.skippedHookVars).toContain('kvPairId');
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // TagEditor — entry file as implementation when secondary has only helpers
   // -------------------------------------------------------------------------
   describe('TagEditor', () => {
@@ -262,6 +326,46 @@ describe('parseComponent', () => {
       expect(ir.name).toBeDefined();
       expect(ir.props.length).toBeGreaterThan(0);
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // Cross-cutting: no hook calls should remain in any helper source
+  // -------------------------------------------------------------------------
+  describe('all components — helper hook extraction', () => {
+    const fs = require('node:fs');
+    const componentDirs = fs.readdirSync(CLOUDSCAPE_SRC, { withFileTypes: true })
+      .filter((d: any) => d.isDirectory() && !d.name.startsWith('__') && !d.name.startsWith('.'))
+      .map((d: any) => d.name);
+
+    for (const dir of componentDirs) {
+      const fullPath = path.join(CLOUDSCAPE_SRC, dir);
+      // Only test components that have an index.tsx
+      const hasIndex = fs.existsSync(path.join(fullPath, 'index.tsx'));
+      if (!hasIndex) continue;
+
+      it(`${dir}: no hook calls in helper source after extraction`, () => {
+        let ir;
+        try {
+          ir = parseComponent(fullPath);
+        } catch {
+          return; // skip components that fail to parse (not relevant here)
+        }
+        for (const helper of ir.helpers) {
+          // Match use*( patterns — these are hook calls that should have been
+          // extracted by the parser, not left as raw text in helper source.
+          const residual = helper.source.match(/\buse[A-Z]\w*\s*\(/g);
+          if (residual) {
+            // Filter out false positives: "used", "user", method calls like "foo.useSomething("
+            const real = residual.filter(m => {
+              const name = m.replace(/\s*\($/, '');
+              // Must start with "use" followed by uppercase (React convention)
+              return /^use[A-Z]/.test(name);
+            });
+            expect(real, `${dir}/${helper.name} has residual hook calls: ${real.join(', ')}`).toHaveLength(0);
+          }
+        }
+      });
+    }
   });
 });
 

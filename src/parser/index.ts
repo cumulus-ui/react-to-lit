@@ -170,7 +170,40 @@ export function parseComponent(
 
   // 9. Extract helper functions (file-level, outside the component)
   const implFile = internalFile ?? indexFile;
-  const helpers = [...extractHelpers(implFile, component.name), ...renderHelpers];
+  const helpers = [...extractHelpers(implFile, component.name, hookRegistry), ...renderHelpers];
+
+  // 9a. Merge hooks extracted from helper function bodies into the main IR.
+  // Helpers that are component-like functions (have hooks) get their hooks
+  // extracted by extractHelpers. We merge them here so the identifier
+  // rewriter and emitter see them as class-level fields.
+  // Deduplicate by name to avoid TS2300 when both main component and
+  // a helper declare the same hook variable (e.g., both call useVisualRefresh).
+  const existingStateNames = new Set(hookResult.state.map(s => s.name));
+  const existingRefNames = new Set(hookResult.refs.map(r => r.name));
+  const existingComputedNames = new Set(hookResult.computedValues.map(c => c.name));
+  const existingHandlerNames = new Set(hookResult.handlers.map(h => h.name));
+  const existingPreservedVars = new Set(hookResult.preservedVars);
+  for (const helper of helpers) {
+    if (!helper.hooks) continue;
+    for (const s of helper.hooks.state) {
+      if (!existingStateNames.has(s.name)) { hookResult.state.push(s); existingStateNames.add(s.name); }
+    }
+    hookResult.effects.push(...helper.hooks.effects);
+    for (const r of helper.hooks.refs) {
+      if (!existingRefNames.has(r.name)) { hookResult.refs.push(r); existingRefNames.add(r.name); }
+    }
+    for (const c of helper.hooks.computedValues) {
+      if (!existingComputedNames.has(c.name)) { hookResult.computedValues.push(c); existingComputedNames.add(c.name); }
+    }
+    for (const h of helper.hooks.handlers) {
+      if (!existingHandlerNames.has(h.name)) { hookResult.handlers.push(h); existingHandlerNames.add(h.name); }
+    }
+    hookResult.controllers.push(...helper.hooks.controllers);
+    hookResult.contexts.push(...helper.hooks.contexts);
+    for (const v of helper.hooks.preservedVars) {
+      if (!existingPreservedVars.has(v)) { hookResult.preservedVars.push(v); existingPreservedVars.add(v); }
+    }
+  }
 
   // 9d. Promote preamble variables that are referenced by handlers, helpers,
   //     or effects to computed values — they need class-level scope since
@@ -465,6 +498,13 @@ function extractBodyPreamble(
       if (text.includes('useBaseComponent')) continue;
       // Skip dev-only validation blocks (contain hooks that violate rules-of-hooks)
       if (ts.isIfStatement(stmt) && text.includes('isDevelopment')) continue;
+
+      // Skip bare function call expression statements.
+      // In a React component body, bare calls (not assignments, not declarations)
+      // are side-effects: validation, registration, analytics, etc.
+      // They don't produce values the template needs, and the called function
+      // is often not available in the Lit output.
+      if (ts.isExpressionStatement(stmt) && ts.isCallExpression(stmt.expression)) continue;
 
       // Check if this is a variable containing a template (html`...`)
       // These become render helper methods instead of bodyPreamble

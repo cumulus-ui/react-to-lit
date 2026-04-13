@@ -352,8 +352,23 @@ export interface HelperIR {
   /** Function name */
   name: string;
 
-  /** Full source text of the function */
+  /** Full source text of the function (hook statements removed when hooks were extracted) */
   source: string;
+
+  /**
+   * Hooks extracted from this helper's body.
+   * When present, hook call statements have been stripped from `source`.
+   */
+  hooks?: {
+    state: StateIR[];
+    effects: EffectIR[];
+    refs: RefIR[];
+    computedValues: ComputedIR[];
+    handlers: HandlerIR[];
+    controllers: ControllerIR[];
+    contexts: ContextIR[];
+    preservedVars: string[];
+  };
 }
 
 // ---------------------------------------------------------------------------
