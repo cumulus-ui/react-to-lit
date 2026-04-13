@@ -9,8 +9,8 @@ The test bed is Cloudscape Design System (91 components). **Every fix MUST be ge
 **Current state:**
 - **91/91 components** generate valid Lit output (gate2 per-component: 0 errors)
 - **679 tests** passing, TypeScript compiles clean
-- **Shared tsc**: 71 errors across 26 components (down from 526 → 166 → 94 → 71)
-- **65/91 components** fully error-free in shared compilation
+- **Shared tsc**: 69 errors across 25 components (down from 526 → 166 → 94 → 69)
+- **66/91 components** fully error-free in shared compilation
 - All 7 original issues (#11-#18) are closed
 
 ---
@@ -113,10 +113,11 @@ Each entry has a test reference. If you modify the related code, run that test t
 | Type guard branded stubs | `parse-components.test.ts` "List" | Types in type guards (e.g., `t is TokenGroup`) get branded interface stubs instead of `= any` — prevents union narrowing to `never` |
 | Render callback prop classification | `parse-components.test.ts` "List", `cleanup-react-types.test.ts` "prop type cleanup" | Function types `(args) => ReactNode` are properties, not slots. Prop types also get React type cleanup. |
 | Expression wrapping for identifiers | `identifiers.test.ts` "expression wrapping" | `rewriteWithMorph` accepts `isExpression` flag so object literals with nested arrow semicolons are parsed correctly |
+| Generic function stubs | (verified via gate2) | Functions called with type arguments (e.g., `foo<T>(...)`) get `declare function` stubs instead of `const: any` — supports nested angle brackets |
 
 ---
 
-## Remaining 71 errors — categorized
+## Remaining 69 errors — categorized
 
 ### TS2304: Cannot find name (47 errors)
 
@@ -136,13 +137,10 @@ Each entry has a test reference. If you modify the related code, run that test t
 - cards: analytics type leftover
 - top-navigation: `{}` not assignable to `string`
 
-### TS2347: Untyped function calls may not accept type arguments (2 errors)
-- property-filter, item-card: `tokenGroupToTokens<InternalToken>(...)` / `getItemAttributes<T>(...)` — the functions are stub-typed as `any`, which doesn't accept type args.
-
-### Other (11 errors)
+### Other (9 errors)
 - TS2869 (2): unreachable `??` right operand (annotation-context)
 - TS2554 (2): wrong arg count (annotation-context, input)
-- TS2322 (2): type mismatch (breadcrumb-group, input)
+- TS2322 (2): type mismatch (breadcrumb-group, dropdown)
 - TS2873 (1): always-falsy expression (slider)
 - TS2729 (1): used before initialization (autosuggest)
 - TS2694 (1): JSX namespace member (date-range-picker)
@@ -193,7 +191,7 @@ npx tsc --noEmit --strict false --skipLibCheck --experimentalDecorators -p .gate
 
 3. **Hook return parsing for stripped hooks** (~7 errors): Functions like `useModalContext`, `useContainerBreakpoints`, `formatDndStarted` are imported from infrastructure modules that get stripped. Their return values are used but the variables aren't preserved. Need better detection of which hook return variables feed into the component output.
 
-4. **Stub function typing for generic calls** (2 errors): `tokenGroupToTokens<InternalToken>(...)` fails because the stub declares `const tokenGroupToTokens: any` — `any` doesn't accept type arguments. Fix: when a function is called with type arguments, generate a generic function stub instead of `const: any`.
+4. **Event dispatch argument fixing** (~2 errors): `fireNonCancelableEvent(this._onFinish)` and `fireNonCancelableEvent({ relatedTarget })` have wrong arg counts. The event transform needs to handle the 1-arg pattern where the callback was the first arg (pre-conversion) and wasn't fully updated to the `(target, eventName, detail)` signature.
 
 ---
 
