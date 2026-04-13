@@ -81,7 +81,8 @@ export function emitLifecycle(effects: EffectIR[], deferredInits: DeferredInit[]
     for (const effect of allDepEffects) {
       const deps = effect.deps as string[];
       const hasCleanup = !!effect.cleanup;
-      const condition = deps
+      const uniqueDeps = [...new Set(deps)];
+      const condition = uniqueDeps
         .map((d) => `changed.has('${d}')`)
         .join(' || ');
       lines.push(`    if (${condition}) {`);

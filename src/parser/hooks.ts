@@ -296,7 +296,7 @@ function processUseEffect(
       if (depsArg.elements.length === 0) {
         deps = 'empty';
       } else {
-        deps = depsArg.elements.map((e) => getNodeText(e, sourceFile));
+        deps = depsArg.elements.map((e) => toRootIdentifier(e));
       }
     } else {
       deps = 'none';
@@ -588,4 +588,26 @@ function isDomElementType(typeName: string): boolean {
     typeName === 'SVGElement' ||
     typeName === 'Node'
   );
+}
+
+/**
+ * Extract the root identifier from a dependency expression AST node.
+ * Lit's changed.has() only accepts declared property names — not dotted paths
+ * or optional chains. So `model.handlers.onKeyDown` → `model`,
+ * `persistenceConfig?.uniqueKey` → `persistenceConfig`, and bare `items` → `items`.
+ */
+function toRootIdentifier(node: ts.Node): string {
+  let current = node;
+  while (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
+    current = current.expression;
+  }
+  // NonNullExpression: foo!.bar → foo
+  while (ts.isNonNullExpression(current)) {
+    current = current.expression;
+  }
+  if (ts.isIdentifier(current)) {
+    return current.text;
+  }
+  // Fallback: return full text (shouldn't happen for valid deps)
+  return current.getText();
 }

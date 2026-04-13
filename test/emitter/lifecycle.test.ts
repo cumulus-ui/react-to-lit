@@ -96,4 +96,25 @@ describe('emitLifecycle', () => {
       expect(result).not.toContain('firstUpdated');
     });
   });
+
+  describe('changed.has() deduplication', () => {
+    it('deduplicates identical deps in willUpdate condition', () => {
+      const effects: EffectIR[] = [{
+        body: 'console.log("changed");',
+        deps: ['config', 'config'],
+      }];
+      const result = emitLifecycle(effects);
+      expect(result).toContain("changed.has('config')");
+      expect(result).not.toContain("changed.has('config') || changed.has('config')");
+    });
+
+    it('preserves distinct deps in willUpdate condition', () => {
+      const effects: EffectIR[] = [{
+        body: 'console.log("changed");',
+        deps: ['items', 'i18nStrings'],
+      }];
+      const result = emitLifecycle(effects);
+      expect(result).toContain("changed.has('items') || changed.has('i18nStrings')");
+    });
+  });
 });
