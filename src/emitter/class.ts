@@ -9,6 +9,7 @@ import { Project, Node, ts } from 'ts-morph';
 import { containsHtmlTemplate } from '../text-utils.js';
 import { collectImports } from './imports.js';
 import { emitProperties, emitState, emitControllers, emitContexts, emitComputed, emitRefs, emitSkippedHookVars } from './properties.js';
+import type { DeferredInit } from './properties.js';
 import { stripFunctionCalls, findMatchingParen } from '../text-utils.js';
 import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
@@ -108,16 +109,19 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   }
 
   // --- Properties ---
-  const propsCode = emitProperties(ir.props);
-  if (propsCode.trim()) {
-    sections.push(propsCode);
+  const allDeferred: DeferredInit[] = [];
+  const propsResult = emitProperties(ir.props);
+  if (propsResult.code.trim()) {
+    sections.push(propsResult.code);
   }
+  allDeferred.push(...propsResult.deferred);
 
   // --- State ---
-  const stateCode = emitState(ir.state);
-  if (stateCode.trim()) {
-    sections.push(stateCode);
+  const stateResult = emitState(ir.state);
+  if (stateResult.code.trim()) {
+    sections.push(stateResult.code);
   }
+  allDeferred.push(...stateResult.deferred);
 
   // --- Refs ---
   const refsCode = emitRefs(ir.refs);
@@ -126,10 +130,11 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   }
 
   // --- Controllers ---
-  const controllerCode = emitControllers(ir.controllers);
-  if (controllerCode.trim()) {
-    sections.push(controllerCode);
+  const controllerResult = emitControllers(ir.controllers);
+  if (controllerResult.code.trim()) {
+    sections.push(controllerResult.code);
   }
+  allDeferred.push(...controllerResult.deferred);
 
   // --- Skipped hook variable stubs ---
   const skippedCode = emitSkippedHookVars(ir.skippedHookVars);
@@ -144,7 +149,7 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   }
 
   // --- Lifecycle ---
-  const lifecycleCode = emitLifecycle(ir.effects);
+  const lifecycleCode = emitLifecycle(ir.effects, allDeferred);
   if (lifecycleCode.trim()) {
     sections.push(lifecycleCode);
   }

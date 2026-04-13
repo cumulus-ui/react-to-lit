@@ -8,13 +8,14 @@
  * - cleanup → disconnectedCallback()
  */
 import type { EffectIR } from '../ir/types.js';
+import type { DeferredInit } from './properties.js';
 import { findMatchingParen } from '../text-utils.js';
 
 // ---------------------------------------------------------------------------
 // Main emission
 // ---------------------------------------------------------------------------
 
-export function emitLifecycle(effects: EffectIR[]): string {
+export function emitLifecycle(effects: EffectIR[], deferredInits: DeferredInit[] = []): string {
   const lines: string[] = [];
 
   // Deduplicate effects by normalized body + deps (same body with different deps is meaningful)
@@ -45,10 +46,16 @@ export function emitLifecycle(effects: EffectIR[]): string {
     lines.push('');
   }
 
-  // firstUpdated — layout mount effects (isLayout + empty deps)
-  if (layoutMountEffects.length > 0) {
+  // firstUpdated — deferred property/state initializations + layout mount effects
+  if (deferredInits.length > 0 || layoutMountEffects.length > 0) {
     lines.push('  override firstUpdated(): void {');
-    emitEffectBodies(layoutMountEffects, lines);
+    // Deferred inits first (state/prop values that reference other props)
+    for (const init of deferredInits) {
+      lines.push(`    ${init.assignment}`);
+    }
+    if (layoutMountEffects.length > 0) {
+      emitEffectBodies(layoutMountEffects, lines);
+    }
     lines.push('  }');
     lines.push('');
   }
@@ -162,13 +169,14 @@ function indentBody(body: string, indentLevel: number, stripCleanupReturn = fals
 /**
  * Strip all `return () => { ... }` and `return function() { ... }` patterns
  * from effect body text, using balanced brace matching.
+ * Also handles expression-body arrows: `return () => expr;`
  */
 function stripCleanupReturns(text: string): string {
-  // Match: return () => { or return function() {
-  const pattern = /\breturn\s+(?:\(\s*\)\s*=>|function\s*\(\s*\))\s*\{/g;
+  // Pass 1: Block-body arrows and function expressions: return () => { ... }
+  const blockPattern = /\breturn\s+(?:\(\s*\)\s*=>|function\s*\(\s*\))\s*\{/g;
   let result = text;
   let match;
-  while ((match = pattern.exec(result)) !== null) {
+  while ((match = blockPattern.exec(result)) !== null) {
     // Find the opening brace
     const braceStart = result.indexOf('{', match.index + 6);
     if (braceStart === -1) continue;
@@ -179,7 +187,31 @@ function stripCleanupReturns(text: string): string {
     let endPos = braceEnd + 1;
     if (result[endPos] === ';') endPos++;
     result = result.slice(0, match.index) + result.slice(endPos);
-    pattern.lastIndex = match.index; // re-scan from same position
+    blockPattern.lastIndex = match.index; // re-scan from same position
   }
+
+  // Pass 2: Expression-body arrows: return () => expr;
+  // These don't have a block body — the arrow is followed by an expression
+  // terminated by a semicolon (at balanced depth).
+  const exprPattern = /\breturn\s+\(\s*\)\s*=>\s*/g;
+  while ((match = exprPattern.exec(result)) !== null) {
+    const exprStart = match.index + match[0].length;
+    // If followed by '{', it was already handled in pass 1 (or a block body)
+    if (result[exprStart] === '{') continue;
+    // Scan to end of expression: find ; at depth 0
+    let depth = 0;
+    let i = exprStart;
+    while (i < result.length) {
+      const ch = result[i];
+      if (ch === '(' || ch === '[') { depth++; }
+      else if (ch === ')' || ch === ']') { depth--; }
+      else if (ch === ';' && depth === 0) { i++; break; }
+      else if (ch === '\n' && depth === 0) { break; }
+      i++;
+    }
+    result = result.slice(0, match.index) + result.slice(i);
+    exprPattern.lastIndex = match.index;
+  }
+
   return result.trim();
 }

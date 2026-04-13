@@ -351,4 +351,46 @@ describe('removeCloudscapeInternals', () => {
       expect(result.handlers[0].body).toBe('const x = true;');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // __-prefixed cleanup in render helper template literals
+  // ---------------------------------------------------------------------------
+
+  describe('__-prefixed in render helper templates', () => {
+    it('replaces bare __xxx in template interpolation with false', () => {
+      const ir = minimalIR({
+        helpers: [{
+          name: 'renderContent',
+          source: 'function renderContent() { return html`<el-body .closeAction=${__closeAnalyticsAction}></el-body>`; }',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.helpers[0].source).not.toContain('__closeAnalyticsAction');
+      expect(result.helpers[0].source).toContain('.closeAction=${false}');
+    });
+
+    it('replaces __xxx && expr in template interpolation', () => {
+      const ir = minimalIR({
+        helpers: [{
+          name: 'renderTrigger',
+          source: 'function renderTrigger() { return html`<el-trigger .inFilter=${__inFilteringToken && true}></el-trigger>`; }',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.helpers[0].source).not.toContain('__inFilteringToken');
+    });
+
+    it('removes function calls with sole __xxx argument', () => {
+      const ir = minimalIR({
+        handlers: [{
+          name: 'onTriggerClick',
+          body: '        fireNonCancelableEvent(__onOpen);\n        this._visible = true;',
+          params: '',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('fireNonCancelableEvent');
+      expect(result.handlers[0].body).toContain('this._visible = true');
+    });
+  });
 });

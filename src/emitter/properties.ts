@@ -25,8 +25,9 @@ function needsOverride(prop: PropIR): boolean {
 // Property emission
 // ---------------------------------------------------------------------------
 
-export function emitProperties(props: PropIR[]): string {
+export function emitProperties(props: PropIR[]): { code: string; deferred: DeferredInit[] } {
   const lines: string[] = [];
+  const deferred: DeferredInit[] = [];
 
   for (const prop of props) {
     // Event callback props — declare as optional function properties
@@ -72,46 +73,96 @@ export function emitProperties(props: PropIR[]): string {
 
     const override = needsOverride(prop) ? 'override ' : '';
     const typeAnnotation = getTypeAnnotation(prop);
-    const defaultValue = prop.default ? ` = ${prop.default}` : '';
 
-    lines.push(`  ${decorator}`);
-    lines.push(`  ${override}${prop.name}${typeAnnotation}${defaultValue};`);
+    if (prop.default && refsThis(prop.default)) {
+      // Defer initialization to firstUpdated to avoid TS2729
+      lines.push(`  ${decorator}`);
+      lines.push(`  ${override}${prop.name}${typeAnnotation};`);
+      deferred.push({ assignment: `this.${prop.name} ??= ${prop.default};` });
+    } else {
+      const defaultValue = prop.default ? ` = ${prop.default}` : '';
+      lines.push(`  ${decorator}`);
+      lines.push(`  ${override}${prop.name}${typeAnnotation}${defaultValue};`);
+    }
     lines.push('');
   }
 
-  return lines.join('\n');
+  return { code: lines.join('\n'), deferred };
 }
 
 // ---------------------------------------------------------------------------
 // State emission
 // ---------------------------------------------------------------------------
 
-export function emitState(state: StateIR[]): string {
+export interface DeferredInit {
+  /** Assignment statement for firstUpdated, e.g. "this._foo = this.bar;" */
+  assignment: string;
+}
+
+/**
+ * Check if an initializer expression references `this.` (meaning it reads
+ * another property/state and would trigger TS2729 as a class field init).
+ */
+function refsThis(expr: string): boolean {
+  return /\bthis\./.test(expr);
+}
+
+export function emitState(state: StateIR[]): { code: string; deferred: DeferredInit[] } {
   const lines: string[] = [];
+  const deferred: DeferredInit[] = [];
 
   for (const s of state) {
     const typeAnnotation = s.type ? `: ${s.type}` : '';
     lines.push(`  @state()`);
-    lines.push(`  private _${s.name}${typeAnnotation} = ${s.initialValue};`);
+    if (refsThis(s.initialValue)) {
+      // Defer initialization to firstUpdated to avoid TS2729
+      const fallback = getTypeDefault(s.type);
+      lines.push(`  private _${s.name}${typeAnnotation} = ${fallback};`);
+      deferred.push({ assignment: `this._${s.name} = ${s.initialValue};` });
+    } else {
+      lines.push(`  private _${s.name}${typeAnnotation} = ${s.initialValue};`);
+    }
     lines.push('');
   }
 
-  return lines.join('\n');
+  return { code: lines.join('\n'), deferred };
+}
+
+/**
+ * Get a safe default value for a type to use as a placeholder when deferring
+ * initialization. Returns a neutral value that won't cause type errors.
+ */
+function getTypeDefault(type?: string): string {
+  if (!type) return 'undefined as any';
+  const t = type.trim().replace(/\s+/g, ' ');
+  if (t === 'boolean') return 'false';
+  if (t === 'number') return '0';
+  if (t === 'string') return "''";
+  if (t.endsWith('[]') || t.startsWith('Array<') || t.startsWith('ReadonlyArray<')) return '[]';
+  return 'undefined as any';
 }
 
 // ---------------------------------------------------------------------------
 // Controller emission
 // ---------------------------------------------------------------------------
 
-export function emitControllers(controllers: ControllerIR[]): string {
+export function emitControllers(controllers: ControllerIR[]): { code: string; deferred: DeferredInit[] } {
   const lines: string[] = [];
+  const deferred: DeferredInit[] = [];
 
   for (const ctrl of controllers) {
-    lines.push(`  private ${ctrl.fieldName} = new ${ctrl.className}(this, { ${ctrl.constructorArgs} });`);
+    const initExpr = `new ${ctrl.className}(this, { ${ctrl.constructorArgs} })`;
+    if (refsThis(ctrl.constructorArgs)) {
+      // Defer to connectedCallback to avoid TS2729
+      lines.push(`  private ${ctrl.fieldName}: ${ctrl.className};`);
+      deferred.push({ assignment: `this.${ctrl.fieldName} = ${initExpr};` });
+    } else {
+      lines.push(`  private ${ctrl.fieldName} = ${initExpr};`);
+    }
     lines.push('');
   }
 
-  return lines.join('\n');
+  return { code: lines.join('\n'), deferred };
 }
 
 // ---------------------------------------------------------------------------

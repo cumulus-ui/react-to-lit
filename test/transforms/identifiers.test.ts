@@ -711,4 +711,96 @@ describe('rewriteIdentifiers', () => {
       expect(result.handlers[0].body).toContain('this._items = ((prev) => [...prev, item])(this._items)');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Scope-aware shadowing: inner arrow params don't block outer rewrite
+  // ---------------------------------------------------------------------------
+
+  describe('scope-aware shadowing', () => {
+    it('rewrites outer identifier when inner arrow destructures same name', () => {
+      // series.map(({ series, color }) => ...) — outer `series` is a prop,
+      // inner `series` is a destructured param that only shadows inside the arrow.
+      const ir = minimalIR({
+        props: [prop('series')],
+        helpers: [{ name: 'filterItems', source: 'function filterItems() { return series.map(({ series, color }) => ({ label: series.title })); }' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      // The outer `series.map` should be rewritten to `this.series.map`
+      expect(result.helpers[0].source).toContain('this.series.map');
+      // The inner destructured `series` should NOT be rewritten
+      expect(result.helpers[0].source).toContain('series.title');
+    });
+
+    it('rewrites outer prop when inner function param shadows it', () => {
+      const ir = minimalIR({
+        props: [prop('data')],
+        helpers: [{ name: 'filter', source: 'function filter() { return data?.map(data => ({ label: data.datum.title })); }' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      // Outer `data?.map` should be `this.data?.map`
+      expect(result.helpers[0].source).toContain('this.data?.map');
+      // Inner `data` (arrow param) should NOT be rewritten
+      expect(result.helpers[0].source).toContain('data.datum.title');
+    });
+
+    it('does not rewrite when top-level local shadows prop', () => {
+      // Top-level const still shadows the prop for the entire body
+      const ir = minimalIR({
+        props: [prop('value')],
+        handlers: [{ name: 'h', body: 'const value = compute(); return value;', params: '' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.handlers[0].body).toBe('const value = compute(); return value;');
+    });
+
+    it('rewrites outer prop in for-of loop where inner var shadows', () => {
+      const ir = minimalIR({
+        props: [prop('items')],
+        handlers: [{ name: 'h', body: 'const total = items.length; for (const items of groups) { process(items); }', params: '' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      // The outer `items.length` should be rewritten
+      expect(result.handlers[0].body).toContain('this.items.length');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Prop default value rewriting
+  // ---------------------------------------------------------------------------
+
+  describe('prop default values', () => {
+    it('rewrites prop default that references another prop', () => {
+      const ir = minimalIR({
+        props: [
+          { name: 'expandToViewport', type: 'boolean', category: 'attribute' as const, default: 'false' },
+          { name: 'loopFocus', type: 'boolean', category: 'attribute' as const, default: 'expandToViewport' },
+        ],
+      });
+      const result = rewriteIdentifiers(ir);
+      const loopFocusProp = result.props.find(p => p.name === 'loopFocus');
+      expect(loopFocusProp?.default).toBe('this.expandToViewport');
+    });
+
+    it('does not rewrite prop default that is a plain literal', () => {
+      const ir = minimalIR({
+        props: [
+          { name: 'sortable', type: 'boolean', category: 'attribute' as const, default: 'false' },
+        ],
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.props[0].default).toBe('false');
+    });
+
+    it('rewrites prop default with ternary referencing another prop', () => {
+      const ir = minimalIR({
+        props: [
+          { name: 'sortable', type: 'boolean', category: 'attribute' as const },
+          { name: 'tagOverride', type: 'string', category: 'attribute' as const, default: "sortable ? 'ol' : 'ul'" },
+        ],
+      });
+      const result = rewriteIdentifiers(ir);
+      const tagProp = result.props.find(p => p.name === 'tagOverride');
+      expect(tagProp?.default).toBe("this.sortable ? 'ol' : 'ul'");
+    });
+  });
 });

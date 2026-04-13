@@ -151,6 +151,20 @@ export interface ButtonContextValue {
 export type ButtonContext = ButtonContextValue;
 `;
 
+const INTERNAL_TYPES_STUB = `\
+export type SomeRequired<Type, Keys extends keyof Type> = Type & {
+  [Key in Keys]-?: Type[Key];
+};
+export default {} as any;
+`;
+
+const BASE_COMPONENT_STUB = `\
+export interface BaseComponentProps {
+  [key: string]: any;
+}
+export default {} as any;
+`;
+
 function makeStylesStub(): string {
   return `\
 import type { CSSResult } from 'lit';
@@ -389,6 +403,16 @@ function writeOutputTree(generated: GeneratedComponent[]): void {
   fs.writeFileSync(path.join(contextDir, 'button-context.d.ts'), BUTTON_CONTEXT_STUB);
   fs.writeFileSync(path.join(contextDir, 'button-context.js'), '// stub\n');
 
+  // Internal types — preserve real SomeRequired definition to avoid `never` narrowing
+  fs.writeFileSync(path.join(internalDir, 'types.d.ts'), INTERNAL_TYPES_STUB);
+  fs.writeFileSync(path.join(internalDir, 'types.js'), '// stub\n');
+
+  // Base component types
+  const baseComponentDir = path.join(internalDir, 'base-component');
+  fs.mkdirSync(baseComponentDir, { recursive: true });
+  fs.writeFileSync(path.join(baseComponentDir, 'index.d.ts'), BASE_COMPONENT_STUB);
+  fs.writeFileSync(path.join(baseComponentDir, 'index.js'), '// stub\n');
+
   // Write each component
   for (const comp of generated) {
     if (comp.error) continue; // skip generation failures
@@ -543,11 +567,22 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
       // Also write a .js file so module resolution works
       fs.writeFileSync(path.join(OUTPUT_DIR, modulePath + '.js'), '// stub\n');
     } else {
-      // Append missing exports to existing stub file
+      // Append missing exports to existing stub file.
+      // Check by exported name (not exact line) to avoid re-declaring
+      // names that already have correct definitions.
       const existing = fs.readFileSync(stubPath, 'utf-8');
-      const missingExports = stubLines.filter(line =>
-        line.startsWith('export') && !existing.includes(line),
-      );
+      const missingExports = stubLines.filter(line => {
+        if (!line.startsWith('export')) return false;
+        // Extract the exported name from the line
+        const nameMatch = line.match(/export\s+declare\s+(?:const|type|function|class|interface)\s+(\w+)/);
+        if (nameMatch) {
+          // Check if this name is already exported in the existing file
+          const name = nameMatch[1];
+          const nameExported = new RegExp(`export\\s+(?:declare\\s+)?(?:const|type|function|class|interface)\\s+${name}\\b`).test(existing);
+          if (nameExported) return false;
+        }
+        return !existing.includes(line);
+      });
       if (missingExports.length > 0) {
         fs.appendFileSync(stubPath, '\n' + missingExports.join('\n') + '\n');
       }

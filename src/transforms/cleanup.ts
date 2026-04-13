@@ -59,7 +59,7 @@ export function removeCloudscapeInternals(ir: ComponentIR): ComponentIR {
     })
     .map((h) => ({
       ...h,
-      source: cleanHandlerBody(h.source),
+      source: cleanTemplateInterpolations(cleanHandlerBody(h.source)),
     }));
 
   // Clean template — remove Cloudscape-specific attributes
@@ -115,6 +115,14 @@ function cleanHandlerBody(body: string): string {
   // Remove: checkSafeUrl('Button', href);
   result = result.replace(/checkSafeUrl\([^)]*\)\s*;?\s*/g, '');
 
+  // Remove __awsui__ infrastructure assignments (line-level statements only)
+  // node.__awsui__.xxx = expr;
+  result = result.replace(/^\s*\w+\.__awsui__\.\w+\s*=[^;]*;\s*$/gm, '');
+  // node.__awsui__ = {};
+  result = result.replace(/^\s*\w+\.__awsui__\s*=\s*\{\s*\}\s*;\s*$/gm, '');
+  // if (!node.__awsui__) { node.__awsui__ = {}; }
+  result = result.replace(/^\s*if\s*\(\s*!?\w+\.__awsui__\s*\)\s*\{\s*\w+\.__awsui__\s*=\s*\{\s*\}\s*;\s*\}\s*$/gm, '');
+
   // Remove __internalRootRef as object property value (must run BEFORE destructuring removal)
   result = result.replace(/,?\s*\w+:\s*__internalRootRef\b[^,}\n]*/g, '');
   result = result.replace(/,?\s*__internalRootRef\s*,?/g, (match) => {
@@ -164,13 +172,17 @@ function cleanHandlerBody(body: string): string {
   // Remove __-prefixed infrastructure: if (__xxx) { ... } blocks (with nested braces)
   // Matches: if (__xxx), if (!__xxx), if (__xxx !== undefined), etc.
   result = stripIfBlocks(result, /if\s*\(\s*!?__\w+\b[^)]*\)/);
-
+  // Also strip: if (!node.__awsui__) { ... } and similar __awsui__ conditionals
+  result = stripIfBlocks(result, /if\s*\(\s*!?\w+\.__awsui__[^)]*\)/);
   // Remove __-prefixed variable references in expressions
   result = cleanInternalPrefixedRefs(result);
   // Remove spread of __-prefixed vars
   result = result.replace(/,?\s*\.\.\.__\w+,?/g, (m) => m.startsWith(',') && m.endsWith(',') ? ',' : '');
   // Remove assignments to __-prefixed vars: __foo = expr; or __foo = __foo ?? expr;
   result = result.replace(/^\s*__\w+\s*=[^=][^;]*;?\s*$/gm, '');
+  // Remove function calls whose only argument is a __-prefixed var:
+  // fireNonCancelableEvent(__onOpen); → remove entire statement
+  result = result.replace(/^\s*\w+\(__\w+\)\s*;?\s*$/gm, '');
 
   // Remove __-prefixed key-value pairs and shorthand properties from object literals.
   result = removeInternalPrefixedProperties(result);
@@ -194,6 +206,14 @@ function cleanHandlerBody(body: string): string {
     result = stripFunctionCalls(result, funcName);
     analyticsCallPattern.lastIndex = 0; // reset after mutation
   }
+
+  // Remove analytics metadata variables and assignments.
+  // const analyticsMetadata = { ... };
+  // analyticsMetadata.action = expr;
+  // const analyticsComponentMetadata = { ... };
+  // const componentAnalyticsMetadata = { ... };
+  result = result.replace(/^\s*const\s+(?:analytics(?:Component)?Metadata|componentAnalyticsMetadata)\s*(?::\s*\w+\s*)?=[^;]*;\s*$/gm, '');
+  result = result.replace(/^\s*(?:analytics(?:Component)?Metadata|componentAnalyticsMetadata)\.\w+\s*=[^;]*;\s*$/gm, '');
 
   // Note: React type annotations (React.XxxEvent, React.Ref, etc.) are
   // handled by the cleanup-react-types transform — not duplicated here.
@@ -361,6 +381,55 @@ function cleanInternalPrefixedRefsInExpr(text: string): string {
   result = result.replace(/\b__\w+\s*\?\s*[^:]+:\s*/g, '');
   // Bare __xxx (e.g., classMap value, standalone reference) → false
   result = result.replace(/\b__\w+\b/g, 'false');
+  return result;
+}
+
+/**
+ * Clean __-prefixed references inside template literal interpolations (${...})
+ * found within html`` tagged templates in render helper source text.
+ *
+ * The code-body cleanup (cleanInternalPrefixedRefs) handles __xxx in
+ * conditionals and assignments, but template attribute bindings like
+ * `.prop=${__xxx}` need the expression-safe version that replaces bare
+ * __xxx with false.
+ */
+function cleanTemplateInterpolations(source: string): string {
+  // Only process if there are __-prefixed identifiers remaining
+  if (!/\b__\w+/.test(source)) return source;
+
+  // Find all ${...} interpolations and apply expression cleanup
+  // Use balanced brace matching to correctly handle nested ${...}
+  let result = '';
+  let i = 0;
+  while (i < source.length) {
+    // Look for ${
+    const dollarBrace = source.indexOf('${', i);
+    if (dollarBrace === -1) {
+      result += source.slice(i);
+      break;
+    }
+    // Copy text up to and including ${
+    result += source.slice(i, dollarBrace + 2);
+    // Find matching }
+    let depth = 1;
+    let j = dollarBrace + 2;
+    while (j < source.length && depth > 0) {
+      if (source[j] === '{') depth++;
+      else if (source[j] === '}') depth--;
+      if (depth > 0) j++;
+    }
+    // Extract interpolation content
+    const content = source.slice(dollarBrace + 2, j);
+    // Apply expression cleanup if it contains __-prefixed refs
+    if (/\b__\w+/.test(content)) {
+      result += cleanInternalPrefixedRefsInExpr(content);
+    } else {
+      result += content;
+    }
+    // Skip past the closing }
+    result += '}';
+    i = j + 1;
+  }
   return result;
 }
 

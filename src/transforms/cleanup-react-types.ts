@@ -67,6 +67,36 @@ function replaceReactTypes(text: string): string {
   result = result.replace(/\.nativeEvent\b/g, '');
   result = result.replace(/\.isDefaultPrevented\(\)/g, '.defaultPrevented');
 
+  // event.relatedTarget is EventTarget|null in DOM, but React types it as Element.
+  // Cast to Element when passed as a function argument: func(x.relatedTarget)
+  result = result.replace(
+    /(\w+\.relatedTarget)\s*\)/g,
+    '$1 as Element)',
+  );
+
+  // event.target / event.currentTarget is EventTarget|null in DOM but React
+  // types them as the specific HTML element. Cast when accessing HTML-specific
+  // properties (value, files, form, checked, elements, etc.).
+  result = result.replace(
+    /(\w+)\.(target|currentTarget)\.(value|files|form|checked|elements|selectedIndex|src|textContent)\b/g,
+    '($1.$2 as HTMLInputElement).$3',
+  );
+  // Also handle destructured target: ({ target }: Event) → still EventTarget
+  // target.files, target.value etc.
+  result = result.replace(
+    /\btarget\.(value|files|form|checked|elements)\b/g,
+    '(target as HTMLInputElement).$1',
+  );
+
+  // setTimeout/setInterval → window.setTimeout/window.setInterval
+  // In React (Node types), setTimeout returns NodeJS.Timeout. In the browser
+  // (which Lit components target), window.setTimeout returns number. Using
+  // the explicit window. prefix avoids TS2322 type mismatch.
+  result = result.replace(/(?<!\w\.)(?<!window\.)\bsetTimeout\b(?=\s*\()/g, 'window.setTimeout');
+  result = result.replace(/(?<!\w\.)(?<!window\.)\bclearTimeout\b(?=\s*\()/g, 'window.clearTimeout');
+  result = result.replace(/(?<!\w\.)(?<!window\.)\bsetInterval\b(?=\s*\()/g, 'window.setInterval');
+  result = result.replace(/(?<!\w\.)(?<!window\.)\bclearInterval\b(?=\s*\()/g, 'window.clearInterval');
+
   // Component Props types with generic params — strip the generic.
   // React component props are often generic (CardsProps<T>) but Lit versions are not.
   result = result.replace(/\b(\w+Props)<[^>]+>/g, '$1');

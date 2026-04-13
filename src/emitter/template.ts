@@ -235,6 +235,11 @@ function emitAttribute(
       if (/^['"`]/.test(expr) || expr === "''" || expr === '""') {
         return `class=${expr}`;
       }
+      // If the expression contains html`` template literals, it's not a classMap-
+      // compatible object — emit as a plain class binding to avoid TS2345.
+      if (expr.includes('html`')) {
+        return `class=\${${expr}}`;
+      }
       collector.addDirective('lit/directives/class-map.js', 'classMap');
       return `class=\${classMap(${expr})}`;
     }

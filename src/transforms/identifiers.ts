@@ -200,6 +200,12 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   // Transform body preamble
   const bodyPreamble = ir.bodyPreamble.map((s) => astRewrite(s));
 
+  // Transform prop default values (they may reference other props)
+  const props = ir.props.map((p) => ({
+    ...p,
+    default: p.default ? astRewrite(p.default) : p.default,
+  }));
+
   // Transform state initial values
   const state = ir.state.map((s) => ({
     ...s,
@@ -248,6 +254,7 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   return {
     ...ir,
     imports,
+    props,
     handlers,
     effects,
     publicMethods,
@@ -391,57 +398,41 @@ function rewriteWithMorph(
     return text;
   }
 
-  // Collect locally declared names (parameters, variables, functions within this body)
-  const bodyLocals = new Set<string>();
-  sourceFile.forEachDescendant((node) => {
-    if (Node.isVariableDeclaration(node)) {
-      const nameNode = node.getNameNode();
-      if (Node.isIdentifier(nameNode)) {
-        bodyLocals.add(nameNode.getText());
-      } else if (Node.isObjectBindingPattern(nameNode)) {
-        for (const el of nameNode.getElements()) {
-          const elName = el.getNameNode();
-          if (Node.isIdentifier(elName)) bodyLocals.add(elName.getText());
-        }
-      } else if (Node.isArrayBindingPattern(nameNode)) {
-        for (const el of nameNode.getElements()) {
-          if (Node.isBindingElement(el)) {
-            const elName = el.getNameNode();
-            if (Node.isIdentifier(elName)) bodyLocals.add(elName.getText());
-          }
-        }
-      }
-    }
-    if (Node.isParameterDeclaration(node)) {
-      const nameNode = node.getNameNode();
-      if (Node.isIdentifier(nameNode)) {
-        bodyLocals.add(nameNode.getText());
-      } else if (Node.isObjectBindingPattern(nameNode)) {
-        for (const el of nameNode.getElements()) {
-          const elName = el.getNameNode();
-          if (Node.isIdentifier(elName)) bodyLocals.add(elName.getText());
-        }
-      } else if (Node.isArrayBindingPattern(nameNode)) {
-        for (const el of nameNode.getElements()) {
-          if (Node.isBindingElement(el)) {
-            const elName = el.getNameNode();
-            if (Node.isIdentifier(elName)) bodyLocals.add(elName.getText());
-          }
-        }
-      }
-    }
-    if (Node.isFunctionDeclaration(node) && node.getName()) {
-      bodyLocals.add(node.getName()!);
-    }
-  });
-
-  // Component-level locals that are also class members should get this. prefix.
-  // But body-level locals (parameters, let/const in this specific code block)
-  // shadow the class member — don't rewrite those.
-  const allLocals = new Set([...bodyLocals]);
+  // Build a set of component-level locals that are NOT class members
+  // (these should never be rewritten regardless of scope).
+  const componentOnlyLocals = new Set<string>();
   for (const local of componentLocalVars) {
     if (!memberMap.has(local)) {
-      allLocals.add(local);
+      componentOnlyLocals.add(local);
+    }
+  }
+
+  // Get the wrapper function node — declarations directly inside it are
+  // "top-level" locals for the body and should shadow class members.
+  // Declarations inside nested functions/arrows should only shadow within
+  // their own scope.
+  const wrapperFunc = sourceFile.getFunctions()[0];
+  const wrapperBody = wrapperFunc?.getBody();
+
+  // Collect ONLY top-level locals (direct children of the wrapper body).
+  // Nested arrow/function params do NOT go in here — they only shadow
+  // within their own scope, which we check per-identifier below.
+  const topLevelLocals = new Set<string>();
+  if (wrapperBody && Node.isBlock(wrapperBody)) {
+    for (const stmt of wrapperBody.getStatements()) {
+      if (Node.isVariableStatement(stmt)) {
+        for (const decl of stmt.getDeclarationList().getDeclarations()) {
+          collectDeclNames(decl.getNameNode(), topLevelLocals);
+        }
+      } else if (Node.isFunctionDeclaration(stmt) && stmt.getName()) {
+        topLevelLocals.add(stmt.getName()!);
+      }
+    }
+  }
+  // Also include wrapper function parameters as top-level locals
+  if (wrapperFunc) {
+    for (const param of wrapperFunc.getParameters()) {
+      collectDeclNames(param.getNameNode(), topLevelLocals);
     }
   }
 
@@ -454,7 +445,11 @@ function rewriteWithMorph(
     const name = node.getText();
     if (name.length <= 1) return;
     if (GLOBAL_NAMES.has(name) && !memberMap.has(name)) return;
-    if (allLocals.has(name)) return;
+    if (componentOnlyLocals.has(name)) return;
+    if (topLevelLocals.has(name)) return;
+    // Scope-aware check: if a nested function/arrow declares this name
+    // as a parameter or local, and we're inside that scope, skip rewriting.
+    if (isShadowedByNestedScope(node, name, wrapperBody)) return;
 
     const mapping = memberMap.get(name);
     if (!mapping) return;
@@ -509,6 +504,92 @@ function rewriteWithMorph(
   }
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Scope-aware helpers for identifier rewriting
+// ---------------------------------------------------------------------------
+
+/**
+ * Collect declared names from a name node (identifier, object/array binding pattern).
+ */
+function collectDeclNames(nameNode: Node, out: Set<string>): void {
+  if (Node.isIdentifier(nameNode)) {
+    out.add(nameNode.getText());
+  } else if (Node.isObjectBindingPattern(nameNode)) {
+    for (const el of nameNode.getElements()) {
+      collectDeclNames(el.getNameNode(), out);
+    }
+  } else if (Node.isArrayBindingPattern(nameNode)) {
+    for (const el of nameNode.getElements()) {
+      if (Node.isBindingElement(el)) {
+        collectDeclNames(el.getNameNode(), out);
+      }
+    }
+  }
+}
+
+/**
+ * Check if an identifier is shadowed by a nested scope (arrow function,
+ * function expression, or nested function declaration) between the identifier
+ * and the wrapper body.
+ *
+ * This correctly handles cases like:
+ *   series.map(({ series, color }) => ...)
+ * where the outer `series` should be rewritten but the inner `series` shouldn't.
+ */
+function isShadowedByNestedScope(
+  idNode: Node,
+  name: string,
+  wrapperBody: Node | undefined,
+): boolean {
+  if (!wrapperBody) return false;
+
+  // Walk up from the identifier's parent to the wrapper body.
+  // At each scope boundary (arrow function, function expression/declaration),
+  // check if that scope declares `name` as a parameter or local variable.
+  let current: Node | undefined = idNode.getParent();
+  while (current && current !== wrapperBody) {
+    if (
+      Node.isArrowFunction(current) ||
+      Node.isFunctionExpression(current) ||
+      Node.isFunctionDeclaration(current)
+    ) {
+      // Check parameters
+      const params = current.getParameters();
+      for (const param of params) {
+        const names = new Set<string>();
+        collectDeclNames(param.getNameNode(), names);
+        if (names.has(name)) return true;
+      }
+      // Check local variable declarations in this function body
+      const body = Node.isArrowFunction(current) ? current.getBody() : current.getBody();
+      if (body && Node.isBlock(body)) {
+        for (const stmt of body.getStatements()) {
+          if (Node.isVariableStatement(stmt)) {
+            for (const decl of stmt.getDeclarationList().getDeclarations()) {
+              const names = new Set<string>();
+              collectDeclNames(decl.getNameNode(), names);
+              if (names.has(name)) return true;
+            }
+          }
+        }
+      }
+    }
+    // Also check for-of/for-in/for loop variable declarations
+    if (Node.isForOfStatement(current) || Node.isForInStatement(current)) {
+      const init = current.getInitializer();
+      if (init && Node.isVariableDeclarationList(init)) {
+        for (const decl of init.getDeclarations()) {
+          const names = new Set<string>();
+          collectDeclNames(decl.getNameNode(), names);
+          if (names.has(name)) return true;
+        }
+      }
+    }
+    current = current.getParent();
+  }
+  return false;
 }
 
 /**
