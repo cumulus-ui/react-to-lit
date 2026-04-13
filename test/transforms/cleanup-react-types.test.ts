@@ -140,4 +140,34 @@ describe('cleanupReactTypes', () => {
       expect(result.handlers[0].body).toContain('(event.currentTarget as HTMLInputElement).form');
     });
   });
+
+  describe('prop type cleanup', () => {
+    it('cleans React.ReactNode in function prop types', () => {
+      const ir = minimalIR({
+        props: [{
+          name: 'renderItem',
+          type: '(item: T) => { content: React.ReactNode; icon?: React.ReactNode }',
+          category: 'property' as const,
+          attribute: false,
+        }],
+      });
+      const result = cleanupReactTypes(ir);
+      expect(result.props[0].type).not.toContain('React.ReactNode');
+      expect(result.props[0].type).toContain('unknown');
+    });
+
+    it('cleans bare ReactNode in prop types', () => {
+      const ir = minimalIR({
+        props: [{
+          name: 'renderFoo',
+          type: '(item: T) => ReactNode',
+          category: 'property' as const,
+          attribute: false,
+        }],
+      });
+      const result = cleanupReactTypes(ir);
+      expect(result.props[0].type).not.toContain('ReactNode');
+      expect(result.props[0].type).toContain('unknown');
+    });
+  });
 });

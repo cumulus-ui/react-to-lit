@@ -216,6 +216,25 @@ describe('parseComponent', () => {
       expect(hasType).toBe(true);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // List — render callback props (function returning ReactNode object)
+  // -------------------------------------------------------------------------
+  describe('List', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'list'));
+
+    it('should classify renderItem as a property, not a slot', () => {
+      const renderItem = ir.props.find((p) => p.name === 'renderItem');
+      expect(renderItem).toBeDefined();
+      expect(renderItem!.category).toBe('property');
+    });
+
+    it('should mark renderItem as non-attribute (function prop)', () => {
+      const renderItem = ir.props.find((p) => p.name === 'renderItem');
+      expect(renderItem).toBeDefined();
+      expect(renderItem!.attribute).toBe(false);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

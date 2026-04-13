@@ -302,6 +302,10 @@ function classifyProp(
 
 function isSlotProp(name: string, typeText: string): boolean {
   if (name === 'children') return true;
+  // Function types that return ReactNode are render callbacks, not slots.
+  // They're already handled by isFunctionProp, which is checked first.
+  // Only treat as slot if the type directly contains ReactNode/ReactElement
+  // at the top level (not as a function return type).
   if (typeText.includes('ReactNode') || typeText.includes('ReactElement')) return true;
   return false;
 }
@@ -312,11 +316,15 @@ function isBooleanProp(_name: string, _typeText: string, defaultValue?: string):
 }
 
 function isFunctionProp(typeText: string, defaultValue?: string): boolean {
-  // Don't treat union types containing ReactNode as functions
-  // e.g., ReactNode | ((item: T) => ReactNode) is a slot, not a function
-  if (typeText.includes('ReactNode') || typeText.includes('ReactElement')) return false;
   // Detect from type: arrow function types, Function keyword, callable signatures
-  if (/^\s*\(/.test(typeText) && typeText.includes('=>')) return true;
+  if (/^\s*\(/.test(typeText) && typeText.includes('=>')) {
+    // This type is a function signature like (item: T) => ReactNode.
+    // Even if the return type contains ReactNode/ReactElement, it's still
+    // a render callback (not slot content). Only bail out if the top-level
+    // type is a union that includes bare ReactNode/ReactElement alongside
+    // a function type — those are slot unions like `ReactNode | ((item) => ReactNode)`.
+    return true;
+  }
   if (typeText === 'Function') return true;
   // Detect from default value: () => ..., function ...
   if (defaultValue && /^\s*\(/.test(defaultValue) && defaultValue.includes('=>')) return true;

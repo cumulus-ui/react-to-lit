@@ -544,6 +544,51 @@ function writeOutputTree(generated: GeneratedComponent[]): void {
  * declaration stubs for any module that doesn't already have one.
  */
 function autoStubMissingModules(generated: GeneratedComponent[]): void {
+  // Scan for types used in type guard patterns (e.g., `t is TokenGroup`).
+  // These types need interface stubs (not `= any`) so union narrowing works.
+  const typeGuardTypes = new Set<string>();
+  const typeGuardPattern = /\w+\s+is\s+([A-Z]\w+)/g;
+  for (const comp of generated) {
+    if (comp.error || !comp.output) continue;
+    let tgMatch;
+    while ((tgMatch = typeGuardPattern.exec(comp.output)) !== null) {
+      typeGuardTypes.add(tgMatch[1]);
+    }
+  }
+  // Also find types used in the same union as a type-guard type.
+  // Pattern: (param: TypeA | TypeB): param is TypeA => ...
+  // Both TypeA and TypeB need interface stubs for narrowing to work.
+  const unionTypeGuardPattern = /\(\s*\w+\s*:\s*([A-Z]\w+(?:\s*\|\s*[A-Z]\w+)+)\s*\)\s*(?::\s*\w+\s+is\s+[A-Z]\w+\s*)?=>/g;
+  for (const comp of generated) {
+    if (comp.error || !comp.output) continue;
+    let uMatch;
+    while ((uMatch = unionTypeGuardPattern.exec(comp.output)) !== null) {
+      const unionStr = uMatch[1];
+      const types = unionStr.split('|').map(t => t.trim());
+      if (types.some(t => typeGuardTypes.has(t))) {
+        for (const t of types) {
+          if (/^[A-Z]/.test(t)) typeGuardTypes.add(t);
+        }
+      }
+    }
+  }
+  // Also scan for type annotations with union types involving type-guard types:
+  // e.g., `tokenOrGroup: Token | TokenGroup`
+  const typeAnnotationPattern = /:\s*([A-Z]\w+(?:\s*\|\s*[A-Z]\w+)+)/g;
+  for (const comp of generated) {
+    if (comp.error || !comp.output) continue;
+    let taMatch;
+    while ((taMatch = typeAnnotationPattern.exec(comp.output)) !== null) {
+      const unionStr = taMatch[1];
+      const types = unionStr.split('|').map(t => t.trim());
+      if (types.some(t => typeGuardTypes.has(t))) {
+        for (const t of types) {
+          if (/^[A-Z]/.test(t)) typeGuardTypes.add(t);
+        }
+      }
+    }
+  }
+
   // Collect all relative import module specifiers and their named imports
   const importRegex = /import\s+(?:type\s+)?(?:\{([^}]+)\}|(\w+))\s+from\s+'(\.[^']+)'/g;
   const neededModules = new Map<string, Set<string>>(); // resolved path → named imports
@@ -609,16 +654,28 @@ function autoStubMissingModules(generated: GeneratedComponent[]): void {
       // Detect generic arity by scanning the output for Name<T, U, ...> patterns
       const genericArity = detectGenericArity(name, generated);
 
-      // Declare as both value and type (covers classes, enums, type aliases, and constants)
+      // Declare as both value and type (covers classes, enums, type aliases, and constants).
+      // Types used in type guards / union discrimination get interface stubs
+      // with a unique brand property so TypeScript can structurally distinguish
+      // them in unions (preventing narrowing to `never`).
       if (/^[A-Z]/.test(name)) {
         stubLines.push(`export declare const ${name}: any;`);
+        const useInterface = typeGuardTypes.has(name);
         if (genericArity > 0) {
           const params = Array.from({ length: genericArity }, (_, i) =>
             `T${i > 0 ? i + 1 : ''} = any`,
           ).join(', ');
-          stubLines.push(`export declare type ${name}<${params}> = any;`);
+          if (useInterface) {
+            stubLines.push(`export interface ${name}<${params}> { __brand?: '${name}'; [key: string]: any; }`);
+          } else {
+            stubLines.push(`export declare type ${name}<${params}> = any;`);
+          }
         } else {
-          stubLines.push(`export declare type ${name} = any;`);
+          if (useInterface) {
+            stubLines.push(`export interface ${name} { __brand?: '${name}'; [key: string]: any; }`);
+          } else {
+            stubLines.push(`export declare type ${name} = any;`);
+          }
         }
       } else {
         stubLines.push(`export declare const ${name}: any;`);

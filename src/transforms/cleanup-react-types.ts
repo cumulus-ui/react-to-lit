@@ -164,6 +164,12 @@ function replaceReactTypes(text: string): string {
 export function cleanupReactTypes(ir: ComponentIR): ComponentIR {
   return {
     ...mapIRText(ir, replaceReactTypes, { params: true }),
+    // Prop types may contain React.ReactNode etc. (e.g., render callback props
+    // like `(item: T) => React.ReactNode`). Clean them up too.
+    props: ir.props.map((p) => ({
+      ...p,
+      type: replaceReactTypes(p.type),
+    })),
     template: replaceReactTypesInTemplate(ir.template),
   };
 }
