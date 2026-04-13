@@ -9,8 +9,8 @@ The test bed is Cloudscape Design System (91 components). **Every fix MUST be ge
 **Current state:**
 - **91/91 components** generate valid Lit output (gate2 per-component: 0 errors)
 - **681 tests** passing, TypeScript compiles clean
-- **Shared tsc**: 51 errors across 23 components (down from 526 → 166 → 94 → 51)
-- **68/91 components** fully error-free in shared compilation
+- **Shared tsc**: 42 errors across 20 components (down from 526 → 166 → 94 → 42)
+- **71/91 components** fully error-free in shared compilation
 - All 7 original issues (#11-#18) are closed
 
 ---
@@ -123,13 +123,18 @@ Each entry has a test reference. If you modify the related code, run that test t
 | `JSX.Element` → `unknown` | (verified via gate2) | React-specific `JSX.Element` namespace type cleaned to `unknown` |
 | Ref `.current` on subexpressions | (verified via gate2) | `(cond ? refA : refB).current` → `(cond ? refA : refB)` — `.current` stripped after `)` since inner refs are already unwrapped |
 | `!undefined` → `true` simplification | (verified via gate2) | Cleanup artifacts from `__`-prefixed prop stripping simplified |
-| `(expr !== undefined) ?? false` removal | (verified via gate2) | Redundant `?? false` after boolean comparison stripped in code bodies |
+| `(expr !== undefined) ?? false` removal | (verified via gate2) | Redundant `?? false` after boolean comparison stripped via shared `cleanSimplifyUndefined` |
+| `collectIRText` shared utility | (verified via gate2) | Replaces 3 duplicated `allCode` arrays + `codeBodyContains`/`templateToText`/`irContains` |
+| Entry-file self-containment detection | `parse-components.test.ts` | When entry doesn't import from secondary file, entry IS the implementation — filename-agnostic |
+| `findComponentInFile` strategy 5 generalized | (verified via gate2) | Uses `isSecondaryFile` parameter instead of hardcoded `'internal'`/`'implementation'` filenames |
+| Preserved imports from `/context`, `/hooks`, `use-` paths | (verified via gate2) | Removed over-aggressive `isComponentImportPath` rules; emitter reference checking handles unused names |
+| Import reference scanning includes types | (verified via gate2) | `collectIRText` includes ref types, state types, computed types, prop types |
 
 ---
 
-## Remaining 51 errors — categorized
+## Remaining 42 errors — categorized
 
-### TS2304: Cannot find name (40 errors)
+### TS2304: Cannot find name (31 errors)
 
 | Category | Count | Examples | Root cause | Correct fix |
 |----------|-------|---------|------------|-------------|
