@@ -350,6 +350,17 @@ function rewriteQuickPatterns(text: string, ir: ComponentIR): string {
   // → the refs are unwrapped but `.current` remains on the outer expression.
   result = result.replace(/\)\.current\b/g, ')');
 
+  // Clean up `.current` on this.xxxRef.current patterns — refs that ended up
+  // as computed values or skippedHookVars instead of ir.refs still need
+  // `.current` stripping when they follow the Ref naming convention.
+  result = result.replace(/(\bthis\.\w*[Rr]ef\w*)\.current\b/g, '$1');
+
+  // Clean up `.current` on local aliases of refs.
+  // After the identifier rewriter, a local like `const x = this._fooRef`
+  // may still have `x.current[i]` or `x.current?.method()`.
+  // In Lit, ref values are already unwrapped — `.current` followed by
+  // `[` (index access) or `?.` (optional chain) is always a React ref leftover.
+  result = result.replace(/(\b\w+)\.current(\[|\?\.)/g, '$1$2');
   // props.foo → this.foo
   result = result.replace(/\bprops\.(\w+)/g, 'this.$1');
 
