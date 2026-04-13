@@ -253,10 +253,10 @@ export function parseComponent(
   const fileConstants = extractFileConstants(implFile, component.name, configInfraFunctions);
 
   // 9c. Extract file-level type declarations
-  const fileTypeDeclarations = extractFileTypeDeclarations(implFile, component.name);
+  const fileTypeDeclarations = extractFileTypeDeclarations(implFile, component.name, options.config?.components?.stripPrefixes);
 
   // 10. Derive component metadata
-  const componentName = deriveComponentName(component.name, componentDir);
+  const componentName = deriveComponentName(component.name, componentDir, options.config?.components?.stripPrefixes);
   const tagName = toTagName(componentName);
 
   // 11. Collect source files
@@ -323,9 +323,14 @@ function resolveSourceFile(dir: string, baseName: string): string | null {
  * - "InternalButton" → "Button"
  * - "StatusIndicator" → "StatusIndicator"
  */
-function deriveComponentName(functionName: string, componentDir: string): string {
-  // Strip "Internal" prefix if present
-  let name = functionName.replace(/^Internal/, '');
+function deriveComponentName(functionName: string, componentDir: string, stripPrefixes?: string[]): string {
+  let name = functionName;
+  for (const prefix of stripPrefixes ?? []) {
+    if (name.startsWith(prefix)) {
+      name = name.slice(prefix.length);
+      break;
+    }
+  }
 
   // If name is empty or "Unknown", derive from directory name
   if (!name || name === 'Unknown') {

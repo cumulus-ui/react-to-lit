@@ -68,6 +68,8 @@ export interface ComponentsConfig {
   registry: Record<string, string | '__UNWRAP__'>;
   /** Whether to auto-derive tag from PascalCase for unknown components. */
   autoDerive: boolean;
+  /** Prefixes to strip from component function names (e.g., ['Internal']). */
+  stripPrefixes: string[];
 }
 
 /** Event dispatch configuration. */
@@ -118,6 +120,7 @@ export function createDefaultConfig(): CompilerConfig {
     components: {
       registry: {},
       autoDerive: true,
+      stripPrefixes: [],
     },
     events: {
       dispatchFunctions: {},

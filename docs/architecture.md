@@ -146,11 +146,6 @@ npm run gate3
 # Quality analysis
 npm run analyze
 
-# Compiler metrics — counts known issues per GitHub issue tracker
-npm run metrics                    # human-readable dashboard
-npm run metrics -- --json          # machine-readable JSON
-npm run metrics -- --component alert  # single component
-
 # Shared tsc on gate2 output (target: 0 errors)
 npx tsc --noEmit --strict false --skipLibCheck \
   --experimentalDecorators -p .gate2-output/tsconfig.json 2>&1 \

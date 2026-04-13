@@ -130,6 +130,7 @@ export function createCloudscapeConfig(): CompilerConfig {
     components: {
       registry: {},
       autoDerive: true,
+      stripPrefixes: ['Internal'],
     },
     events: {
       dispatchFunctions: {},

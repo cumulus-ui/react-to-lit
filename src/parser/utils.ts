@@ -347,9 +347,16 @@ export function extractFileConstants(
 export function extractFileTypeDeclarations(
   sourceFile: ts.SourceFile,
   componentFunctionName: string,
+  stripPrefixes?: string[],
 ): string[] {
   const types: string[] = [];
-  const componentName = componentFunctionName.replace(/^Internal/, '');
+  let componentName = componentFunctionName;
+  for (const prefix of stripPrefixes ?? []) {
+    if (componentName.startsWith(prefix)) {
+      componentName = componentName.slice(prefix.length);
+      break;
+    }
+  }
 
   for (const stmt of sourceFile.statements) {
     // type Foo = ...
