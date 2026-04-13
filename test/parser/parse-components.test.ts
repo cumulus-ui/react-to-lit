@@ -249,6 +249,20 @@ describe('parseComponent', () => {
       expect(handler!.body).toContain('return');
     });
   });
+
+  // -------------------------------------------------------------------------
+  // TagEditor — entry file as implementation when secondary has only helpers
+  // -------------------------------------------------------------------------
+  describe('TagEditor', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'tag-editor'));
+
+    it('should parse the tag-editor component', () => {
+      // tag-editor has a complex structure: index.tsx has the main forwardRef
+      // component, internal.tsx has TagControl and UndoButton helpers.
+      expect(ir.name).toBeDefined();
+      expect(ir.props.length).toBeGreaterThan(0);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
