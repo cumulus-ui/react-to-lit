@@ -13,10 +13,7 @@ mechanical translation; the consumer owns the design system.
 ## Who is this for?
 
 Any team that maintains a React component library and wants to produce an
-equivalent set of web components. Point the compiler at your published npm
-package and source directory -- it discovers all components from the barrel
-export, classifies props, events, and slots from the TypeScript type system,
-and generates idiomatic Lit classes.
+equivalent set of web components.
 
 ## How the compiler understands a React library
 
@@ -98,8 +95,8 @@ framework-specific:
 
 | React type | Lit equivalent | Handled by |
 |------------|---------------|------------|
-| `React.ReactNode` | `<slot>` | Removed from props, emitted as slot |
-| `CancelableEventHandler<Detail>` | `CustomEvent<Detail>` | Removed from props, emitted as event dispatch |
+| React renderable (`ReactNode`) | `<slot>` | Removed from props, emitted as slot |
+| Event handler (param extends DOM Event) | `CustomEvent<Detail>` | Removed from props, emitted as event dispatch |
 | Everything else | Preserved as-is | Types, enums, interfaces pass through |
 
 This means consumers of the generated Lit components get the **same type
@@ -127,17 +124,12 @@ export class Alert extends LitElement {
 
 The consumer project then:
 
-1. **Provides the base class** -- `CsBaseElement`, `LitElement`, or any
-   custom base. Configured via `output.baseClass`.
-2. **Remaps tag prefixes** -- `el-internal-icon` becomes `cs-icon` or
-   whatever the consumer's prefix is. This can be a build-step string
-   replacement or a component registry in the config.
-3. **Registers custom elements** -- the consumer calls
-   `customElements.define('cs-alert', CsAlertInternal)` in their own
+1. **Registers custom elements** -- the consumer calls
+   `customElements.define('my-alert', Alert)` in their own
    registration module.
-4. **Provides styles** -- CSS generation is a separate concern. The consumer
+2. **Provides styles** -- CSS generation is a separate concern. The consumer
    supplies Lit `static styles` through their own pipeline.
-5. **Applies refinements** -- the generated code is a starting point. The
+3. **Applies refinements** -- the generated code is a starting point. The
    consumer can layer on form participation, context wiring, keyboard
    handling, or any other infrastructure their design system requires.
 
@@ -146,20 +138,18 @@ React source. Everything downstream is the consumer's domain.
 
 ## Objectives
 
-- **Framework-agnostic output.** Pure Lit classes with neutral `el-` tag
-  names. No `@customElement()` -- the consumer decides.
-- **Standards-driven.** Global names, DOM properties, boolean attributes, and
-  HTML tag names come from the TypeScript compiler's DOM lib, not hardcoded
-  lists.
+- **Framework-agnostic output.** Pure Lit classes. No `@customElement()` --
+  the consumer decides registration and tag names.
+- **Standards-driven.** DOM properties, boolean attributes, and HTML tag names
+  come from the TypeScript compiler's DOM lib, not hardcoded lists.
+- **Type-system-driven.** Component discovery, prop classification, event
+  detection, and slot identification all use the TypeScript type checker.
+  No string matching, no naming conventions.
 - **Authoritative type data.** Props are read from published `.d.ts`
-  declaration files (with full inheritance chain), not guessed from source
-  destructuring.
+  declaration files, not guessed from source destructuring.
 - **No post-processing.** All transforms happen at the IR level. The emitter
   is a pure printer -- no regex patching of output text.
 - **Deterministic.** Same input always produces same output.
-- **Library-agnostic.** All library-specific behaviour is driven by
-  `CompilerConfig`. The core pipeline has no knowledge of any particular
-  React library.
 
 ## Usage
 
@@ -186,7 +176,6 @@ npx react-to-lit \
 | `-c, --component <name>` | Process a single component by name |
 | `--dry-run` | Print output to stdout instead of writing files |
 | `--verbose` | Log parsing decisions |
-| `--preset <name>` | Use a built-in preset (e.g., `cloudscape`) |
 
 ## Quality gates
 
@@ -197,30 +186,12 @@ npm run gate3     # structural validation (class, extends, render, imports, no R
 npm run analyze   # quality analysis (clean/broken/warning breakdown)
 ```
 
-## Configuration
-
-Behaviour is controlled via a `CompilerConfig` with five sections:
-
-| Section | Purpose |
-|---------|---------|
-| `input` | Where to find source files and published declarations |
-| `output` | Naming conventions for generated Lit classes and tags |
-| `cleanup` | Props, attributes, and infrastructure to strip |
-| `components` | Component name to tag mapping |
-| `events` | Event dispatch configuration |
-
-See **[docs/adding-a-library.md](docs/adding-a-library.md)** for a complete
-walkthrough with worked examples and full configuration reference.
-
 ## What's not in scope
 
 - **Tag registration** -- consumer's responsibility
-- **Tag prefix choice** -- consumer remaps `el-` to their prefix
 - **CSS generation** -- separate concern (styles pipeline)
 - **Runtime framework** -- this is a build-time compiler
 - **Server-side rendering**
-- **React context to Lit context** -- partially handled (`useContext` is
-  flagged, not auto-converted)
 
 ## Documentation
 
