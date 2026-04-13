@@ -42,15 +42,3 @@ export const INFRA_FUNCTIONS = new Set(config.cleanup.infraFunctions);
  * Used by both the JSX pre-transformer and the IR component resolver.
  */
 export const UNWRAP_COMPONENTS = new Set(config.cleanup.unwrapComponents);
-
-/**
- * Check if a component name should be unwrapped.
- * Uses both the explicit set AND pattern matching for React Context
- * providers/consumers that may not be listed explicitly.
- */
-export function shouldUnwrapComponent(name: string): boolean {
-  if (UNWRAP_COMPONENTS.has(name)) return true;
-  // Any Xxx.Provider or Xxx.Consumer is a React Context wrapper
-  if (name.endsWith('.Provider') || name.endsWith('.Consumer')) return true;
-  return false;
-}

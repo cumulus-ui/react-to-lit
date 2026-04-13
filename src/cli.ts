@@ -83,7 +83,7 @@ async function processComponents(
     const outputFile = path.join(outputRoot, path.basename(dir), 'internal.ts');
 
     try {
-      const ir = parseComponent(dir, { skipProps });
+      const ir = parseComponent(dir, { skipProps, knownComponents });
       const transformed = transformAll(ir, { skipProps, knownComponents });
       const output = emitComponent(transformed);
 

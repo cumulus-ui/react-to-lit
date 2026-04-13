@@ -109,10 +109,12 @@ describe('jsxToLitTransformerFactory config', () => {
   });
 
   describe('shouldUnwrap', () => {
-    it('unwraps Fragment by default', () => {
+    it('unwraps components not in knownComponents', () => {
+      const knownComponents = new Set(['Button', 'Alert']);
       const src = 'const x = <Fragment><span>hi</span></Fragment>;';
-      const out = transformTsx(src);
-      // Fragment is unwrapped — output should contain the child but not Fragment tag
+      const out = transformTsx(src, {
+        shouldUnwrap: (name) => !knownComponents.has(name),
+      });
       expect(out).not.toContain('el-fragment');
       expect(out).toContain('span');
     });

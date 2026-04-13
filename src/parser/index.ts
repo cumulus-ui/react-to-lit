@@ -34,6 +34,7 @@ import type { CompilerConfig } from '../config.js';
 
 export interface ParseOptions {
   skipProps?: Set<string>;
+  knownComponents?: Set<string>;
   hookMappings?: HookRegistry;
   declarationsDir?: string;
   config?: CompilerConfig;
@@ -106,8 +107,12 @@ export function parseComponent(
   // preamble variables), then re-parse so the rest of IR extraction works on
   // plain TS (no JSX syntax in hook bodies, etc.).
   // ---------------------------------------------------------------------------
-  let indexFile = transformJsxToLit(origIndexFile);
-  let internalFile = origInternalFile ? transformJsxToLit(origInternalFile) : undefined;
+  const knownComponents = options.knownComponents;
+  const jsxConfig = knownComponents
+    ? { shouldUnwrap: (name: string) => !knownComponents.has(name) }
+    : undefined;
+  let indexFile = transformJsxToLit(origIndexFile, jsxConfig);
+  let internalFile = origInternalFile ? transformJsxToLit(origInternalFile, jsxConfig) : undefined;
 
   // 3. Find component in the transformed TS files
   const component = findComponent(indexFile, internalFile);
@@ -278,7 +283,7 @@ export function parseComponent(
     controllers: hookResult.controllers,
     mixins,
     contexts: hookResult.contexts,
-    imports: extractSourceImports(sourceFile, buildSkipImportNames(hookRegistry, options.config)),
+    imports: extractSourceImports(sourceFile, buildSkipImportNames(hookRegistry, options.config, options.knownComponents)),
     styleImport,
     publicMethods: hookResult.publicMethods,
     helpers,
@@ -722,7 +727,7 @@ const SKIP_IMPORT_MODULES = new Set([
  *
  * This keeps the parser general-purpose — no hardcoded library-specific names.
  */
-function buildSkipImportNames(hookRegistry: HookRegistry, config?: CompilerConfig): Set<string> {
+function buildSkipImportNames(hookRegistry: HookRegistry, config?: CompilerConfig, knownComponents?: Set<string>): Set<string> {
   const names = new Set<string>();
 
   // All registered hooks are handled by the hook extraction pipeline
@@ -749,12 +754,10 @@ function buildSkipImportNames(hookRegistry: HookRegistry, config?: CompilerConfi
     names.add('fireKeyboardEvent');
   }
 
-  // Wrapper components unwrapped by the template transform
-  const unwrapSet = config?.cleanup.unwrapComponents
-    ? new Set(config.cleanup.unwrapComponents)
-    : UNWRAP_COMPONENTS;
-  for (const name of unwrapSet) {
-    names.add(name);
+  if (!knownComponents) {
+    for (const name of UNWRAP_COMPONENTS) {
+      names.add(name);
+    }
   }
 
   return names;

@@ -9,7 +9,7 @@
  * Runs BEFORE IR extraction so all downstream code operates on JSX-free source.
  */
 import ts from 'typescript';
-import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, shouldUnwrapComponent } from '../cloudscape-config.js';
+import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES } from '../cloudscape-config.js';
 import { getHtmlTagNames, isVoidElement } from '../standards.js';
 import { toTagName, toLitEventName, classifyBinding, reactAttrToHtml } from '../naming.js';
 
@@ -43,7 +43,7 @@ function resolveConfig(config?: JsxToLitConfig): ResolvedConfig {
   return {
     removeAttrs: config?.removeAttributes ?? REMOVE_ATTRS,
     removeAttrPrefixes: config?.removeAttributePrefixes ?? REMOVE_ATTR_PREFIXES,
-    shouldUnwrap: config?.shouldUnwrap ?? shouldUnwrapComponent,
+    shouldUnwrap: config?.shouldUnwrap ?? (() => false),
   };
 }
 
@@ -114,7 +114,7 @@ function convertJsxElement(
   }
 
   // Unwrap components (keep children only)
-  if (cfg.shouldUnwrap(originalTag)) {
+  if (originalTag[0] === originalTag[0].toUpperCase() && cfg.shouldUnwrap(originalTag)) {
     return convertChildrenToTemplate(node.children, visitor, context);
   }
 
@@ -147,7 +147,8 @@ function convertSelfClosing(
 ): ts.Expression {
   const tagName = resolveTagName(node.tagName, cfg);
 
-  if (cfg.shouldUnwrap(getOriginalTagName(node.tagName))) {
+  const selfClosingTag = getOriginalTagName(node.tagName);
+  if (selfClosingTag[0] === selfClosingTag[0].toUpperCase() && cfg.shouldUnwrap(selfClosingTag)) {
     // Self-closing unwrap → nothing
     return ts.factory.createIdentifier('nothing');
   }
@@ -385,8 +386,6 @@ function getOriginalTagName(tagName: ts.JsxTagNameExpression): string {
     const obj = tagName.expression.getText();
     const prop = tagName.name.text;
     if (obj === 'React' && prop === 'Fragment') return 'Fragment';
-    // Return full name (e.g., "ButtonContext.Provider") so shouldUnwrapComponent
-    // can match both explicit entries and the *.Provider/*.Consumer pattern
     return `${obj}.${prop}`;
   }
   return tagName.getText();
