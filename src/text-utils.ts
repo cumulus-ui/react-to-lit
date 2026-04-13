@@ -211,6 +211,19 @@ export function stripFunctionCalls(text: string, funcName: string): string {
   return result;
 }
 
+export function replaceFunctionCalls(text: string, funcName: string, replacement: string): string {
+  let result = text;
+  for (let safety = 0; safety < 50; safety++) {
+    const idx = result.indexOf(funcName + '(');
+    if (idx === -1) break;
+    const openParen = idx + funcName.length;
+    const closeParen = findMatchingParen(result, openParen);
+    if (closeParen === -1) break;
+    result = result.slice(0, idx) + replacement + result.slice(closeParen + 1);
+  }
+  return result;
+}
+
 /**
  * Unwrap a function call to its first argument:
  *   `funcName(firstArg, rest...)` → `firstArg`

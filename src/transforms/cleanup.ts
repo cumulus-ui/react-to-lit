@@ -12,7 +12,7 @@
 import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
 import { SKIP_PROPS, REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, INFRA_FUNCTIONS } from '../cloudscape-config.js';
 import { walkTemplate } from '../template-walker.js';
-import { stripFunctionCalls, stripIfBlocks, unwrapFunctionCall } from '../text-utils.js';
+import { stripFunctionCalls, replaceFunctionCalls, stripIfBlocks, unwrapFunctionCall } from '../text-utils.js';
 
 /** Matches testUtilStyles/testutilStyles/testStyles bracket or dot access. */
 const TEST_UTIL_STYLES_RE = /\btestUtilStyles(?:\[['"\w-]+\]|\.\w+)|\btestutilStyles(?:\[['"\w-]+\]|\.\w+)|\btestStyles(?:\[['"\w-]+\]|\.\w+)/g;
@@ -151,6 +151,8 @@ function cleanHandlerBody(body: string): string {
   result = result.replace(/\bInternal(\w+Props)\b/g, '$1');
 
   result = result.replace(/\.\.\.(getAnalyticsMetadataAttribute|getAnalyticsLabelAttribute)\([^)]*\),?\s*/g, '');
+  result = replaceFunctionCalls(result, 'getAnalyticsMetadataAttribute', '{}');
+  result = replaceFunctionCalls(result, 'getAnalyticsLabelAttribute', '{}');
 
   // Remove: [DATA_ATTR_FUNNEL_VALUE]: uniqueId
   result = result.replace(/\[DATA_ATTR_FUNNEL_VALUE\]\s*:\s*\w+,?\s*/g, '');
