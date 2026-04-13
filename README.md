@@ -58,13 +58,16 @@ const analyzer = new PackageAnalyzer('@cloudscape-design/components');
 const propsType = analyzer.getPropsType('ButtonProps', 'button/interfaces.d.ts');
 const classified = analyzer.classifyAllProps(propsType);
 // Map {
-//   'disabled'  => 'prop',    // boolean -- becomes @property({ type: Boolean })
-//   'variant'   => 'prop',    // string enum -- becomes @property({ type: String })
-//   'onClick'   => 'event',   // callback taking a DOM Event -- becomes CustomEvent dispatch
-//   'children'  => 'slot',    // React.ReactNode -- becomes <slot>
-//   'iconSvg'   => 'slot',    // React.ReactNode -- becomes <slot name="icon-svg">
-//   'className' => 'prop',    // string -- consumer decides how to handle
+//   'disabled'  => { classification: 'prop',        deprecated: false },
+//   'variant'   => { classification: 'prop',        deprecated: false },
+//   'onClick'   => { classification: 'event',       deprecated: false },
+//   'children'  => { classification: 'slot',        deprecated: false },
+//   'className' => { classification: 'prop',        deprecated: true  },
+//   'nativeButtonAttributes' => { classification: 'passthrough', deprecated: false },
 // }
+
+const refMethods = analyzer.getRefMethods('ButtonProps', 'button/interfaces.d.ts');
+// [{ name: 'focus', signature: '(options?: FocusOptions) => void', jsDoc: '...' }]
 ```
 
 Classification is based entirely on the type system:
@@ -73,7 +76,16 @@ Classification is based entirely on the type system:
   DOM Event type. Detected by walking the type alias chain against `lib.dom`.
 - **`slot`** -- the prop's type originates from `@types/react`. These are React
   renderables that become Shadow DOM slots.
+- **`passthrough`** -- the prop's expanded type contains members whose types
+  reference `@types/react`. These are bags of React HTML attributes.
 - **`prop`** -- everything else. Full TypeScript types are preserved.
+
+Additionally:
+
+- **`deprecated`** -- orthogonal flag from the `@deprecated` JSDoc tag. A prop
+  can be both `prop` and deprecated, or `event` and deprecated.
+- **Ref methods** -- imperative methods (e.g., `focus()`) from the props type's
+  `Ref` namespace export.
 
 No string matching on type names. No hardcoded lists. The type checker does
 the work.
