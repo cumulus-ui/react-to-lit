@@ -199,8 +199,12 @@ function cleanHandlerBody(body: string): string {
   // handled by the cleanup-react-types transform — not duplicated here.
 
   // Simplify dead-code patterns left by rest/__ variable cleanup.
+  // undefined?.xxx → undefined (optional chain on undefined)
+  result = result.replace(/\bundefined\?\.\w+/g, 'undefined');
   // undefined ?? expr → expr
   result = result.replace(/\bundefined\s*\?\?\s*/g, '');
+  // (expr !== undefined) ?? false → (expr !== undefined) — comparison is never nullish
+  result = result.replace(/(!==\s*undefined\))\s*\?\?\s*false/g, '$1');
   // undefined || expr → expr
   result = result.replace(/\bundefined\s*\|\|\s*/g, '');
   // !undefined → true
