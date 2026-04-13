@@ -10,6 +10,7 @@ import type {
   AttributeIR,
   DynamicValueIR,
 } from '../ir/types.js';
+import { isVoidElement } from '../standards.js';
 import type { ImportCollector } from './imports.js';
 import { toLitEventName } from '../naming.js';
 
@@ -94,6 +95,9 @@ function emitElementInline(
   const attrStr = attrs ? ' ' + attrs : '';
 
   if (node.children.length === 0) {
+    if (isVoidElement(tag)) {
+      return `${pad}<${tag}${attrStr}>`;
+    }
     return `${pad}<${tag}${attrStr}></${tag}>`;
   }
 

@@ -10,7 +10,7 @@
  */
 import ts from 'typescript';
 import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, shouldUnwrapComponent } from '../cloudscape-config.js';
-import { getHtmlTagNames } from '../standards.js';
+import { getHtmlTagNames, isVoidElement } from '../standards.js';
 import { toTagName, toLitEventName, classifyBinding, reactAttrToHtml } from '../naming.js';
 
 // ---------------------------------------------------------------------------
@@ -132,8 +132,9 @@ function convertJsxElement(
   // Children
   emitChildren(node.children, builder, visitor, context);
 
-  // Closing tag
-  builder.appendStatic(`</${tagName}>`);
+  if (!isVoidElement(tagName)) {
+    builder.appendStatic(`</${tagName}>`);
+  }
 
   return builder.build();
 }
@@ -155,7 +156,11 @@ function convertSelfClosing(
 
   builder.appendStatic(`<${tagName}`);
   emitAttributes(node.attributes, builder, visitor, context, cfg);
-  builder.appendStatic(`></${tagName}>`);
+  if (isVoidElement(tagName)) {
+    builder.appendStatic('>');
+  } else {
+    builder.appendStatic(`></${tagName}>`);
+  }
 
   return builder.build();
 }
@@ -205,7 +210,9 @@ function convertWithNativeAttributes(
 
   builder.appendStatic('>');
   emitChildren(node.children, builder, visitor, context);
-  builder.appendStatic(`</${tagName}>`);
+  if (!isVoidElement(tagName)) {
+    builder.appendStatic(`</${tagName}>`);
+  }
 
   return builder.build();
 }

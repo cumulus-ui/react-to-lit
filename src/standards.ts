@@ -169,3 +169,14 @@ export function getHtmlTagNames(): Set<string> {
   project.removeSourceFile(sf);
   return _htmlTagNames;
 }
+
+// HTML void elements — cannot have children or closing tags.
+// Per https://html.spec.whatwg.org/multipage/syntax.html#void-elements
+const VOID_ELEMENTS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+  'link', 'meta', 'param', 'source', 'track', 'wbr',
+]);
+
+export function isVoidElement(tag: string): boolean {
+  return VOID_ELEMENTS.has(tag);
+}
