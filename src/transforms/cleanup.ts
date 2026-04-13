@@ -150,8 +150,6 @@ function cleanHandlerBody(body: string): string {
   // Internal variant is the parser name; the public variant is imported.
   result = result.replace(/\bInternal(\w+Props)\b/g, '$1');
 
-  // Remove rest/spread references (general React pattern)
-  result = cleanRestSpreadRefs(result);
   result = result.replace(/\.\.\.(getAnalyticsMetadataAttribute|getAnalyticsLabelAttribute)\([^)]*\),?\s*/g, '');
 
   // Remove: [DATA_ATTR_FUNNEL_VALUE]: uniqueId
@@ -199,6 +197,11 @@ function cleanHandlerBody(body: string): string {
   // Handle optional type annotations: __foo?: Type
   result = result.replace(/,\s*__\w+(?:\??\s*:\s*[^,})]*)?\s*(?=[,})])/g, '');
   result = result.replace(/\(\s*__\w+(?:\??\s*:\s*[^,})]*)?\s*,\s*/g, '(');
+
+  // Rest/spread cleanup runs AFTER __-prefixed cleanup because ternaries
+  // like `__flag ? expr : rest` simplify to `rest` only after __-prefixed
+  // refs are resolved. Running rest cleanup earlier would miss these.
+  result = cleanRestSpreadRefs(result);
 
   // Remove FunnelMetrics.xxx(...) and analytics selector function calls
   const analyticsCallPattern = /\bFunnelMetrics\.\w+\(|\b(getSubStepAllSelector|getFunnelValueSelector|getFieldSlotSeletor|getNameFromSelector|getSubStepSelector)\(/g;
