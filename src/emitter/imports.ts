@@ -238,13 +238,22 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   for (const imp of ir.imports) {
     if (imp.isSideEffect) {
       collector.addSideEffect(imp.moduleSpecifier);
-    } else if (imp.isTypeOnly && imp.namedImports) {
+      continue;
+    }
+    if (imp.isTypeOnly && imp.namedImports) {
       for (const name of imp.namedImports) {
         if (allCode.includes(name)) collector.addType(imp.moduleSpecifier, name);
       }
-    } else if (imp.defaultImport) {
-      if (imp.preserve || allCode.includes(imp.defaultImport)) collector.addDefault(imp.moduleSpecifier, imp.defaultImport);
-    } else if (imp.namedImports) {
+      continue;
+    }
+    // Process default and named imports independently — an import
+    // statement can have both (import Foo, { bar } from '...').
+    if (imp.defaultImport) {
+      if (imp.preserve || allCode.includes(imp.defaultImport)) {
+        collector.addDefault(imp.moduleSpecifier, imp.defaultImport);
+      }
+    }
+    if (imp.namedImports) {
       for (const name of imp.namedImports) {
         if (imp.preserve || allCode.includes(name)) collector.addNamed(imp.moduleSpecifier, name);
       }
