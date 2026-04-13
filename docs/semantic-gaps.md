@@ -175,6 +175,23 @@ this._inputRef.focus();
 elements exist, only the first is returned. Complex ref patterns (callback refs,
 forwarded refs) may require manual adjustment.
 
+### Residual `.current` access (known limitation)
+
+The compiler correctly strips `.current` from direct `useRef()` declarations.
+However, `.current` survives in cases where ref objects are:
+
+- **Passed as props**: `triggerRef: React.RefObject<HTMLElement>` — the prop
+  type carries the `.current` wrapper, but the Lit component receives the
+  element directly.
+- **Returned from custom hooks**: `const { loadingButtonCount } = useFunnel()`
+  — the hook returns a ref-like object the compiler doesn't understand.
+- **Nested in context objects**: `tableComponentContext?.paginationRef?.current`
+  — the context provides React ref wrappers around values.
+
+These require manual review. The consuming code needs to decide whether to:
+1. Pass the unwrapped value directly (no `.current` wrapper)
+2. Define a Lit-native equivalent type for the context/prop
+
 ---
 
 ## 7. Effect Timing
