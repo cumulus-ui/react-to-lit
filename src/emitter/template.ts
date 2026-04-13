@@ -224,12 +224,18 @@ function emitAttribute(
     }
 
     case 'classMap': {
-      collector.addDirective('lit/directives/class-map.js', 'classMap');
       const expr = getExpression(attr.value);
-      // Avoid double-wrapping: if the expression is already a classMap() call, use it directly.
+      // If the expression is already a classMap() call, use it directly.
       if (expr.startsWith('classMap(')) {
+        collector.addDirective('lit/directives/class-map.js', 'classMap');
         return `class=\${${expr}}`;
       }
+      // If the expression is a string literal or template literal (not an object),
+      // emit as a plain class attribute — classMap only works with objects.
+      if (/^['"`]/.test(expr) || expr === "''" || expr === '""') {
+        return `class=${expr}`;
+      }
+      collector.addDirective('lit/directives/class-map.js', 'classMap');
       return `class=\${classMap(${expr})}`;
     }
 
