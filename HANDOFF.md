@@ -197,13 +197,15 @@ npx tsc --noEmit --strict false --skipLibCheck --experimentalDecorators -p .gate
 
 ## Highest-impact next steps (in priority order)
 
-1. **Parser file resolution for `implementation.tsx`** (~10 errors): Many Cloudscape components split into `internal.tsx` (wrapper) + `implementation.tsx` (actual component). The parser only scans `index.tsx` and `internal.tsx`. Extending file resolution to also scan `implementation.tsx` would capture hooks like `useInternalI18n`, `useFunnel`, etc. that produce variables still referenced in the output.
+1. **Entry/secondary file disambiguation for self-contained entries** (~4 errors, tag-editor): When the entry file has the main forwardRef component but the secondary file only exports helper components, the parser picks the wrong body. The general signal — default vs named imports — doesn't reliably distinguish delegation from child usage. Needs a structural approach: compare body complexity or check if the entry's body contains a JSX return statement with hooks.
 
-2. **Loop-body local variable extraction** (~6 errors): Variables defined inside `.map()` callbacks (e.g., `shouldAddDivider`, `itemContent` in button-group, `step` in steps) are not captured by any extractor. These need either: (a) the template restructuring to inline the loop body, or (b) a mechanism to preserve loop-body locals when the loop is decomposed into template expressions.
+2. **Loop-body local variable extraction** (~7 errors, steps + button-group): Variables defined inside `.map()` callbacks (e.g., `step`, `shouldAddDivider`, `itemContent`) are not captured. The template decomposition hoists ternaries outside loops, losing the loop variable binding. Fix requires keeping the ternary inside the loop in the template IR.
 
-3. **Rest-spread props pattern** (~3 errors): `const { a, b, ...rest } = props` produces a `rest` variable that's used for form-field context. The converter strips the destructuring but leaves `rest` references. Need a pattern to either inline the rest-spread or convert it to a computed getter.
+3. **Hook returns from helper component functions** (~3 errors, form-field + key-value-pairs): `useInternalI18n()` and `useUniqueId()` are inside helper components (`FormFieldError`, `InternalKeyValuePair`) in the same file. The parser only extracts hooks from the main component. Needs multi-function-per-file hook extraction.
 
-4. **Event dispatch argument fixing** (~2 errors): `fireNonCancelableEvent(this._onFinish)` and `fireNonCancelableEvent({ relatedTarget })` have wrong arg counts. The event transform needs to handle the 1-arg pattern where the callback was the first arg (pre-conversion) and wasn't fully updated to the `(target, eventName, detail)` signature.
+4. **Preamble variable inlining for state initializers** (~2 errors, calendar): `const defaultDisplayedDate = memoizedValue ?? new Date()` is used as a `useState` initializer. The preamble var is only available in render() but the state field initializer runs at construction. Either inline the expression or defer the state init.
+
+5. **`usePrevious` hook mapping** (~1 error, date-range-picker): `usePrevious(value)` returns the previous render's value. In Lit, this maps to storing old values in `willUpdate()`. The current auto-skip preserves the var but the effect conversion incorrectly puts it in `changed.has()` checks.
 
 ---
 
