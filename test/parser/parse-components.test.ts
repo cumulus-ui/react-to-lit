@@ -315,6 +315,25 @@ describe('parseComponent', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Autosuggest — props destructured in body, not parameters
+  // -------------------------------------------------------------------------
+  describe('Autosuggest (body-destructured props)', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'autosuggest'));
+
+    it('should extract statusType as a prop', () => {
+      // autosuggest uses forwardRef((props, ref) => { const { statusType, ... } = props; })
+      // The prop parser should find statusType from the body destructuring.
+      const prop = ir.props.find((p) => p.name === 'statusType');
+      expect(prop).toBeDefined();
+    });
+
+    it('should capture the default value for statusType', () => {
+      const prop = ir.props.find((p) => p.name === 'statusType');
+      expect(prop?.default).toBe("'finished'");
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // TagEditor — entry file as implementation when secondary has only helpers
   // -------------------------------------------------------------------------
   describe('TagEditor', () => {

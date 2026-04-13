@@ -49,7 +49,7 @@ export function extractProps(
   }
 
   // Get destructured prop names and defaults from the function parameters
-  const destructuredProps = getDestructuredProps(component.parameters, sourceFile, interfaceTypeMap);
+  const destructuredProps = getDestructuredProps(component.parameters, component.body, sourceFile, interfaceTypeMap);
 
   // Merge defaults (index defaults take priority as they're the public API)
   const mergedDefaults = new Map([
@@ -99,6 +99,7 @@ interface PropInfo {
 
 function getDestructuredProps(
   parameters: ts.NodeArray<ts.ParameterDeclaration>,
+  body: ts.Block | ts.Expression,
   sourceFile: ts.SourceFile,
   interfaceTypeMap: Map<string, string>,
 ): Map<string, PropInfo> {
@@ -109,30 +110,60 @@ function getDestructuredProps(
 
   // Handle: function Foo({ color = 'grey', ...rest }: BadgeProps)
   if (ts.isObjectBindingPattern(firstParam.name)) {
-    for (const element of firstParam.name.elements) {
-      if (element.dotDotDotToken) continue; // Skip ...rest
+    extractFromBindingPattern(firstParam.name, sourceFile, interfaceTypeMap, result);
+    return result;
+  }
 
-      const name = ts.isIdentifier(element.name) ? element.name.text : '';
-      if (!name) continue;
-
-      // Get the property name (handles renamed destructuring like { prop: alias })
-      const propName = element.propertyName
-        ? ts.isIdentifier(element.propertyName) ? element.propertyName.text : name
-        : name;
-
-      const defaultValue = element.initializer
-        ? getNodeText(element.initializer, sourceFile)
-        : undefined;
-
-      const typeText = interfaceTypeMap.get(propName) ?? 'unknown';
-
-      // Track alias if destructured with rename: { prop: alias }
-      const alias = propName !== name ? name : undefined;
-      result.set(propName, { typeText, default: defaultValue, alias });
+  // Handle: function Foo(props: BadgeProps) { const { color = 'grey', ... } = props; }
+  // When the first parameter is a plain identifier, scan the body for
+  // `const { ... } = <paramName>` destructuring statements.
+  if (ts.isIdentifier(firstParam.name) && ts.isBlock(body)) {
+    const paramName = firstParam.name.text;
+    for (const stmt of body.statements) {
+      if (!ts.isVariableStatement(stmt)) continue;
+      for (const decl of stmt.declarationList.declarations) {
+        if (!ts.isObjectBindingPattern(decl.name)) continue;
+        // Check that the initializer references the parameter: `= props` or `= rest`
+        if (!decl.initializer || !ts.isIdentifier(decl.initializer)) continue;
+        if (decl.initializer.text !== paramName) continue;
+        extractFromBindingPattern(decl.name, sourceFile, interfaceTypeMap, result);
+      }
     }
   }
 
   return result;
+}
+
+/**
+ * Extract prop names, defaults, and aliases from an object binding pattern.
+ */
+function extractFromBindingPattern(
+  pattern: ts.ObjectBindingPattern,
+  sourceFile: ts.SourceFile,
+  interfaceTypeMap: Map<string, string>,
+  result: Map<string, PropInfo>,
+): void {
+  for (const element of pattern.elements) {
+    if (element.dotDotDotToken) continue; // Skip ...rest
+
+    const name = ts.isIdentifier(element.name) ? element.name.text : '';
+    if (!name) continue;
+
+    // Get the property name (handles renamed destructuring like { prop: alias })
+    const propName = element.propertyName
+      ? ts.isIdentifier(element.propertyName) ? element.propertyName.text : name
+      : name;
+
+    const defaultValue = element.initializer
+      ? getNodeText(element.initializer, sourceFile)
+      : undefined;
+
+    const typeText = interfaceTypeMap.get(propName) ?? 'unknown';
+
+    // Track alias if destructured with rename: { prop: alias }
+    const alias = propName !== name ? name : undefined;
+    result.set(propName, { typeText, default: defaultValue, alias });
+  }
 }
 
 /**
