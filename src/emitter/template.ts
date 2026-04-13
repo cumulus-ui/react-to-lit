@@ -223,8 +223,14 @@ function emitAttribute(
     case 'property':
       return `.${attr.name}=\${${getExpression(attr.value)}}`;
 
-    case 'attribute':
-      return `${attr.name}=\${${getExpression(attr.value)}}`;
+    case 'attribute': {
+      const expr = getExpression(attr.value);
+      if (mayBeUndefined(expr)) {
+        collector.addDirective('lit/directives/if-defined.js', 'ifDefined');
+        return `${attr.name}=\${ifDefined(${expr})}`;
+      }
+      return `${attr.name}=\${${expr}}`;
+    }
 
     case 'boolean':
       return `?${attr.name}=\${${getExpression(attr.value)}}`;
@@ -280,4 +286,10 @@ function emitAttribute(
 function getExpression(value: string | DynamicValueIR): string {
   if (typeof value === 'string') return JSON.stringify(value);
   return value.expression;
+}
+
+function mayBeUndefined(expr: string): boolean {
+  return /\bundefined\b/.test(expr)
+    || expr.includes('??')
+    || (expr.includes('?') && expr.includes(':'));
 }
