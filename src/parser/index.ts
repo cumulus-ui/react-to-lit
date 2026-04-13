@@ -376,15 +376,24 @@ function promotePreambleVars(
   // A statement may declare multiple variables; remove it only if ALL
   // its declarations were promoted.
   for (const stmt of bodyPreamble) {
-    // Check if this statement is a `const/let/var name = ...` for a promoted var
-    let allPromoted = false;
-    const declMatch = stmt.match(/^(?:const|let|var)\s+(\w+)\s*=/);
-    if (declMatch && promotedVarNames.has(declMatch[1])) {
-      allPromoted = true;
+    // Check if this statement declares promoted variables.
+    // Simple: const name = ...
+    const simpleDeclMatch = stmt.match(/^(?:const|let|var)\s+(\w+)\s*=/);
+    if (simpleDeclMatch && promotedVarNames.has(simpleDeclMatch[1])) {
+      continue; // skip — promoted
     }
-    if (!allPromoted) {
-      filteredPreamble.push(stmt);
+    // Destructured: const { a, b, c } = ... or const [a, b] = ...
+    const destructMatch = stmt.match(/^(?:const|let|var)\s+[\[{]([^=]+)[\]}]\s*=/);
+    if (destructMatch) {
+      const bindingNames = destructMatch[1]
+        .split(',')
+        .map(s => s.replace(/\s*:.*$/, '').trim()) // strip `: alias` and whitespace
+        .filter(Boolean);
+      if (bindingNames.length > 0 && bindingNames.every(n => promotedVarNames.has(n))) {
+        continue; // skip — all bindings promoted
+      }
     }
+    filteredPreamble.push(stmt);
   }
 
   return { bodyPreamble: filteredPreamble, computedValues: promoted };
