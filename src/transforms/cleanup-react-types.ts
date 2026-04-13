@@ -110,6 +110,8 @@ function replaceReactTypes(text: string): string {
   // ReactNode / ReactElement bare imports (not React.ReactNode — that's handled later)
   result = result.replace(/(?<![\w.])ReactNode\b/g, 'unknown');
   result = result.replace(/(?<![\w.])ReactElement(?:<[^>]*>)?/g, 'unknown');
+  // JSX.Element → unknown (React-specific namespace type)
+  result = result.replace(/\bJSX\.Element\b/g, 'unknown');
 
   if (!result.includes('React.')) return result;
 
