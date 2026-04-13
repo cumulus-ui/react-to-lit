@@ -496,13 +496,12 @@ function extractBodyPreamble(
     // (those are infrastructure, not user logic).
     if (!pastHooks) {
       const text = sourceFile.text.slice(stmt.getStart(sourceFile), stmt.getEnd());
-      if (text.includes('props') || text.includes('getBaseProps') || text.includes('useBaseComponent')) continue;
+      if (text.includes('props')) continue;
     }
     {
       const text = sourceFile.text.slice(stmt.getStart(sourceFile), stmt.getEnd());
       // Skip Cloudscape infrastructure
       if ([...INFRA_FUNCTIONS].some(fn => text.includes(fn))) continue;
-      if (text.includes('useBaseComponent')) continue;
       // Skip dev-only validation blocks (contain hooks that violate rules-of-hooks)
       if (ts.isIfStatement(stmt) && text.includes('isDevelopment')) continue;
 
