@@ -513,15 +513,18 @@ function extractBodyPreamble(
       if (ts.isExpressionStatement(stmt) && ts.isCallExpression(stmt.expression)) continue;
 
       // Check if this is a variable containing a template (html`...`)
-      // These become render helper methods instead of bodyPreamble
+      // These become render helper methods instead of bodyPreamble —
+      // BUT only if the variable is directly a template or a function
+      // returning a template. Array expressions (.map results) that
+      // happen to contain templates in element properties are data,
+      // not render functions.
       if (ts.isVariableStatement(stmt) && containsHtmlTemplate(text)) {
+        let allHandledAsHelpers = true;
         for (const decl of stmt.declarationList.declarations) {
-          if (ts.isIdentifier(decl.name)) {
+          if (ts.isIdentifier(decl.name) && decl.initializer) {
             const name = decl.name.text;
-            const initText = decl.initializer
-              ? sourceFile.text.slice(decl.initializer.getStart(sourceFile), decl.initializer.getEnd())
-              : '';
-            if (containsHtmlTemplate(initText)) {
+            const initText = sourceFile.text.slice(decl.initializer.getStart(sourceFile), decl.initializer.getEnd());
+            if (containsHtmlTemplate(initText) && isTemplateVariable(decl.initializer)) {
               // Convert to a render helper: const header = html`...` → function header() { return html`...`; }
               renderHelpers.push({
                 name,
@@ -530,9 +533,10 @@ function extractBodyPreamble(
               continue;
             }
           }
+          allHandledAsHelpers = false;
         }
-        // If we got here, not all declarations were helpers — add remainder to preamble
-        continue;
+        if (allHandledAsHelpers) continue;
+        // Fall through to add as preamble if not all decls were helpers
       }
 
       preamble.push(text);
@@ -579,6 +583,33 @@ function extractBodyPreamble(
   }
 
   return { preamble, renderHelpers, preambleVars };
+}
+
+/**
+ * Check if a variable initializer is directly a template or a function
+ * producing a template. Returns false for array/method-call expressions
+ * that happen to contain templates in element properties — those are
+ * data, not render functions.
+ */
+function isTemplateVariable(init: ts.Expression): boolean {
+  // Direct template: html`...` or just `...`
+  if (ts.isTaggedTemplateExpression(init) || ts.isTemplateExpression(init) || ts.isNoSubstitutionTemplateLiteral(init)) {
+    return true;
+  }
+  // Arrow function or function expression — likely a render helper
+  if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) {
+    return true;
+  }
+  // Conditional: cond ? html`a` : html`b`
+  if (ts.isConditionalExpression(init)) {
+    return true;
+  }
+  // Parenthesized: (html`...`)
+  if (ts.isParenthesizedExpression(init)) {
+    return isTemplateVariable(init.expression);
+  }
+  // Everything else (method calls, array literals, object literals) is data
+  return false;
 }
 
 function isHookCallStatement(stmt: ts.Statement): boolean {
