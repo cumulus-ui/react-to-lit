@@ -12,11 +12,10 @@ mechanical translation; the consumer owns the design system.
 ## Who is this for?
 
 Any team that maintains a React component library and wants to produce an
-equivalent set of web components. The compiler is configured through a
-`CompilerConfig` object that describes the source library's conventions --
-infrastructure props to strip, sub-component mappings, event dispatch pattern,
-and naming rules. A built-in preset for the Cloudscape Design System is
-included, but the core pipeline is library-agnostic.
+equivalent set of web components. Point the compiler at your published npm
+package and source directory -- it discovers all components from the barrel
+export, classifies props, events, and slots from the TypeScript type system,
+and generates idiomatic Lit classes.
 
 ## How the compiler understands a React library
 
