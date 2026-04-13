@@ -1,35 +1,11 @@
 #!/usr/bin/env node
-/**
- * CLI entry point for react-to-lit transpiler.
- *
- * Usage:
- *   npx react-to-lit --input vendor/cloudscape-source/src/badge --output src/badge/internal.ts
- *   npx react-to-lit --input vendor/cloudscape-source/src --output src --batch
- */
 import { Command } from 'commander';
 import path from 'node:path';
 import fs from 'node:fs';
 import { parseComponent } from './parser/index.js';
 import { transformAll } from './transforms/index.js';
 import { emitComponent } from './emitter/index.js';
-import { loadConfig } from './config-loader.js';
-import type { CompilerConfig } from './config.js';
-
-/** Directories to skip (not components) */
-const SKIP_DIRS = new Set([
-  '__a11y__',
-  '__integ__',
-  '__tests__',
-  '__motion__',
-  'internal',
-  'contexts',
-  'i18n',
-  'interfaces.ts',
-  'test-utils',
-  'theming',
-  'node_modules',
-  'plugins',
-]);
+import { discoverComponents } from './config.js';
 
 const program = new Command();
 
@@ -39,45 +15,32 @@ program
   .version('0.1.0');
 
 program
-  .option('-i, --input <path>', 'Input directory (component dir or source root)')
-  .option('-o, --output <path>', 'Output directory or file')
-  .option('-b, --batch', 'Batch mode: process all components in input directory')
-  .option('-c, --component <name>', 'Process a single component from batch input')
+  .requiredOption('-p, --package <name>', 'npm package to discover components from (e.g. "@cloudscape-design/components")')
+  .requiredOption('-s, --source <path>', 'Source directory containing component implementations')
+  .requiredOption('-o, --output <path>', 'Output directory')
+  .option('-c, --component <name>', 'Process a single component by name')
   .option('--dry-run', 'Print output to stdout instead of writing files')
   .option('--verbose', 'Log parsing decisions')
-  .option('--config <path>', 'Path to a configuration file (JS/TS module)')
   .option('--preset <name>', 'Use a built-in preset (e.g. "cloudscape")')
   .action(async (opts) => {
-    // Load configuration (--config file, --preset name, or defaults)
-    const _config: CompilerConfig = await loadConfig(opts.config, opts.preset);
+    const sourceRoot = path.resolve(opts.source);
+    const outputRoot = path.resolve(opts.output);
 
-    const inputPath = path.resolve(opts.input);
-    const outputPath = opts.output ? path.resolve(opts.output) : undefined;
+    const discovered = discoverComponents(opts.package);
+    const components = discovered.map(c => ({
+      name: c.name,
+      dir: path.resolve(sourceRoot, c.dir.replace(/^\.\//, '')),
+    }));
 
-    if (opts.batch) {
-      // Batch mode requires --output
-      if (!outputPath) {
-        console.error('Error: --output is required in batch mode');
+    if (opts.component) {
+      const filtered = components.filter(c => c.name === opts.component || path.basename(c.dir) === opts.component);
+      if (filtered.length === 0) {
+        console.error(`Component '${opts.component}' not found in ${opts.package}`);
         process.exit(1);
       }
-
-      // Batch mode: process all component directories
-      const components = findComponentDirs(inputPath);
-
-      if (opts.component) {
-        // Filter to single component
-        const filtered = components.filter((c) => path.basename(c) === opts.component);
-        if (filtered.length === 0) {
-          console.error(`Component '${opts.component}' not found in ${inputPath}`);
-          process.exit(1);
-        }
-        await processComponents(filtered, outputPath, opts);
-      } else {
-        await processComponents(components, outputPath, opts);
-      }
+      await processComponents(filtered, outputRoot, opts);
     } else {
-      // Single component mode
-      await processSingle(inputPath, outputPath, opts);
+      await processComponents(components, outputRoot, opts);
     }
   });
 
@@ -87,33 +50,8 @@ program.parse();
 // Processing
 // ---------------------------------------------------------------------------
 
-async function processSingle(
-  inputPath: string,
-  outputPath: string | undefined,
-  opts: { dryRun?: boolean; verbose?: boolean },
-): Promise<void> {
-  try {
-    const ir = parseComponent(inputPath);
-    const transformed = transformAll(ir);
-    const output = emitComponent(transformed);
-
-    if (opts.dryRun || !outputPath) {
-      console.log(output);
-    } else {
-      const dir = path.dirname(outputPath);
-      fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(outputPath, output, 'utf-8');
-      console.log(`✓ ${ir.name} → ${outputPath}`);
-    }
-  } catch (err) {
-    console.error(`✗ Failed to process ${inputPath}:`, (err as Error).message);
-    if (opts.verbose) console.error(err);
-    process.exit(1);
-  }
-}
-
 async function processComponents(
-  componentDirs: string[],
+  components: Array<{ name: string; dir: string }>,
   outputRoot: string,
   opts: { dryRun?: boolean; verbose?: boolean },
 ): Promise<void> {
@@ -121,38 +59,36 @@ async function processComponents(
   let failed = 0;
   const failures: Array<{ name: string; error: string }> = [];
 
-  for (const componentDir of componentDirs) {
-    const componentName = path.basename(componentDir);
-    const outputFile = path.join(outputRoot, componentName, 'internal.ts');
+  for (const { name, dir } of components) {
+    const outputFile = path.join(outputRoot, path.basename(dir), 'internal.ts');
 
     try {
-      const ir = parseComponent(componentDir);
+      const ir = parseComponent(dir);
       const transformed = transformAll(ir);
       const output = emitComponent(transformed);
 
       if (opts.dryRun) {
-        console.log(`\n=== ${ir.name} ===`);
+        console.log(`\n=== ${name} ===`);
         console.log(output);
       } else {
-        const dir = path.dirname(outputFile);
-        fs.mkdirSync(dir, { recursive: true });
+        fs.mkdirSync(path.dirname(outputFile), { recursive: true });
         fs.writeFileSync(outputFile, output, 'utf-8');
         if (opts.verbose) {
-          console.log(`✓ ${ir.name} → ${outputFile}`);
+          console.log(`✓ ${name} → ${outputFile}`);
         }
       }
       succeeded++;
     } catch (err) {
       failed++;
       const errMsg = (err as Error).message;
-      failures.push({ name: componentName, error: errMsg });
+      failures.push({ name, error: errMsg });
       if (opts.verbose) {
-        console.error(`✗ ${componentName}: ${errMsg}`);
+        console.error(`✗ ${name}: ${errMsg}`);
       }
     }
   }
 
-  console.log(`\nResults: ${succeeded} succeeded, ${failed} failed out of ${componentDirs.length} total`);
+  console.log(`\nResults: ${succeeded} succeeded, ${failed} failed out of ${components.length} total`);
 
   if (failures.length > 0) {
     console.log('\nFailed components:');
@@ -160,32 +96,4 @@ async function processComponents(
       console.log(`  ✗ ${f.name}: ${f.error}`);
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Component directory discovery
-// ---------------------------------------------------------------------------
-
-function findComponentDirs(sourceRoot: string): string[] {
-  const entries = fs.readdirSync(sourceRoot, { withFileTypes: true });
-  const dirs: string[] = [];
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    if (SKIP_DIRS.has(entry.name)) continue;
-    if (entry.name.startsWith('.')) continue;
-    if (entry.name.startsWith('__')) continue;
-
-    const componentDir = path.join(sourceRoot, entry.name);
-    // Must have an index.tsx or index.ts
-    const hasIndex =
-      fs.existsSync(path.join(componentDir, 'index.tsx')) ||
-      fs.existsSync(path.join(componentDir, 'index.ts'));
-
-    if (hasIndex) {
-      dirs.push(componentDir);
-    }
-  }
-
-  return dirs.sort();
 }
