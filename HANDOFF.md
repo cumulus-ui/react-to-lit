@@ -8,9 +8,9 @@ The test bed is Cloudscape Design System (91 components). **Every fix MUST be ge
 
 **Current state:**
 - **91/91 components** generate valid Lit output (gate2 per-component: 0 errors)
-- **679 tests** passing, TypeScript compiles clean
-- **Shared tsc**: 69 errors across 25 components (down from 526 → 166 → 94 → 69)
-- **66/91 components** fully error-free in shared compilation
+- **680 tests** passing, TypeScript compiles clean
+- **Shared tsc**: 62 errors across 25 components (down from 526 → 166 → 94 → 62)
+- **67/91 components** fully error-free in shared compilation
 - All 7 original issues (#11-#18) are closed
 
 ---
@@ -51,7 +51,7 @@ Read each rule. Understand WHY it exists. The "why" is learned from painful debu
 
 ### 6. Test every fix. No exceptions.
 - Add a unit test in `test/transforms/` or `test/emitter/` that covers the specific pattern.
-- Run `npx vitest run` (must be 679+ passing).
+- Run `npx vitest run` (must be 680+ passing).
 - Run `npm run gate2` (must complete with no failures).
 - Run the shared tsc command and verify error count went down, not up.
 - **Check for TS1xxx syntax errors** — these mean your change broke the output.
@@ -114,18 +114,20 @@ Each entry has a test reference. If you modify the related code, run that test t
 | Render callback prop classification | `parse-components.test.ts` "List", `cleanup-react-types.test.ts` "prop type cleanup" | Function types `(args) => ReactNode` are properties, not slots. Prop types also get React type cleanup. |
 | Expression wrapping for identifiers | `identifiers.test.ts` "expression wrapping" | `rewriteWithMorph` accepts `isExpression` flag so object literals with nested arrow semicolons are parsed correctly |
 | Generic function stubs | (verified via gate2) | Functions called with type arguments (e.g., `foo<T>(...)`) get `declare function` stubs instead of `const: any` — supports nested angle brackets |
+| Zero-param expression-body arrow extraction | `parse-components.test.ts` "Wizard" | `() => doSomething()` expression-body arrows with function-call bodies are now extracted as handlers. Previously fell into gap between `isHandlerDeclaration` (skipped from preamble) and `isSignificantFunction` (rejected from handlers). |
+| Internal generated module import preservation | (verified via gate2) | `isComponentImportPath` no longer skips `/index.js` imports from `/generated/` utility modules (CSS custom properties, etc.) |
 
 ---
 
-## Remaining 69 errors — categorized
+## Remaining 62 errors — categorized
 
-### TS2304: Cannot find name (47 errors)
+### TS2304: Cannot find name (40 errors)
 
 | Category | Count | Examples | Root cause | Correct fix |
 |----------|-------|---------|------------|-------------|
-| SCOPE vars | ~35 | `i18n`, `step`, `onPreviousClick`, `buttonProps`, `customCssProps`, `pieData`, `internalTags` | Variables from hook returns, `useMemo` bodies, or local component body that weren't promoted to class scope | **Preamble promotion for template-referenced vars** — but this is HARD. Naive promotion causes TS1xxx/TS2540/TS2663 regressions because (a) object literals with shorthand properties break when identifiers get `this.` prefix, (b) multi-statement block bodies are misidentified as object literals, (c) promoted getters become read-only but downstream code reassigns them. See "Traps" section. |
-| IMPORT funcs | ~7 | `useModalContext`, `useContainerBreakpoints`, `formatDndStarted` | Hooks/functions from stripped modules where the return values are used | Better hook return parsing — detect that the variables produced by these hooks need to be preserved |
-| Remaining | ~5 | `rest`, `props`, `analyticsComponentMetadata` | Cleanup gaps, partial event conversion | Case-by-case: `rest` → rest-spread cleanup missed a path; `props` → raw props ref not rewritten; `analyticsComponentMetadata` → multi-line const not fully stripped |
+| SCOPE vars | ~25 | `step`, `buttonProps`, `internalTags`, `itemContent`, `shouldAddDivider` | Variables from hook returns, `useMemo` bodies, loop callbacks, or local component body that weren't promoted to class scope | Complex: these include loop-body locals (`.map()` callback vars), composite props objects (gutted by cleanup), and vars from `implementation.tsx` (not scanned by parser). Each subcategory needs a different fix. |
+| IMPORT/hook funcs | ~10 | `useModalContext`, `useContainerBreakpoints`, `formatDndStarted`, `i18n`, `funnelSubmit` | Hooks/functions from stripped modules where the return values are used, OR hook is in `implementation.tsx` which parser doesn't scan | Extend parser to scan `implementation.tsx` files; improve hook return preservation for unknown hooks |
+| Remaining | ~5 | `rest`, `props`, `analyticsComponentMetadata`, `isRefresh` | Rest-spread from props not handled; raw props reference; helper using var from different component function in same file | Case-by-case: `rest` → rest-spread pattern; `props` → raw props ref; `isRefresh` → cross-function var in helper |
 
 ### TS2339: Property does not exist (7 errors)
 
@@ -152,7 +154,7 @@ Each entry has a test reference. If you modify the related code, run that test t
 ## Commands
 
 ```bash
-# Run unit tests (fast, 679 tests)
+# Run unit tests (fast, 680 tests)
 npx vitest run
 
 # Run gate2 (generates all 91 components + type-checks each individually)
@@ -185,11 +187,11 @@ npx tsc --noEmit --strict false --skipLibCheck --experimentalDecorators -p .gate
 
 ## Highest-impact next steps (in priority order)
 
-1. **Preamble promotion for template-referenced vars** (~35 errors, but HARD): The promotion in `src/parser/index.ts` scans handler/helper/effect bodies for preamble var references but NOT template expressions. Adding template scanning to `collectTemplateExpressionText` → `outsideTexts` causes regressions: (a) promoted vars with object-literal shorthand properties break when identifiers get `this.` prefix — the identifier rewriter has an `isExpression` flag for simple expression contexts but computed value expressions can be either expressions OR block bodies; (b) promoted getters are read-only, but downstream code reassigns them; (c) some vars need to stay local in render() because they're consumed by later render-body code. The correct approach may be to promote ONLY vars that are referenced in non-render contexts AND template expressions, while keeping render-only vars as locals.
+1. **Parser file resolution for `implementation.tsx`** (~10 errors): Many Cloudscape components split into `internal.tsx` (wrapper) + `implementation.tsx` (actual component). The parser only scans `index.tsx` and `internal.tsx`. Extending file resolution to also scan `implementation.tsx` would capture hooks like `useInternalI18n`, `useFunnel`, etc. that produce variables still referenced in the output.
 
-2. **Context conversion for useContext calls** (~4 errors): error-boundary and header components use `useContext()` to get values like `_errorBoundariesContext` and `_collectionLabelContext`. The parser doesn't convert these to `@consume()` decorator fields. Implementing this would eliminate TS2339 errors.
+2. **Loop-body local variable extraction** (~6 errors): Variables defined inside `.map()` callbacks (e.g., `shouldAddDivider`, `itemContent` in button-group, `step` in steps) are not captured by any extractor. These need either: (a) the template restructuring to inline the loop body, or (b) a mechanism to preserve loop-body locals when the loop is decomposed into template expressions.
 
-3. **Hook return parsing for stripped hooks** (~7 errors): Functions like `useModalContext`, `useContainerBreakpoints`, `formatDndStarted` are imported from infrastructure modules that get stripped. Their return values are used but the variables aren't preserved. Need better detection of which hook return variables feed into the component output.
+3. **Rest-spread props pattern** (~3 errors): `const { a, b, ...rest } = props` produces a `rest` variable that's used for form-field context. The converter strips the destructuring but leaves `rest` references. Need a pattern to either inline the rest-spread or convert it to a computed getter.
 
 4. **Event dispatch argument fixing** (~2 errors): `fireNonCancelableEvent(this._onFinish)` and `fireNonCancelableEvent({ relatedTarget })` have wrong arg counts. The event transform needs to handle the 1-arg pattern where the callback was the first arg (pre-conversion) and wasn't fully updated to the `(target, eventName, detail)` signature.
 
@@ -210,3 +212,5 @@ npx tsc --noEmit --strict false --skipLibCheck --experimentalDecorators -p .gate
 | `interface` stubs break string types | Changing ALL stubs from `type = any` to `interface { [key: string]: any }` breaks types like `PaneStatus` that are compared with string literals. | Only change types detected in type guard unions. Keep `= any` as default for non-guard types. |
 | Template preamble promotion causes cascading regressions | Extending `promotePreambleVars` to scan template expressions promotes variables that (a) have shorthand properties in object literals (breaks with `this.` prefix), (b) are multi-statement blocks (misidentified as expressions), (c) are reassigned later (getters are read-only). | Don't naively scan templates for promotion. The correct approach requires distinguishing render-only vars from cross-scope vars, and handling shorthand properties + block bodies in the identifier rewriter. |
 | `isFunctionProp` bailed on ReactNode in return types | `(item: T) => { content: ReactNode }` was classified as a slot because `isFunctionProp` rejected any type containing ReactNode. | Now checks if the type STARTS with `(` — function signatures always start with `(`, while slot unions start with the type name. |
+| Handler extraction gap: `isHandlerDeclaration` vs `isSignificantFunction` | `isHandlerDeclaration()` classified zero-param expression arrows as handler-like (skipped from preamble) but `isSignificantFunction()` rejected them (not extracted as handlers). Variable was lost. | `isSignificantFunction` now accepts expression-body arrows whose body is a function call or tagged template. |
+| `/index.js` import filter too broad | `isComponentImportPath` skipped ALL `/index.js` imports including utility modules like `/internal/generated/custom-css-properties/index.js`. | Now checks for `/generated/` in the path and preserves those imports. |
