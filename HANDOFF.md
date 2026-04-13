@@ -8,9 +8,9 @@ The test bed is Cloudscape Design System (91 components). **Every fix MUST be ge
 
 **Current state:**
 - **91/91 components** generate valid Lit output (gate2 per-component: 0 errors)
-- **791 tests** passing, TypeScript compiles clean
-- **Shared tsc**: 16 errors across 11 components (down from 526 → 166 → 94 → 42 → 16)
-- **80/91 components** fully error-free in shared compilation
+- **792 tests** passing, TypeScript compiles clean
+- **Shared tsc**: 14 errors across 10 components (down from 526 → 166 → 94 → 42 → 14)
+- **81/91 components** fully error-free in shared compilation
 - All 7 original issues (#11-#18) are closed
 
 ---
@@ -51,7 +51,7 @@ Read each rule. Understand WHY it exists. The "why" is learned from painful debu
 
 ### 6. Test every fix. No exceptions.
 - Add a unit test in `test/transforms/` or `test/emitter/` that covers the specific pattern.
-- Run `npx vitest run` (must be 682+ passing).
+- Run `npx vitest run` (must be 792+ passing).
 - Run `npm run gate2` (must complete with no failures).
 - Run the shared tsc command and verify error count went down, not up.
 - **Check for TS1xxx syntax errors** — these mean your change broke the output.
@@ -69,22 +69,26 @@ Read each rule. Understand WHY it exists. The "why" is learned from painful debu
 React TSX → Parser → IR → Transforms → Emitter → Lit TS
 ```
 
-1. **Parser** (`src/parser/`): Extracts component structure from TSX. Props from interfaces, hooks from body, handlers, effects, template from JSX return.
-2. **IR** (`src/ir/types.ts`): Intermediate representation — props, state, handlers, effects, template tree, computed values, controllers, helpers.
-3. **Transforms** (`src/transforms/`): Pipeline of IR→IR transforms: cleanup, clsx→classMap, React types, events, effect cleanup promotion, identifiers.
-4. **Emitter** (`src/emitter/`): Produces Lit class from transformed IR.
+1. **Parser** (`src/parser/`): Extracts component structure from TSX. Props from interfaces (including body-level destructuring for forwardRef), hooks from body, handlers, effects, template from JSX return. **Helper functions** in the same file get their hooks, handlers, and effect-referenced constants extracted and merged into the main IR. Index wrapper hooks (refs, preservedVars) are also merged for public method support.
+2. **IR** (`src/ir/types.ts`): Intermediate representation — props, state, handlers, effects, template tree (with loop preamble support), computed values, controllers, helpers (with optional extracted hooks).
+3. **Transforms** (`src/transforms/`): Pipeline of IR→IR transforms: cleanup, clsx→classMap, React types, events, effect cleanup promotion, identifiers. Template walker processes loop preamble through the expression visitor.
+4. **Emitter** (`src/emitter/`): Produces Lit class from transformed IR. Preamble filter uses general-purpose patterns (any `use*()` hook call, bare function call statements as side-effects). Loop emission supports block-body arrows when preamble exists.
 
 ### Key files and what they do
 
 | File | Purpose | Traps to avoid |
 |------|---------|---------------|
+| `src/parser/utils.ts` | Helper extraction, handler extraction, `isHookCall` | `isHookCall` recursively matches property access on hooks (e.g., `useContext(X).prop`). `extractHelperHooks` extracts hooks, handlers (when effects exist), and effect-referenced constants from helper bodies. |
+| `src/parser/hooks.ts` | Hook extraction from function bodies | Uses `isHookCall` as gatekeeper: direct calls get full structural extraction, wrapped calls (property access) get variable preservation. `processUseState` inlines preamble variables in state initializers. `processUseMemo` handles destructured returns via `collectPreservedVars`. |
+| `src/parser/jsx.ts` | JSX → template IR, including `.map()` loops | `tryParseMapCall` preserves loop-body preamble (variable declarations before return). When a `.map()` callback returns a ternary, wraps in fragment so both branches are inside the loop. |
 | `src/transforms/identifiers.ts` | Rewrites bare names to `this.xxx` / `this._xxx` | Don't flatten the scope analysis. The `buildMemberMap` + `isShadowedByNestedScope` + `topLevelLocals` trio is intentionally complex. |
 | `src/transforms/cleanup.ts` | Strips Cloudscape infrastructure | Line-level regex only. No multi-line `[^}]*` patterns. |
 | `src/transforms/cleanup-react-types.ts` | React → DOM type conversions | Applied via `mapIRText` to all text fields + template walker + prop types. |
 | `src/emitter/properties.ts` | Emits `@property()`, `@state()`, controllers | Returns `{ code, deferred }` — the deferred inits MUST be passed to lifecycle. |
 | `src/emitter/lifecycle.ts` | Emits lifecycle methods | Receives `deferredInits` and injects into `firstUpdated()`. Strips cleanup returns (both block and expression body). |
-| `src/emitter/template.ts` | Emits `html\`` templates | `classMap` must NOT wrap expressions containing `html\``. |
-| `src/emitter/class.ts` | Assembles the full component | Orchestrates all emitters. Passes `allDeferred` to lifecycle. |
+| `src/emitter/template.ts` | Emits `html\`` templates | `classMap` must NOT wrap expressions containing `html\``. Loop emission uses block-body arrow when `loop.preamble` exists. |
+| `src/emitter/class.ts` | Assembles the full component | Orchestrates all emitters. Passes `allDeferred` to lifecycle. `stripReactHooks` was removed — hook stripping is now AST-level in the parser. Preamble filter uses general-purpose `use*()` pattern. |
+| `src/template-walker.ts` | Structural recursion over template IR | Handles loop preamble through expression visitor. |
 | `scripts/gate2-typecheck.ts` | Generates gate2 output + stubs | Auto-generates ambient type stubs. `SomeRequired` has a REAL definition (not `= any`). The stub append logic checks by exported NAME, not exact line. |
 
 ---
@@ -129,43 +133,59 @@ Each entry has a test reference. If you modify the related code, run that test t
 | `findComponentInFile` strategy 5 generalized | (verified via gate2) | Uses `isSecondaryFile` parameter instead of hardcoded `'internal'`/`'implementation'` filenames |
 | Preserved imports from `/context`, `/hooks`, `use-` paths | (verified via gate2) | Removed over-aggressive `isComponentImportPath` rules; emitter reference checking handles unused names |
 | Import reference scanning includes types | (verified via gate2) | `collectIRText` includes ref types, state types, computed types, prop types |
+| Helper function hook extraction | `parse-components.test.ts` "helper hooks", cross-cutting "no hook calls" | `extractHelperHooks` runs `extractHooks` on each helper body, strips hook statements from source, merges results into main IR with deduplication. Replaces the old text-level `stripReactHooks` hack. |
+| Body-level prop destructuring | `parse-components.test.ts` "body-destructured props" | `getDestructuredProps` scans body for `const { ... } = props` when first param is a plain identifier (forwardRef pattern). Shared `extractFromBindingPattern` avoids duplication. |
+| Loop-body preamble preservation | `parse-components.test.ts` "loop-body locals" | `tryParseMapCall` captures variable declarations before the return as `loop.preamble`. Emitter produces block-body arrow. Template walker processes preamble through expression visitor. |
+| Ternary-inside-map scoping | (verified via gate2) | When `.map()` callback returns a ternary, wraps in fragment so both branches have loop variable access. Previously the alternate branch was outside the loop. |
+| Destructured useMemo returns | `parse-components.test.ts` "destructured useMemo" | `processUseMemo` falls through to `collectPreservedVars` for `ObjectBindingPattern` — destructured names get class fields. |
+| Index wrapper hook merging | (verified via gate2) | `parseComponent` step 5b merges refs and preservedVars from index.tsx wrapper, not just publicMethods and contexts. Fixes useImperativeHandle bodies referencing wrapper-local hooks. |
+| State init preamble inlining | `parse-components.test.ts` "state init inlining" | `processUseState` looks up preamble variables by name in the body via `findPreambleVarInitializer` and inlines their expression into the state initializer. |
+| Hook call property access detection | (verified via gate2) | `isHookCall` recursively matches property access on hook calls (`useContext(X).prop`). `extractHooks` uses `isHookCall` as single gatekeeper: direct calls → structural extraction, wrapped calls → preserve variables. |
+| Helper-body handler extraction | `parse-components.test.ts` "Modal helper-body handlers" | When a helper has extracted effects, `extractHelperHooks` also runs `extractHandlers` and merges results. `allHandlers` computed after helper merge to include helper-extracted handlers. |
+| Helper-body effect-referenced constants | (verified via gate2) | Scans effect and handler bodies for referenced identifiers, then extracts matching non-hook, non-handler constant declarations as computed values. |
+| Data arrays with JSX kept as preamble | (verified via gate2) | `isTemplateVariable` distinguishes direct templates/functions from `.map()` results. Data arrays containing JSX stay as preamble instead of becoming render helper methods. |
+| General-purpose preamble filter | (verified via gate2) | Emitter filters standalone `use*()` calls and `const x = use*()` declarations. Bare function call expression statements (side-effects) skipped in parser. Replaced Cloudscape-specific `REACT_PATTERNS` and `stripReactHooks`. |
+| Redundant Cloudscape hardcoding removed | (verified via gate2) | Removed inline `useBaseComponent`/`getBaseProps` strings from preamble filter — covered by `INFRA_FUNCTIONS` config and general bare-call filter. |
 
 ---
 
-## Remaining 16 errors — categorized
+## Remaining 14 errors — categorized
 
-### TS2304: Cannot find name (10 errors)
+### TS2304: Cannot find name (8 errors)
 
 | Category | Count | Components | Root cause |
 |----------|-------|-----------|------------|
-| Skipped prop refs | 4 | button (`nativeButtonAttributes`, `nativeAnchorAttributes`, `buttonProps` ×2) | Props in SKIP_PROPS are removed from the class but preamble variables still reference them. Fundamental React props-as-object mismatch. |
-| Rest-spread / props object | 3 | input (`rest`), item-card (`nativeAttributes`), table (`props`) | `...rest` from prop destructuring and raw `props` object don't exist in Lit. Native attributes are set directly on the host element. |
-| Helper-body constants | 1 | modal (`MODAL_READY_TIMEOUT`) | Plain `const` inside helper function body referenced by extracted effect. Handler extraction now works but non-function locals need similar treatment. |
-| Analytics infrastructure | 1 | modal (`analyticsComponentMetadata`) | Analytics variable partially stripped by cleanup — declaration removed but stray reference and malformed expression remain. |
-| JSX pre-transform edge case | 1 | date-range-picker (`prevDateOnly`) | Effect body with escaped backticks in template literal (`\`dateOnly\``) gets mangled during JSX pre-transform, truncating the condition expression. `stripFunctionCalls` works correctly (confirmed by test). |
+| Skipped prop refs | 4 | button (`nativeButtonAttributes`, `nativeAnchorAttributes`, `buttonProps` ×2) | Props in `SKIP_PROPS` are removed from the class but preamble variables still reference them. `buttonProps` declaration was filtered because it contained `useMergeRefs` in its initializer. `nativeButtonAttributes` and `nativeAnchorAttributes` are destructured from params but excluded as props. Fundamental React props-as-object mismatch — in Lit, native attributes are set directly on the host element. |
+| Rest-spread / props object | 3 | input (`rest`), item-card (`nativeAttributes`), table (`props`) | `...rest` from prop destructuring and raw `props` object don't exist in Lit. `rest` is used to destructure form-field context props (`ariaLabelledby`, etc.) that ARE class fields but accessed via the non-existent `rest` intermediary. `props` in table is spread into a local object. `nativeAttributes` is a skipped prop passed to infrastructure `processAttributes()`. |
+| Analytics infrastructure | 1 | modal (`analyticsComponentMetadata`) | Analytics variable partially stripped by cleanup — declaration removed but a stray reference in the helper method body persists. The `const metadataAttribute = ... ? getAnalyticsMetadataAttribute({ component: analyticsComponentMetadata }) : {}` gets mangled to `const metadataAttribute = analyticsComponentMetadata }` by incomplete analytics stripping. |
 
-### TS2339: Property does not exist (2 errors)
+### TS2339: Property does not exist (1 error)
 
 | Component | Error | Root cause |
 |-----------|-------|------------|
-| pie-chart | `.filter` on `() => any` | Preamble variable with JSX (`data.map(d => ({ marker: <Marker/> }))`) misclassified as render helper method instead of data array. |
-| tag-editor | `.current` on `any[]` | Ref from index wrapper typed as `any[]` instead of `Ref<T[]>`. Ref extraction doesn't preserve array-of-refs pattern. |
+| tag-editor | `.current` on `any[]` | Ref from index wrapper (`keyInputRefs = useRef<(T | null)[]>([])`) typed as `any[]` instead of preserving the ref wrapper. Ref extraction drops the `Ref<>` wrapper and the `.current` access pattern. |
 
 ### TS2345/TS2322/TS2556: Type mismatches (4 errors)
 
 | Component | Error | Root cause |
 |-----------|-------|------------|
-| cards | analytics type mismatch | Partially-stripped analytics metadata literal doesn't match `GeneratedAnalyticsMetadataFragment` type. |
-| dropdown | spread argument | `...calculatePosition(...)` return not tuple-typed. TypeScript strictness issue. |
-| dropdown | union narrowing | `DropdownPosition \| InteriorDropdownPosition` not assignable to `DropdownPosition`. Missing type narrowing. |
-| top-navigation | `{}` not assignable to `string` | `fireCancelableEvent(this.identity.onFollow, {}, event)` — event transform didn't fire because first arg is nested property access, not direct prop. |
+| cards | analytics type mismatch | Partially-stripped analytics metadata literal doesn't match `GeneratedAnalyticsMetadataFragment` type. Analytics cleanup is incomplete for inline object literals passed as function arguments. |
+| dropdown | spread argument (TS2556) | `this._setDropdownPosition(...calculatePosition(...))` — `calculatePosition` returns an array but TypeScript doesn't infer it as a tuple. Needs explicit tuple type assertion or the function return type needs to be narrowed. |
+| dropdown | union narrowing (TS2322) | `this._fixedPosition = position` where `position: DropdownPosition \| InteriorDropdownPosition` assigned to field typed as `DropdownPosition`. Missing type narrowing guard. |
+| top-navigation | `{}` not assignable to `string` (TS2345) | `fireCancelableEvent(this.identity.onFollow, {}, event)` — event transform didn't fire because first arg is a nested property access (`identity.onFollow`), not a direct prop name. The regex pattern `fireCancelableEvent(propName, ...)` only matches simple identifiers. |
+
+### TS2304 (special case): JSX pre-transform edge case (1 error)
+
+| Component | Error | Root cause |
+|-----------|-------|------------|
+| date-range-picker | `prevDateOnly` | Effect body with escaped backticks in a template literal (`\`dateOnly\``) gets mangled during JSX pre-transform, truncating the `if` condition from `prevDateOnly !== undefined && prevDateOnly !== dateOnly` to just `prevDateOnly !== undefined`. `stripFunctionCalls` works correctly (confirmed by test at `test/text-utils.test.ts` "exact date-range-picker warnOnce pattern") — the issue is upstream in how the JSX pre-transform handles non-JSX template literals containing escaped backticks. |
 
 ---
 
 ## Commands
 
 ```bash
-# Run unit tests (fast, 682 tests)
+# Run unit tests (fast, 792 tests)
 npx vitest run
 
 # Run gate2 (generates all 91 components + type-checks each individually)
@@ -198,15 +218,32 @@ npx tsc --noEmit --strict false --skipLibCheck --experimentalDecorators -p .gate
 
 ## Highest-impact next steps (in priority order)
 
-1. **Skipped prop references in preamble** (~7 errors, button + input + item-card + table): Props in `SKIP_PROPS` and `...rest` from destructuring are removed from the class but preamble variables still reference them. Preamble statements that reference undefined names should be filtered or the variables should be mapped to `this`.
+1. **Skipped prop / rest-spread references** (~7 errors, button + input + item-card + table): The fundamental issue is that React's props-as-object pattern (`...rest`, `props`, `nativeAttributes`) has no direct Lit equivalent. Three sub-patterns:
+   - **`...rest` destructuring → form-field context props**: `const { ariaLabelledby, ... } = rest` destructures props that ARE class fields. Could be handled by detecting rest-destructuring and mapping to `this`.
+   - **Skipped prop refs in preamble**: `nativeButtonAttributes?.tabIndex` references a prop that was excluded by `SKIP_PROPS`. Preamble statements whose only non-trivial identifiers are skipped props should be filtered.
+   - **`buttonProps` declaration filtered**: The object literal initializer contained `useMergeRefs(...)` which triggered the `use*()` preamble filter. The hook call is embedded in a larger expression — the filter should only remove standalone hook calls, not expressions that contain them.
 
-2. **JSX pre-transform escaped backtick handling** (~1 error, date-range-picker): The JSX pre-transform mangles non-JSX template literals containing escaped backticks (`\`dateOnly\``), truncating effect bodies. `stripFunctionCalls` works correctly (confirmed by test) — issue is upstream in the pre-transform.
+2. **JSX pre-transform escaped backtick handling** (~1 error, date-range-picker): Non-JSX template literals with escaped backticks (`\`dateOnly\``) get mangled. Root cause is in the JSX-to-Lit pre-transform (`src/transforms/jsx-to-lit.ts` or related). The `stripFunctionCalls` utility works correctly (confirmed by test).
 
-3. **Preamble variable with JSX misclassified as render helper** (~1 error, pie-chart): `const filterItems = data.map(d => ({ marker: <Marker/> }))` contains JSX but is a data array, not a render helper. `extractBodyPreamble` treats any variable with `html\`` as a render helper method, changing its type from array to function.
+3. **Event transform for nested property access** (~1 error, top-navigation): `fireCancelableEvent(identity.onFollow, {}, event)` — the event transform regex matches `fireCancelableEvent(propName, ...)` but not `fireCancelableEvent(obj.prop, ...)`. Needs to handle property access expressions as the first argument.
 
-4. **Helper-body non-function locals** (~2 errors, modal): Plain `const` declarations and analytics preamble variables inside helper bodies need extraction when effects reference them, same as handler extraction.
+4. **Analytics cleanup completion** (~2 errors, modal + cards): Analytics infrastructure is partially stripped — imports removed, some patterns cleaned, but object literals and variable references in certain positions survive. The cleanup in `removeCloudscapeInternals` needs more thorough handling of `analyticsComponentMetadata` variable declarations and inline analytics literals.
 
-5. **Event transform for nested property access** (~1 error, top-navigation): `fireCancelableEvent(identity.onFollow, {}, event)` — first arg is a property access, not a direct prop name. Event transform regex doesn't match.
+5. **Ref type preservation for array refs** (~1 error, tag-editor): `useRef<(T | null)[]>([])` loses the `Ref<>` wrapper during extraction. The ref is typed as `any[]` instead of preserving `.current` access semantics. `processUseRef` should preserve the ref wrapper type when the initial value is an array.
+
+6. **Dropdown type issues** (~2 errors): The spread argument (`...calculatePosition()`) needs a tuple type assertion. The union narrowing (`DropdownPosition | InteriorDropdownPosition`) needs a type guard. Both are TypeScript strictness issues in the generated output — not structural conversion problems.
+
+### Cloudscape-specific tech debt (from audit)
+
+These don't cause errors but should be addressed for generalization:
+
+| Priority | Item | Files |
+|----------|------|-------|
+| P1 | `WithNativeAttributes` / `AbstractSwitch` hardcoded in transforms | `jsx-to-lit.ts`, `unwrap.ts`, `components.ts` |
+| P1 | `CsBaseElement`, `Cs` class prefix, import paths hardcoded | `imports.ts`, `class.ts` |
+| P2 | `fire*Event` names, `FORM_INTERFACES` hardcoded | `parser/index.ts`, `imports.ts` |
+| P2 | `testUtilStyles`/`analyticsSelectors`/`baseProps.className` regex in cleanup | `cleanup.ts` |
+| P3 | `Internal` prefix stripping, `isDevelopment` detection | `parser/index.ts`, `utils.ts` |
 
 ---
 
@@ -227,3 +264,7 @@ npx tsc --noEmit --strict false --skipLibCheck --experimentalDecorators -p .gate
 | `isFunctionProp` bailed on ReactNode in return types | `(item: T) => { content: ReactNode }` was classified as a slot because `isFunctionProp` rejected any type containing ReactNode. | Now checks if the type STARTS with `(` — function signatures always start with `(`, while slot unions start with the type name. |
 | Handler extraction gap: `isHandlerDeclaration` vs `isSignificantFunction` | `isHandlerDeclaration()` classified zero-param expression arrows as handler-like (skipped from preamble) but `isSignificantFunction()` rejected them (not extracted as handlers). Variable was lost. | `isSignificantFunction` now accepts expression-body arrows whose body is a function call or tagged template. |
 | `/index.js` import filter too broad | `isComponentImportPath` skipped ALL `/index.js` imports including utility modules like `/internal/generated/custom-css-properties/index.js`. | Now checks for `/generated/` in the path and preserves those imports. |
+| Helper handler extraction too broad | Extracting handlers from ALL helpers pulled handlers that reference helper-local params (e.g., `PageButton`'s `handleClick` references `onClick`/`pageIndex` which are PageButton's own props). | Only extract handlers from helpers that have effects — those are the ones that need class-level promotion. Helpers without effects keep handlers as local scope. |
+| Helper constant extraction too broad | Extracting ALL constant declarations from helper bodies broke the helper method body (stripped constants that the method still needed). | Only extract constants that are specifically referenced by effect or handler bodies. Scan bodies for identifiers, then match against local declarations. |
+| `allHandlers` computed before helper merge | `const allHandlers = [...hookResult.handlers, ...handlers]` was computed at step 6, but helper-extracted handlers are merged at step 9a. Helper handlers were excluded from the final IR. | Compute `allHandlers` after all merging is complete (step 9c). |
+| Preamble data arrays misclassified as render helpers | `const filterItems = data.map(d => ({ marker: html\`...\` }))` contains `html\`` in element properties. `extractBodyPreamble` converted it to a render helper method, changing its type from `Array<...>` to `() => any`. | `isTemplateVariable` distinguishes direct templates/functions from `.map()` results and other data expressions. |
