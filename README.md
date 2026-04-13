@@ -69,15 +69,11 @@ const classified = analyzer.classifyAllProps(propsType);
 
 Classification is based entirely on the type system:
 
-- **`event`** -- the prop is a function taking a single parameter whose type
-  traces back to a DOM Event type (directly, or through utility types like
-  `Omit<CustomEvent<T>, 'preventDefault'>`). Detected by walking the type
-  alias chain and checking declaration source files against `lib.dom.d.ts`.
-- **`slot`** -- the prop's type is declared in `@types/react` (e.g.,
-  `React.ReactNode`). These are React renderables that become Shadow DOM slots.
-- **`prop`** -- everything else. The full TypeScript type is preserved --
-  string enums, nested interfaces, generics, JSDoc documentation all carry
-  through to the Lit output.
+- **`event`** -- the prop is a function whose parameter type traces back to a
+  DOM Event type. Detected by walking the type alias chain against `lib.dom`.
+- **`slot`** -- the prop's type originates from `@types/react`. These are React
+  renderables that become Shadow DOM slots.
+- **`prop`** -- everything else. Full TypeScript types are preserved.
 
 No string matching on type names. No hardcoded lists. The type checker does
 the work.
