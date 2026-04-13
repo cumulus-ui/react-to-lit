@@ -746,7 +746,13 @@ function extractSourceImports(sourceFile: ts.SourceFile, skipNames: Set<string>)
  */
 function isComponentImportPath(specifier: string): boolean {
   // Exact patterns for component entry points
-  if (specifier.endsWith('/index') || specifier.endsWith('/index.js')) return true;
+  // Only skip `/index` imports that look like component entry points,
+  // NOT utility modules under /internal/generated/ etc.
+  if (specifier.endsWith('/index') || specifier.endsWith('/index.js')) {
+    // Keep imports from generated utility modules (CSS custom properties, etc.)
+    if (specifier.includes('/generated/')) return false;
+    return true;
+  }
   if (specifier.endsWith('/internal') || specifier.endsWith('/internal.js')) return true;
   // Test/mock patterns
   if (specifier.includes('__') || specifier.includes('.test')) return true;
