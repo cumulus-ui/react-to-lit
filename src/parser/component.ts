@@ -235,22 +235,6 @@ function findComponentInFile(sourceFile: ts.SourceFile, isSecondaryFile = false)
         }
       }
     }
-
-    // Look for function declarations (non-export-default)
-    for (const stmt of sourceFile.statements) {
-      if (ts.isFunctionDeclaration(stmt) && stmt.name && stmt.body) {
-        const name = stmt.name.text;
-        if (name.startsWith('Internal') || name === 'default') {
-          return {
-            name,
-            forwardRef: false,
-            body: stmt.body,
-            parameters: stmt.parameters,
-            propsTypeName: extractPropsTypeName(stmt.parameters),
-          };
-        }
-      }
-    }
   }
 
   return null;
