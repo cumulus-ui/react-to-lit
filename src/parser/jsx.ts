@@ -14,8 +14,8 @@ import type {
 } from '../ir/types.js';
 import { getNodeText } from './program.js';
 import { getHtmlTagNames } from '../standards.js';
-import { classifyBinding, fixTaggedTemplatePrinting } from '../naming.js';
-import { jsxToLitTransformerFactory } from '../transforms/jsx-to-lit.js';
+import { classifyBinding } from '../naming.js';
+import { convertJsxExpression } from './jsx-transform.js';
 
 // ---------------------------------------------------------------------------
 // Main entry
@@ -488,47 +488,5 @@ function containsJsxNode(node: ts.Node): boolean {
  * rather than at the template root.
  */
 function jsxExpressionToLitText(expr: ts.Expression, sourceFile: ts.SourceFile): string {
-  // Use the existing JSX-to-Lit transformer to convert the expression
-  // Wrap in a minimal function so the transformer has a complete source file to work with
-  const exprText = getNodeText(expr, sourceFile);
-  const wrapper = `const __jsxExpr = ${exprText};`;
-  const tempFile = ts.createSourceFile(
-    '__jsx_inline.tsx',
-    wrapper,
-    ts.ScriptTarget.ES2019,
-    true,
-    ts.ScriptKind.TSX,
-  );
-
-  // Use the JSX-to-Lit transformer to convert the expression
-  const result = ts.transform(tempFile, [jsxToLitTransformerFactory]);
-  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
-  let printed = printer.printFile(result.transformed[0]);
-    printed = fixTaggedTemplatePrinting(printed);
-  result.dispose();
-
-  // Extract the expression from `const __jsxExpr = <converted>;`
-  // When JSX spread attributes are present, the printer may emit orphaned
-  // statements after the main declaration. Only take the first statement
-  // by finding the semicolon that ends the const declaration (at depth 0).
-  const declPrefix = 'const __jsxExpr = ';
-  const declStart = printed.indexOf(declPrefix);
-  if (declStart > -1) {
-    const valueStart = declStart + declPrefix.length;
-    let depth = 0;
-    let inTemplate = false;
-    let i = valueStart;
-    for (; i < printed.length; i++) {
-      const ch = printed[i];
-      if (ch === '`') { inTemplate = !inTemplate; continue; }
-      if (inTemplate) continue;
-      if (ch === '(' || ch === '{' || ch === '[') depth++;
-      if (ch === ')' || ch === '}' || ch === ']') depth--;
-      if (ch === ';' && depth <= 0) break;
-    }
-    return printed.slice(valueStart, i).trim();
-  }
-
-  // Fallback: return the original text
-  return exprText;
+  return convertJsxExpression(getNodeText(expr, sourceFile));
 }

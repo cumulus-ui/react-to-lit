@@ -49,3 +49,42 @@ export function transformJsxToLit(sourceFile: ts.SourceFile, config?: JsxToLitCo
 
   return newSourceFile;
 }
+
+/**
+ * Convert a single JSX expression string to Lit html`` tagged template text.
+ *
+ * Wraps the expression in a temp file, runs the JSX-to-Lit transformer,
+ * then extracts the converted expression. Used by parser/jsx.ts (inline
+ * JSX in expression bodies) and transforms/identifiers.ts (residual JSX).
+ */
+export function convertJsxExpression(exprText: string): string {
+  const wrapper = `const __jsxExpr = ${exprText};`;
+  const tempFile = ts.createSourceFile(
+    '__jsx_inline.tsx', wrapper, ts.ScriptTarget.ES2019, true, ts.ScriptKind.TSX,
+  );
+
+  const result = ts.transform(tempFile, [jsxToLitTransformerFactory]);
+  const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
+  let printed = printer.printFile(result.transformed[0]);
+  printed = fixTaggedTemplatePrinting(printed);
+  result.dispose();
+
+  const declPrefix = 'const __jsxExpr = ';
+  const declStart = printed.indexOf(declPrefix);
+  if (declStart > -1) {
+    const valueStart = declStart + declPrefix.length;
+    let depth = 0;
+    let inTemplate = false;
+    for (let i = valueStart; i < printed.length; i++) {
+      const ch = printed[i];
+      if (ch === '`') { inTemplate = !inTemplate; continue; }
+      if (inTemplate) continue;
+      if (ch === '(' || ch === '{' || ch === '[') depth++;
+      if (ch === ')' || ch === '}' || ch === ']') depth--;
+      if (ch === ';' && depth <= 0) return printed.slice(valueStart, i).trim();
+    }
+    return printed.slice(valueStart).trim();
+  }
+
+  return exprText;
+}

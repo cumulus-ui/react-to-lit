@@ -23,6 +23,7 @@ import type { EventsConfig } from '../config.js';
 import { mapIRText, collectIRText } from '../ir/transform-helpers.js';
 import { toCustomEventName, escapeRegex } from '../naming.js';
 import { walkTemplate } from '../template-walker.js';
+import { findMatchingParen, splitTopLevel } from '../text-utils.js';
 
 // ---------------------------------------------------------------------------
 // Defaults (used when no config is provided)
@@ -334,21 +335,16 @@ function rewriteToNative(
   eventName: string,
   cancelable: boolean,
 ): string {
-  const marker = `__NATIVE_DISPATCH_${eventName}_${cancelable ? 'C' : 'NC'}__`;
+  const marker = `__NATIVE_DISPATCH_${eventName}_${cancelable ? 'C' : 'NC'}__(`;
   let result = text.replace(pattern, marker);
 
-  // Now find each marker and rewrite: marker, arg1, arg2)  →  native dispatch
-  // The marker replaced `funcName(propName` so what follows is `, detail, event)`
-  // or just `)` (no additional args)
   while (result.includes(marker)) {
     const idx = result.indexOf(marker);
-    const afterMarker = idx + marker.length;
-    // Find the balanced closing paren
-    const closeIdx = findBalancedClose(result, afterMarker);
-    if (closeIdx === -1) break; // malformed, bail
+    const parenPos = idx + marker.length - 1; // points to '('
+    const closeIdx = findMatchingParen(result, parenPos);
+    if (closeIdx === -1) break;
 
-    // Extract the remaining args between marker and closing paren
-    const argsStr = result.substring(afterMarker, closeIdx).trim();
+    const argsStr = result.substring(parenPos + 1, closeIdx).trim();
 
     // Parse remaining args: could be empty, or ", detail" or ", detail, event"
     let detail: string;
@@ -361,7 +357,7 @@ function rewriteToNative(
         detail = '{}';
       } else {
         // Split on top-level commas to separate detail from event arg
-        const parts = splitTopLevelCommas(stripped);
+        const parts = splitTopLevel(stripped, ',');
         detail = parts[0]?.trim() || '{}';
       }
     }
@@ -393,7 +389,7 @@ function rewriteDirectToNative(
   while (result.includes(marker)) {
     const idx = result.indexOf(marker);
     const parenStart = idx + marker.length; // points to '('
-    const closeIdx = findBalancedClose(result, parenStart + 1);
+    const closeIdx = findMatchingParen(result, parenStart);
     if (closeIdx === -1) break;
 
     const argsStr = result.substring(parenStart + 1, closeIdx).trim();
@@ -408,71 +404,6 @@ function rewriteDirectToNative(
   }
 
   return result;
-}
-
-/**
- * Find the index of the balanced closing paren starting from `start`.
- * `start` should point to the character after the opening paren.
- */
-function findBalancedClose(text: string, start: number): number {
-  let depth = 1;
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === '(') depth++;
-    else if (ch === ')') {
-      depth--;
-      if (depth === 0) return i;
-    }
-    // Skip string literals
-    else if (ch === "'" || ch === '"' || ch === '`') {
-      const end = findStringEnd(text, i);
-      if (end === -1) return -1;
-      i = end;
-    }
-  }
-  return -1;
-}
-
-/**
- * Find the end of a string literal starting at `start` (which points to the
- * opening quote character).
- */
-function findStringEnd(text: string, start: number): number {
-  const quote = text[start];
-  for (let i = start + 1; i < text.length; i++) {
-    if (text[i] === '\\') { i++; continue; }
-    if (text[i] === quote) return i;
-  }
-  return -1;
-}
-
-/**
- * Split a string on top-level commas (not inside parens/brackets/braces).
- */
-function splitTopLevelCommas(text: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let current = '';
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === '(' || ch === '[' || ch === '{') depth++;
-    else if (ch === ')' || ch === ']' || ch === '}') depth--;
-    else if (ch === ',' && depth === 0) {
-      parts.push(current);
-      current = '';
-      continue;
-    } else if (ch === "'" || ch === '"' || ch === '`') {
-      const end = findStringEnd(text, i);
-      if (end !== -1) {
-        current += text.substring(i, end + 1);
-        i = end;
-        continue;
-      }
-    }
-    current += ch;
-  }
-  parts.push(current);
-  return parts;
 }
 
 // ---------------------------------------------------------------------------

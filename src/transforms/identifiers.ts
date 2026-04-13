@@ -14,8 +14,7 @@
  */
 import { Project, SyntaxKind, Node, ts } from 'ts-morph';
 import tsLib from 'typescript';
-import { jsxToLitTransformerFactory } from './jsx-to-lit.js';
-import { fixTaggedTemplatePrinting } from '../naming.js';
+import { convertJsxExpression } from '../parser/jsx-transform.js';
 import type {
   ComponentIR,
   TemplateNodeIR,
@@ -731,23 +730,7 @@ function hasRawJsx(text: string): boolean {
  */
 function convertRemainingJsx(text: string): string {
   if (!hasRawJsx(text)) return text;
-
-  const wrapper = `const __jsxExpr = ${text};`;
-  const tempFile = tsLib.createSourceFile(
-    '__jsx_expr.tsx', wrapper, tsLib.ScriptTarget.ES2019, true, tsLib.ScriptKind.TSX,
-  );
-  const result = tsLib.transform(tempFile, [jsxToLitTransformerFactory]);
-  const printer = tsLib.createPrinter({ newLine: tsLib.NewLineKind.LineFeed });
-  let printed = printer.printFile(result.transformed[0]);
-    printed = fixTaggedTemplatePrinting(printed);
-  result.dispose();
-
-  // Extract expression from `const __jsxExpr = <converted>;`
-  const eqIdx = printed.indexOf('=');
-  if (eqIdx > -1) {
-    return printed.slice(eqIdx + 1).replace(/;\s*$/, '').trim();
-  }
-  return text;
+  return convertJsxExpression(text);
 }
 
 
