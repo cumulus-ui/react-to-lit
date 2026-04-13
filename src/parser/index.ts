@@ -127,20 +127,27 @@ export function parseComponent(
     : { state: [], effects: [], refs: [], computedValues: [], handlers: [], publicMethods: [], controllers: [], contexts: [], skipped: [], unknown: [], preservedVars: [] };
 
   // 5b. Also extract hooks from the index.tsx wrapper (may have useImperativeHandle, etc.)
+  // Public methods (focus, select) from useImperativeHandle reference hooks
+  // in the index wrapper body (useRef, useMemo, custom hooks). We need to
+  // merge those too, or the public methods will have dangling variable refs.
   if (component.hasInternal) {
     try {
       const indexComponent = findComponent(indexFile);
       if (ts.isBlock(indexComponent.body)) {
         const indexHooks = extractHooks(indexComponent.body, indexFile, hookRegistry);
-        // Merge public methods from index.tsx (e.g., useImperativeHandle focus/select)
         hookResult.publicMethods.push(...indexHooks.publicMethods);
-        // Merge contexts from index.tsx
         hookResult.contexts.push(...indexHooks.contexts);
+        // Merge refs and preserved vars that publicMethods may reference
+        const existingRefNames = new Set(hookResult.refs.map(r => r.name));
+        for (const r of indexHooks.refs) {
+          if (!existingRefNames.has(r.name)) hookResult.refs.push(r);
+        }
+        const existingPreserved = new Set(hookResult.preservedVars);
+        for (const v of indexHooks.preservedVars) {
+          if (!existingPreserved.has(v)) hookResult.preservedVars.push(v);
+        }
       }
     } catch (e) {
-      // findComponent throws when no component is found — that's expected for
-      // index files that just re-export the internal component.
-      // Log unexpected errors so we don't silently lose public methods.
       if (e instanceof Error && !e.message.includes('No component found')) {
         console.warn(`[react-to-lit] Warning: failed to parse index component for ${dirName}: ${e.message}`);
       }
