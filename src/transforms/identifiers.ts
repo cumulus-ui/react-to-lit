@@ -469,10 +469,18 @@ function rewriteWithMorph(
     const startInOriginal = startInWrapped - prefix.length;
     if (startInOriginal < 0 || startInOriginal >= text.length) return;
 
-    // Safety: if preceded by . or ?. in the original text, it's property access
+    // Safety: if preceded by . or ?. in the original text, it's property access.
+    // But ... (spread) is NOT property access.
     if (startInOriginal > 0) {
       const charBefore = text[startInOriginal - 1];
-      if (charBefore === '.') return;
+      if (charBefore === '.') {
+        // Check for spread operator (...)
+        const isSpread = startInOriginal >= 3 &&
+          text[startInOriginal - 3] === '.' &&
+          text[startInOriginal - 2] === '.' &&
+          text[startInOriginal - 1] === '.';
+        if (!isSpread) return;
+      }
     }
 
     replacements.push({
