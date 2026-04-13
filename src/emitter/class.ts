@@ -124,10 +124,11 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   allDeferred.push(...stateResult.deferred);
 
   // --- Refs ---
-  const refsCode = emitRefs(ir.refs);
-  if (refsCode.trim()) {
-    sections.push(refsCode);
+  const refsResult = emitRefs(ir.refs);
+  if (refsResult.code.trim()) {
+    sections.push(refsResult.code);
   }
+  allDeferred.push(...refsResult.deferred);
 
   // --- Controllers ---
   const controllerResult = emitControllers(ir.controllers);

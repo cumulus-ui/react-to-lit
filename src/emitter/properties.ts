@@ -278,8 +278,9 @@ export function emitSkippedHookVars(vars: string[]): string {
 // Ref emission
 // ---------------------------------------------------------------------------
 
-export function emitRefs(refs: RefIR[]): string {
+export function emitRefs(refs: RefIR[]): { code: string; deferred: DeferredInit[] } {
   const lines: string[] = [];
+  const deferred: DeferredInit[] = [];
 
   for (const ref of refs) {
     if (ref.isDom) {
@@ -290,10 +291,16 @@ export function emitRefs(refs: RefIR[]): string {
       // Non-DOM refs: the identifier transform rewrites refName.current → this._refName,
       // so we declare the field as the unwrapped type (not { current: T }).
       const type = ref.type ? `: ${ref.type} | null` : '';
-      lines.push(`  private _${ref.name}${type} = ${ref.initialValue};`);
+      if (refsThis(ref.initialValue)) {
+        // Defer initialization to firstUpdated to avoid TS2729
+        lines.push(`  private _${ref.name}${type} = null;`);
+        deferred.push({ assignment: `this._${ref.name} = ${ref.initialValue};` });
+      } else {
+        lines.push(`  private _${ref.name}${type} = ${ref.initialValue};`);
+      }
     }
     lines.push('');
   }
 
-  return lines.join('\n');
+  return { code: lines.join('\n'), deferred };
 }
