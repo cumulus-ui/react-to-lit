@@ -55,7 +55,7 @@ TypeScript type system:
 import { PackageAnalyzer } from '@cumulus-ui/react-to-lit';
 
 const analyzer = new PackageAnalyzer('@cloudscape-design/components');
-const propsType = analyzer.getPropsType('ButtonProps', '.../interfaces.d.ts');
+const propsType = analyzer.getPropsType('ButtonProps', 'button/interfaces.d.ts');
 const classified = analyzer.classifyAllProps(propsType);
 // Map {
 //   'disabled'  => 'prop',    // boolean -- becomes @property({ type: Boolean })
