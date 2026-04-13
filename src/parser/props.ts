@@ -213,6 +213,19 @@ function classifyProp(
     };
   }
 
+  // Function/callback props — not serializable as attributes.
+  // Check before slots because function types that return ReactNode
+  // are callbacks, not slot content.
+  if (isFunctionProp(typeText, defaultValue)) {
+    return {
+      name,
+      type: typeText,
+      default: defaultValue,
+      category: 'property' as const,
+      attribute: false,
+    };
+  }
+
   // Slot props: children, description (when typed as ReactNode)
   if (isSlotProp(name, typeText)) {
     return {
@@ -272,18 +285,6 @@ function classifyProp(
     };
   }
 
-  // Function/callback props — not serializable as attributes.
-  // Detect by type string (arrow functions, Function, etc.) or default value.
-  if (isFunctionProp(typeText, defaultValue)) {
-    return {
-      name,
-      type: typeText,
-      default: defaultValue,
-      category: 'property' as const,
-      attribute: false,
-    };
-  }
-
   // String/enum props (most common case)
   return {
     name,
@@ -311,9 +312,12 @@ function isBooleanProp(_name: string, _typeText: string, defaultValue?: string):
 }
 
 function isFunctionProp(typeText: string, defaultValue?: string): boolean {
+  // Don't treat union types containing ReactNode as functions
+  // e.g., ReactNode | ((item: T) => ReactNode) is a slot, not a function
+  if (typeText.includes('ReactNode') || typeText.includes('ReactElement')) return false;
   // Detect from type: arrow function types, Function keyword, callable signatures
-  if (/\(\s*\w*.*\)\s*=>/.test(typeText)) return true;
-  if (typeText === 'Function' || typeText.includes('Handler')) return true;
+  if (/^\s*\(/.test(typeText) && typeText.includes('=>')) return true;
+  if (typeText === 'Function') return true;
   // Detect from default value: () => ..., function ...
   if (defaultValue && /^\s*\(/.test(defaultValue) && defaultValue.includes('=>')) return true;
   if (defaultValue && defaultValue.startsWith('function')) return true;
