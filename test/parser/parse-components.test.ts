@@ -235,6 +235,20 @@ describe('parseComponent', () => {
       expect(renderItem!.attribute).toBe(false);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Wizard — zero-param expression-body arrow handler extraction
+  // -------------------------------------------------------------------------
+  describe('Wizard', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'wizard'));
+
+    it('should extract zero-param expression-body arrows as handlers', () => {
+      // `const onPreviousClick = () => navigationEvent(...)` should be a handler
+      const handler = ir.handlers.find((h) => h.name === 'onPreviousClick');
+      expect(handler).toBeDefined();
+      expect(handler!.body).toContain('return');
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

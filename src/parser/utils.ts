@@ -301,8 +301,11 @@ function isSignificantFunction(fn: ts.ArrowFunction | ts.FunctionExpression): bo
   if (ts.isBlock(fn.body)) {
     return fn.body.statements.length >= 1;
   }
-  // Arrow with expression body — usually inline, but include if it has params
-  return fn.parameters.length > 0;
+  // Arrow with expression body — significant if it has params OR if the
+  // body is a function call (e.g., `() => doSomething()`). Only trivial
+  // expression bodies like `() => false` or `() => null` are skipped.
+  if (fn.parameters.length > 0) return true;
+  return ts.isCallExpression(fn.body) || ts.isTaggedTemplateExpression(fn.body);
 }
 
 function isCloudscapeInfraFunction(name: string): boolean {
