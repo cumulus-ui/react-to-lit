@@ -19,6 +19,7 @@ export {
   rewriteIdentifiers,
   resolveComponentReferences,
   cloudscapeComponentRegistry,
+  removeLibraryInternals,
   removeCloudscapeInternals,
   cleanupReactTypes,
   transformSlots,

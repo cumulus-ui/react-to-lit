@@ -2,7 +2,7 @@
  * Unit tests for transforms/cleanup.ts — Cloudscape internals stripping.
  */
 import { describe, it, expect } from 'vitest';
-import { removeCloudscapeInternals } from '../../src/transforms/cleanup.js';
+import { removeCloudscapeInternals, removeLibraryInternals } from '../../src/transforms/cleanup.js';
 import type { ComponentIR } from '../../src/ir/types.js';
 
 // ---------------------------------------------------------------------------
@@ -404,6 +404,183 @@ describe('removeCloudscapeInternals', () => {
       });
       const result = removeCloudscapeInternals(ir);
       expect(result.handlers[0].body).not.toContain('fireNonCancelableEvent');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // SKIP_PROPS reference cleanup (#20)
+  // ---------------------------------------------------------------------------
+
+  describe('SKIP_PROPS usage site cleanup', () => {
+    it('replaces nativeButtonAttributes?.tabIndex with undefined', () => {
+      const ir = minimalIR({
+        handlers: [{
+          name: 'render',
+          body: 'const explicitTabIndex = nativeButtonAttributes?.tabIndex ?? nativeAnchorAttributes?.tabIndex;',
+          params: '',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('nativeButtonAttributes');
+      expect(result.handlers[0].body).not.toContain('nativeAnchorAttributes');
+    });
+
+    it('replaces bare nativeAttributes passed as function argument', () => {
+      const ir = minimalIR({
+        handlers: [{
+          name: 'h',
+          body: "mergeProps(baseConfig, nativeAttributes, 'Card');",
+          params: '',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('nativeAttributes');
+      expect(result.handlers[0].body).toContain('undefined');
+    });
+
+    it('preserves local variable declarations named nativeAttributes', () => {
+      const ir = minimalIR({
+        handlers: [{
+          name: 'h',
+          body: "const nativeAttributes: Record<string, unknown> = {};\nnativeAttributes['aria-invalid'] = true;",
+          params: '',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      // Local declaration should be preserved
+      expect(result.handlers[0].body).toContain('const nativeAttributes');
+    });
+
+    it('replaces nativeAttributes.xxx in template expressions', () => {
+      const ir = minimalIR({
+        template: {
+          kind: 'element',
+          tag: 'div',
+          attributes: [],
+          children: [{
+            kind: 'expression',
+            attributes: [],
+            children: [],
+            expression: 'nativeAttributes?.tabIndex',
+          }],
+        },
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.template.children[0].expression).not.toContain('nativeAttributes');
+    });
+
+    it('replaces analyticsMetadata in handler bodies', () => {
+      const ir = minimalIR({
+        handlers: [{
+          name: 'h',
+          body: 'const meta = analyticsMetadata;',
+          params: '',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('analyticsMetadata');
+    });
+  });
+
+  describe('config override', () => {
+    it('custom skipProps list correctly filters different prop names', () => {
+      const ir = minimalIR({
+        props: [
+          { name: 'myInternalProp', type: 'string', category: 'attribute' },
+          { name: 'visible', type: 'boolean', category: 'attribute' },
+        ],
+      });
+      const result = removeLibraryInternals(ir, {
+        skipProps: ['myInternalProp'],
+        skipPrefixes: ['__'],
+        removeAttributes: [],
+        removeAttributePrefixes: [],
+        infraFunctions: [],
+        unwrapComponents: [],
+      });
+      expect(result.props.map(p => p.name)).toEqual(['visible']);
+    });
+
+    it('custom removeAttributes list strips different attributes', () => {
+      const ir = minimalIR({
+        template: {
+          kind: 'element',
+          tag: 'div',
+          attributes: [
+            { name: 'data-custom', value: 'x', kind: 'attribute' },
+            { name: 'title', value: 'hello', kind: 'attribute' },
+          ],
+          children: [],
+        },
+      });
+      const result = removeLibraryInternals(ir, {
+        skipProps: [],
+        skipPrefixes: ['__'],
+        removeAttributes: ['data-custom'],
+        removeAttributePrefixes: [],
+        infraFunctions: [],
+        unwrapComponents: [],
+      });
+      expect(result.template.attributes.map(a => a.name)).toEqual(['title']);
+    });
+
+    it('custom infraFunctions list filters different helper names', () => {
+      const ir = minimalIR({
+        helpers: [
+          { name: 'myInfraHelper', source: 'function myInfraHelper() {}' },
+          { name: 'renderContent', source: 'function renderContent() { return "ok"; }' },
+        ],
+      });
+      const result = removeLibraryInternals(ir, {
+        skipProps: [],
+        skipPrefixes: ['__'],
+        removeAttributes: [],
+        removeAttributePrefixes: [],
+        infraFunctions: ['myInfraHelper'],
+        unwrapComponents: [],
+      });
+      expect(result.helpers.map(h => h.name)).toEqual(['renderContent']);
+    });
+
+    it('custom removeAttributePrefixes list strips different attribute prefixes', () => {
+      const ir = minimalIR({
+        template: {
+          kind: 'element',
+          tag: 'div',
+          attributes: [
+            { name: 'x-internal-foo', value: 'a', kind: 'attribute' },
+            { name: 'title', value: 'hello', kind: 'attribute' },
+          ],
+          children: [],
+        },
+      });
+      const result = removeLibraryInternals(ir, {
+        skipProps: [],
+        skipPrefixes: ['__'],
+        removeAttributes: [],
+        removeAttributePrefixes: ['x-internal-'],
+        infraFunctions: [],
+        unwrapComponents: [],
+      });
+      expect(result.template.attributes.map(a => a.name)).toEqual(['title']);
+    });
+
+    it('omitting config preserves exact current behavior', () => {
+      const ir = minimalIR({
+        props: [
+          { name: '__internal', type: 'string', category: 'attribute' },
+          { name: 'visible', type: 'boolean', category: 'attribute' },
+        ],
+        handlers: [{ name: 'h', body: "const cls = testUtilStyles['header'];", params: '' }],
+      });
+      const withDefault = removeCloudscapeInternals(ir);
+      const withoutConfig = removeLibraryInternals(ir);
+      expect(withDefault.props).toEqual(withoutConfig.props);
+      expect(withDefault.handlers).toEqual(withoutConfig.handlers);
+    });
+
+    it('removeCloudscapeInternals is an alias for removeLibraryInternals', () => {
+      expect(removeCloudscapeInternals).toBe(removeLibraryInternals);
     });
   });
 });

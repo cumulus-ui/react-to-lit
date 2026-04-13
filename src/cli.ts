@@ -12,6 +12,8 @@ import fs from 'node:fs';
 import { parseComponent } from './parser/index.js';
 import { transformAll } from './transforms/index.js';
 import { emitComponent } from './emitter/index.js';
+import { loadConfig } from './config-loader.js';
+import type { CompilerConfig } from './config.js';
 
 /** Directories to skip (not components) */
 const SKIP_DIRS = new Set([
@@ -43,7 +45,12 @@ program
   .option('-c, --component <name>', 'Process a single component from batch input')
   .option('--dry-run', 'Print output to stdout instead of writing files')
   .option('--verbose', 'Log parsing decisions')
+  .option('--config <path>', 'Path to a configuration file (JS/TS module)')
+  .option('--preset <name>', 'Use a built-in preset (e.g. "cloudscape")')
   .action(async (opts) => {
+    // Load configuration (--config file, --preset name, or defaults)
+    const _config: CompilerConfig = await loadConfig(opts.config, opts.preset);
+
     const inputPath = path.resolve(opts.input);
     const outputPath = opts.output ? path.resolve(opts.output) : undefined;
 

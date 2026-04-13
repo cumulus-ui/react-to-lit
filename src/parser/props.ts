@@ -13,6 +13,7 @@ import { getNodeText, parseFile } from './program.js';
 import type { RawComponent } from './component.js';
 import { SKIP_PROPS, SKIP_PREFIXES } from '../cloudscape-config.js';
 import { camelToKebab, isEventProp } from '../naming.js';
+import type { CleanupConfig } from '../config.js';
 
 // ---------------------------------------------------------------------------
 // Main extraction
@@ -35,6 +36,7 @@ export function extractProps(
   componentDir?: string,
   declarationsDir?: string,
   componentName?: string,
+  cleanupConfig?: CleanupConfig,
 ): PropIR[] {
   // Build type map — prefer published .d.ts, fall back to vendor interfaces.ts
   let interfaceTypeMap = new Map<string, string>();
@@ -77,7 +79,7 @@ export function extractProps(
   const props: PropIR[] = [];
   const seen = new Set<string>();
   for (const [propName, typeText, defaultValue] of candidates) {
-    if (shouldSkipProp(propName)) continue;
+    if (shouldSkipProp(propName, cleanupConfig)) continue;
     if (seen.has(propName)) continue;
     seen.add(propName);
     props.push(classifyProp(propName, typeText, defaultValue));
@@ -227,7 +229,8 @@ export function extractPropAliases(
 // Prop classification
 // ---------------------------------------------------------------------------
 
-function classifyProp(
+/** @internal Exported for testing. */
+export function classifyProp(
   name: string,
   typeText: string,
   defaultValue?: string,
@@ -333,12 +336,14 @@ function classifyProp(
 
 function isSlotProp(name: string, typeText: string): boolean {
   if (name === 'children') return true;
-  // Function types that return ReactNode are render callbacks, not slots.
-  // They're already handled by isFunctionProp, which is checked first.
-  // Only treat as slot if the type directly contains ReactNode/ReactElement
-  // at the top level (not as a function return type).
-  if (typeText.includes('ReactNode') || typeText.includes('ReactElement')) return true;
-  return false;
+  if (!typeText.includes('ReactNode') && !typeText.includes('ReactElement')) return false;
+  // If the type contains a function signature (=>), it's likely a render
+  // callback union like `ReactNode | ((item: T) => ReactNode)`.
+  // Only classify as slot if ReactNode/ReactElement appears WITHOUT any
+  // function signature in the type — otherwise it's at least partially a
+  // render callback and should be a property, not a slot.
+  if (typeText.includes('=>')) return false;
+  return true;
 }
 
 function isBooleanProp(_name: string, _typeText: string, defaultValue?: string): boolean {
@@ -357,6 +362,10 @@ function isFunctionProp(typeText: string, defaultValue?: string): boolean {
     return true;
   }
   if (typeText === 'Function') return true;
+  // Union types containing at least one function member:
+  // ReactNode | ((item: T) => ReactNode) or string | (() => void)
+  // These need attribute: false since they accept function values.
+  if (typeText.includes('=>') && typeText.includes('|')) return true;
   // Detect from default value: () => ..., function ...
   if (defaultValue && /^\s*\(/.test(defaultValue) && defaultValue.includes('=>')) return true;
   if (defaultValue && defaultValue.startsWith('function')) return true;
@@ -397,9 +406,11 @@ function extractEventDetailType(typeText: string): string | undefined {
   return match?.[1] || undefined;
 }
 
-function shouldSkipProp(name: string): boolean {
-  if (SKIP_PROPS.has(name)) return true;
-  if (SKIP_PREFIXES.some((p) => name.startsWith(p))) return true;
+function shouldSkipProp(name: string, config?: CleanupConfig): boolean {
+  const skipProps = config ? new Set(config.skipProps) : SKIP_PROPS;
+  const skipPrefixes = config?.skipPrefixes ?? SKIP_PREFIXES;
+  if (skipProps.has(name)) return true;
+  if (skipPrefixes.some((p) => name.startsWith(p))) return true;
   return false;
 }
 

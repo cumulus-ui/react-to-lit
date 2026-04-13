@@ -5,6 +5,7 @@
  * assembling imports, properties, lifecycle, handlers, and template.
  */
 import type { ComponentIR } from '../ir/types.js';
+import type { OutputConfig } from '../config.js';
 import { Project, Node, ts } from 'ts-morph';
 import { containsHtmlTemplate } from '../text-utils.js';
 import { collectImports } from './imports.js';
@@ -44,13 +45,15 @@ function unwrapClassMapInPreamble(stmt: string): string {
 export interface EmitOptions {
   /** Whether to format the output with Prettier */
   format?: boolean;
+  /** Optional output configuration for class naming and imports */
+  output?: OutputConfig;
 }
 
 /**
  * Emit a full Lit component TypeScript file from a ComponentIR.
  */
 export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): string {
-  const collector = collectImports(ir);
+  const collector = collectImports(ir, _options.output);
   const sections: string[] = [];
 
   // --- Imports ---
@@ -86,17 +89,20 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   }
 
   // --- Mixin application ---
+  const defaultBase = ir.baseClass?.name ?? _options.output?.baseClass?.name ?? 'CsBaseElement';
   let baseClassName: string;
   if (ir.mixins.includes('FormControlMixin')) {
-    sections.push(`const Base = FormControlMixin(CsBaseElement);`);
+    sections.push(`const Base = FormControlMixin(${defaultBase});`);
     sections.push('');
     baseClassName = 'Base';
   } else {
-    baseClassName = ir.baseClass?.name ?? 'CsBaseElement';
+    baseClassName = defaultBase;
   }
 
   // --- Class declaration ---
-  const className = `Cs${ir.name}Internal`;
+  const classPrefix = _options.output?.classPrefix ?? 'Cs';
+  const classSuffix = _options.output?.classSuffix ?? 'Internal';
+  const className = `${classPrefix}${ir.name}${classSuffix}`;
   const typeParamStr = ir.typeParams?.length ? `<${ir.typeParams.join(', ')}>` : '';
   sections.push(`export class ${className}${typeParamStr} extends ${baseClassName} {`);
   sections.push(`  static override styles = [sharedStyles, componentStyles, hostStyles];`);

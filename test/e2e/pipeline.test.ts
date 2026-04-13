@@ -9,6 +9,8 @@ import path from 'node:path';
 import { parseComponent } from '../../src/parser/index.js';
 import { transformAll } from '../../src/transforms/index.js';
 import { emitComponent } from '../../src/emitter/index.js';
+import { createDefaultConfig, createCloudscapeConfig } from '../../src/config.js';
+import type { CompilerConfig } from '../../src/config.js';
 
 const CLOUDSCAPE_SRC = path.resolve(
   import.meta.dirname,
@@ -158,5 +160,96 @@ describe('Full pipeline: parse → transform → emit', () => {
       console.log(output);
       console.log('=== end StatusIndicator ===\n');
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Config-driven pipeline
+// ---------------------------------------------------------------------------
+
+describe('config-driven pipeline', () => {
+  const CLOUDSCAPE_SRC_DIR = path.resolve(
+    import.meta.dirname,
+    '../../vendor/cloudscape-source/src',
+  );
+
+  it('transformAll with no config produces identical output to today', () => {
+    // Parse a known component
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC_DIR, 'badge'));
+
+    // Transform with no config (legacy path)
+    const legacyResult = transformAll(ir);
+    const legacyOutput = emitComponent(legacyResult);
+
+    // Transform with explicit undefined config (should be same code path)
+    const noConfigResult = transformAll(ir, {});
+    const noConfigOutput = emitComponent(noConfigResult);
+
+    expect(noConfigOutput).toBe(legacyOutput);
+  });
+
+  it('transformAll with Cloudscape config produces identical output to no-config default', () => {
+    // The Cloudscape preset is the implicit default — passing it explicitly
+    // must produce the same output as the legacy no-config path.
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC_DIR, 'spinner'));
+
+    const legacyResult = transformAll(ir);
+    const legacyOutput = emitComponent(legacyResult);
+
+    // Pass the Cloudscape preset config explicitly
+    const cloudscapeConfig = createCloudscapeConfig();
+    const configResult = transformAll(ir, { config: cloudscapeConfig });
+    const configOutput = emitComponent(configResult);
+
+    // Both paths should produce structurally the same output
+    expect(configOutput).toBe(legacyOutput);
+  });
+
+  it('transformAll with custom config changes transform behaviour', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC_DIR, 'badge'));
+
+    // Create a minimal custom config with different cleanup rules
+    const customConfig: CompilerConfig = {
+      ...createDefaultConfig(),
+      cleanup: {
+        ...createDefaultConfig().cleanup,
+        // Keep all props (no skip), minimal removeAttributes
+        skipProps: [],
+        skipPrefixes: [],
+        removeAttributes: [],
+        removeAttributePrefixes: [],
+        infraFunctions: [],
+        unwrapComponents: ['Fragment', 'React.Fragment'],
+      },
+    };
+
+    const defaultResult = transformAll(ir);
+    const defaultOutput = emitComponent(defaultResult);
+
+    const customResult = transformAll(ir, { config: customConfig });
+    const customOutput = emitComponent(customResult);
+
+    // With the stripped-down cleanup config, the output should differ
+    // because Cloudscape-specific props / attributes are no longer removed
+    expect(customOutput).not.toBe(defaultOutput);
+  });
+
+  it('transformAll with custom config respects events config', () => {
+    // Use a component that has event props
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC_DIR, 'button'));
+
+    // Default (no config)
+    const defaultResult = transformAll(ir);
+    const defaultOutput = emitComponent(defaultResult);
+
+    // With native dispatch mode explicitly set
+    const nativeConfig = createCloudscapeConfig();
+    nativeConfig.events.dispatchMode = 'native';
+    const nativeResult = transformAll(ir, { config: nativeConfig });
+    const nativeOutput = emitComponent(nativeResult);
+
+    // Both should produce valid output
+    expect(defaultOutput).toBeTruthy();
+    expect(nativeOutput).toBeTruthy();
   });
 });

@@ -19,6 +19,7 @@ import { getNodeText } from './program.js';
 import { lookupHook, type HookRegistry } from '../hooks/registry.js';
 import { SKIP_PREFIXES } from '../cloudscape-config.js';
 import { collectBindingNames, isHookCall } from './utils.js';
+import type { CleanupConfig } from '../config.js';
 
 // ---------------------------------------------------------------------------
 // Result type
@@ -49,6 +50,7 @@ export function extractHooks(
   body: ts.Block | ts.Expression,
   sourceFile: ts.SourceFile,
   hookRegistry: HookRegistry,
+  cleanupConfig?: CleanupConfig,
 ): HookExtractionResult {
   const result: HookExtractionResult = {
     state: [],
@@ -66,6 +68,8 @@ export function extractHooks(
 
   if (!ts.isBlock(body)) return result;
 
+  const skipPrefixes = cleanupConfig?.skipPrefixes;
+
   for (const stmt of body.statements) {
     // Variable declarations: const [x, setX] = useState(init)
     if (ts.isVariableStatement(stmt)) {
@@ -73,12 +77,12 @@ export function extractHooks(
         if (!decl.initializer || !isHookCall(decl.initializer)) continue;
         // Direct hook call: const x = useHook(...) — full structural extraction
         if (ts.isCallExpression(decl.initializer)) {
-          processHookCall(decl, decl.initializer, sourceFile, hookRegistry, result, body);
+          processHookCall(decl, decl.initializer, sourceFile, hookRegistry, result, body, skipPrefixes);
         }
         // Wrapped hook call (e.g. useHook(...).property) — preserve variables
         // so the identifier rewriter can map them to class fields.
         else {
-          collectPreservedVars(decl, result.preservedVars);
+          collectPreservedVars(decl, result.preservedVars, skipPrefixes);
         }
       }
       continue;
@@ -86,7 +90,7 @@ export function extractHooks(
 
     // Expression statements: useEffect(() => { ... }, [deps])
     if (ts.isExpressionStatement(stmt) && ts.isCallExpression(stmt.expression)) {
-      processHookCall(null, stmt.expression, sourceFile, hookRegistry, result, body);
+      processHookCall(null, stmt.expression, sourceFile, hookRegistry, result, body, skipPrefixes);
       continue;
     }
   }
@@ -105,6 +109,7 @@ function processHookCall(
   hookRegistry: HookRegistry,
   result: HookExtractionResult,
   body: ts.Block,
+  skipPrefixes?: string[],
 ): void {
   const hookName = getHookName(call);
   if (!hookName) return;
@@ -124,7 +129,7 @@ function processHookCall(
       if (decl) processUseRef(decl, call, sourceFile, result);
       return;
     case 'useMemo':
-      if (decl) processUseMemo(decl, call, sourceFile, result);
+      if (decl) processUseMemo(decl, call, sourceFile, result, skipPrefixes);
       return;
     case 'useCallback':
       if (decl) processUseCallback(decl, call, sourceFile, result);
@@ -140,17 +145,17 @@ function processHookCall(
     switch (mapping.action) {
       case 'skip':
         result.skipped.push({ name: hookName, reason: mapping.reason ?? 'configured to skip' });
-        if (decl) collectPreservedVars(decl, result.preservedVars);
+        if (decl) collectPreservedVars(decl, result.preservedVars, skipPrefixes);
         return;
       case 'controller':
         if (mapping.controller && decl) {
           processControllerHook(decl, call, sourceFile, mapping.controller, result);
           // Preserve the destructured return bindings (e.g., [expanded, setExpanded])
           // so the identifier rewriter can map them to class members.
-          collectPreservedVars(decl, result.preservedVars);
+          collectPreservedVars(decl, result.preservedVars, skipPrefixes);
         } else {
           result.skipped.push({ name: hookName, reason: 'controller mapping incomplete' });
-          if (decl) collectPreservedVars(decl, result.preservedVars);
+          if (decl) collectPreservedVars(decl, result.preservedVars, skipPrefixes);
         }
         return;
       case 'context':
@@ -167,25 +172,25 @@ function processHookCall(
           }
         } else {
           result.skipped.push({ name: hookName, reason: 'context mapping incomplete' });
-          if (decl) collectPreservedVars(decl, result.preservedVars);
+          if (decl) collectPreservedVars(decl, result.preservedVars, skipPrefixes);
         }
         return;
       case 'utility':
         // Utility hooks: preserve result variables (same as skip)
-        if (decl) collectPreservedVars(decl, result.preservedVars);
+        if (decl) collectPreservedVars(decl, result.preservedVars, skipPrefixes);
         return;
       case 'inline':
         return;
       default:
         result.unknown.push(hookName);
-        if (decl) collectPreservedVars(decl, result.preservedVars);
+        if (decl) collectPreservedVars(decl, result.preservedVars, skipPrefixes);
         return;
     }
   }
 
   // Unknown hook — auto-skip and preserve result variables
   result.unknown.push(hookName);
-  if (decl) collectPreservedVars(decl, result.preservedVars);
+  if (decl) collectPreservedVars(decl, result.preservedVars, skipPrefixes);
 }
 
 // ---------------------------------------------------------------------------
@@ -355,6 +360,7 @@ function processUseMemo(
   call: ts.CallExpression,
   sourceFile: ts.SourceFile,
   result: HookExtractionResult,
+  skipPrefixes?: string[],
 ): void {
   if (call.arguments.length < 1) return;
 
@@ -380,7 +386,7 @@ function processUseMemo(
 
   // Destructured case: const { a, b } = useMemo(() => ({ a, b }), deps)
   // Preserve the binding names so the identifier rewriter can map them.
-  collectPreservedVars(decl, result.preservedVars);
+  collectPreservedVars(decl, result.preservedVars, skipPrefixes);
 }
 
 function processUseCallback(
@@ -538,12 +544,13 @@ function processContextHook(
  * them to the preservedVars list. Handles simple identifiers, object
  * destructuring, and array destructuring patterns.
  */
-function collectPreservedVars(decl: ts.VariableDeclaration, preservedVars: string[]): void {
+function collectPreservedVars(decl: ts.VariableDeclaration, preservedVars: string[], skipPrefixes?: string[]): void {
   const names = new Set<string>();
   collectBindingNames(decl.name, names);
-  // Filter out Cloudscape infrastructure variables (e.g. __internalRootRef)
+  // Filter out infrastructure variables (e.g. __internalRootRef)
+  const prefixes = skipPrefixes ?? SKIP_PREFIXES;
   for (const name of names) {
-    if (!SKIP_PREFIXES.some(prefix => name.startsWith(prefix))) {
+    if (!prefixes.some(prefix => name.startsWith(prefix))) {
       preservedVars.push(name);
     }
   }

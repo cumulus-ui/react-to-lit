@@ -20,12 +20,13 @@ import { findComponent, type RawComponent } from './component.js';
 import { extractProps, extractPropAliases } from './props.js';
 import { extractHooks } from './hooks.js';
 import { parseJSXFromBody } from './jsx.js';
-import { extractHandlers, extractHelpers, extractFileConstants, extractFileTypeDeclarations, isHookCall, collectBindingNames, collectLocalVariables } from './utils.js';
+import { extractHandlers, extractHelpers, extractFileConstants, extractFileTypeDeclarations, isHookCall, collectBindingNames, collectLocalVariables, isInfraFunction } from './utils.js';
 import { createHookRegistry, type HookRegistry } from '../hooks/registry.js';
 import { containsHtmlTemplate } from '../text-utils.js';
 import { transformJsxToLit } from './jsx-transform.js';
 import { toTagName, escapeRegex } from '../naming.js';
 import { INFRA_FUNCTIONS, UNWRAP_COMPONENTS } from '../cloudscape-config.js';
+import type { CompilerConfig } from '../config.js';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -41,6 +42,9 @@ export interface ParseOptions {
    * instead of relying solely on React source destructuring.
    */
   declarationsDir?: string;
+
+  /** Full compiler configuration — when provided, parser uses config values instead of hardcoded defaults. */
+  config?: CompilerConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,11 +123,11 @@ export function parseComponent(
   // 4. Extract props
   const sourceFile = component.sourceFile;
   const dirName = path.basename(componentDir);
-  const props = extractProps(component, sourceFile, componentDir, declarationsDir, dirName);
+  const props = extractProps(component, sourceFile, componentDir, declarationsDir, dirName, options.config?.cleanup);
 
   // 5. Extract hooks from the implementation body
   const hookResult = ts.isBlock(component.body)
-    ? extractHooks(component.body, sourceFile, hookRegistry)
+    ? extractHooks(component.body, sourceFile, hookRegistry, options.config?.cleanup)
     : { state: [], effects: [], refs: [], computedValues: [], handlers: [], publicMethods: [], controllers: [], contexts: [], skipped: [], unknown: [], preservedVars: [] };
 
   // 5b. Also extract hooks from the index.tsx wrapper (may have useImperativeHandle, etc.)
@@ -134,7 +138,7 @@ export function parseComponent(
     try {
       const indexComponent = findComponent(indexFile);
       if (ts.isBlock(indexComponent.body)) {
-        const indexHooks = extractHooks(indexComponent.body, indexFile, hookRegistry);
+        const indexHooks = extractHooks(indexComponent.body, indexFile, hookRegistry, options.config?.cleanup);
         hookResult.publicMethods.push(...indexHooks.publicMethods);
         hookResult.contexts.push(...indexHooks.contexts);
         // Merge refs and preserved vars that publicMethods may reference
@@ -168,13 +172,16 @@ export function parseComponent(
 
   // 8. Extract body preamble (code between hooks/handlers and return)
   //    JSX-containing variables become render helpers instead of preamble.
+  const configInfraFunctions = options.config?.cleanup.infraFunctions
+    ? new Set(options.config.cleanup.infraFunctions)
+    : undefined;
   const { preamble: bodyPreamble, renderHelpers, preambleVars } = ts.isBlock(component.body)
-    ? extractBodyPreamble(component.body, sourceFile)
+    ? extractBodyPreamble(component.body, sourceFile, configInfraFunctions)
     : { preamble: [], renderHelpers: [], preambleVars: [] as PreambleVar[] };
 
   // 9. Extract helper functions (file-level, outside the component)
   const implFile = internalFile ?? indexFile;
-  const helpers = [...extractHelpers(implFile, component.name, hookRegistry), ...renderHelpers];
+  const helpers = [...extractHelpers(implFile, component.name, hookRegistry, configInfraFunctions), ...renderHelpers];
 
   // 9a. Merge hooks extracted from helper function bodies into the main IR.
   // Helpers that are component-like functions (have hooks) get their hooks
@@ -243,7 +250,7 @@ export function parseComponent(
   }
 
   // 9b. Extract file-level constants
-  const fileConstants = extractFileConstants(implFile, component.name);
+  const fileConstants = extractFileConstants(implFile, component.name, configInfraFunctions);
 
   // 9c. Extract file-level type declarations
   const fileTypeDeclarations = extractFileTypeDeclarations(implFile, component.name);
@@ -279,7 +286,7 @@ export function parseComponent(
     controllers: hookResult.controllers,
     mixins,
     contexts: hookResult.contexts,
-    imports: extractSourceImports(sourceFile, buildSkipImportNames(hookRegistry)),
+    imports: extractSourceImports(sourceFile, buildSkipImportNames(hookRegistry, options.config)),
     styleImport,
     publicMethods: hookResult.publicMethods,
     helpers,
@@ -467,6 +474,7 @@ interface PreambleResult {
 function extractBodyPreamble(
   body: ts.Block,
   sourceFile: ts.SourceFile,
+  infraFunctions?: Set<string>,
 ): PreambleResult {
   const preamble: string[] = [];
   const renderHelpers: import('../ir/types.js').HelperIR[] = [];
@@ -500,8 +508,8 @@ function extractBodyPreamble(
     }
     {
       const text = sourceFile.text.slice(stmt.getStart(sourceFile), stmt.getEnd());
-      // Skip Cloudscape infrastructure
-      if ([...INFRA_FUNCTIONS].some(fn => text.includes(fn))) continue;
+      // Skip infrastructure functions
+      if ([...(infraFunctions ?? INFRA_FUNCTIONS)].some(fn => text.includes(fn))) continue;
       // Skip dev-only validation blocks (contain hooks that violate rules-of-hooks)
       if (ts.isIfStatement(stmt) && text.includes('isDevelopment')) continue;
 
@@ -717,7 +725,7 @@ const SKIP_IMPORT_MODULES = new Set([
  *
  * This keeps the parser general-purpose — no hardcoded library-specific names.
  */
-function buildSkipImportNames(hookRegistry: HookRegistry): Set<string> {
+function buildSkipImportNames(hookRegistry: HookRegistry, config?: CompilerConfig): Set<string> {
   const names = new Set<string>();
 
   // All registered hooks are handled by the hook extraction pipeline
@@ -726,17 +734,29 @@ function buildSkipImportNames(hookRegistry: HookRegistry): Set<string> {
   }
 
   // Infrastructure functions stripped by cleanup transforms
-  for (const fn of INFRA_FUNCTIONS) {
+  const infraFns = config?.cleanup.infraFunctions
+    ? new Set(config.cleanup.infraFunctions)
+    : INFRA_FUNCTIONS;
+  for (const fn of infraFns) {
     names.add(fn);
   }
 
-  // Names the emitter generates its own imports for
-  names.add('fireNonCancelableEvent');
-  names.add('fireCancelableEvent');
-  names.add('fireKeyboardEvent');
+  // Event dispatch function names the emitter generates its own imports for
+  if (config?.events.dispatchFunctions) {
+    for (const fnName of Object.keys(config.events.dispatchFunctions)) {
+      names.add(fnName);
+    }
+  } else {
+    names.add('fireNonCancelableEvent');
+    names.add('fireCancelableEvent');
+    names.add('fireKeyboardEvent');
+  }
 
   // Wrapper components unwrapped by the template transform
-  for (const name of UNWRAP_COMPONENTS) {
+  const unwrapSet = config?.cleanup.unwrapComponents
+    ? new Set(config.cleanup.unwrapComponents)
+    : UNWRAP_COMPONENTS;
+  for (const name of unwrapSet) {
     names.add(name);
   }
 

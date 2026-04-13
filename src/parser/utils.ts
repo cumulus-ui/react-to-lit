@@ -101,6 +101,7 @@ export function extractHelpers(
   sourceFile: ts.SourceFile,
   componentFunctionName: string,
   hookRegistry?: HookRegistry,
+  infraFunctions?: Set<string>,
 ): HelperIR[] {
   const helpers: HelperIR[] = [];
 
@@ -110,7 +111,7 @@ export function extractHelpers(
       const name = stmt.name.text;
       if (name === componentFunctionName) continue;
       if (name === 'default') continue;
-      if (isCloudscapeInfraFunction(name)) continue;
+      if (isInfraFunction(name, infraFunctions)) continue;
       if (isComponentImplementation(name, componentFunctionName)) continue;
 
       // Skip default exports (the main component is often export default function InternalXxx)
@@ -134,7 +135,7 @@ export function extractHelpers(
         if (!ts.isIdentifier(decl.name) || !decl.initializer) continue;
         const name = decl.name.text;
         if (name === componentFunctionName) continue;
-        if (isCloudscapeInfraFunction(name)) continue;
+        if (isInfraFunction(name, infraFunctions)) continue;
         if (isComponentImplementation(name, componentFunctionName)) continue;
 
         if (
@@ -285,6 +286,7 @@ function extractHelperHooks(
 export function extractFileConstants(
   sourceFile: ts.SourceFile,
   componentFunctionName: string,
+  infraFunctions?: Set<string>,
 ): string[] {
   const constants: string[] = [];
 
@@ -304,7 +306,7 @@ export function extractFileConstants(
       // Skip the component function
       if (name === componentFunctionName) { skip = true; break; }
       // Skip infrastructure
-      if (isCloudscapeInfraFunction(name)) { skip = true; break; }
+      if (isInfraFunction(name, infraFunctions)) { skip = true; break; }
       if (isComponentImplementation(name, componentFunctionName)) { skip = true; break; }
 
       // Skip if the initializer is a function/arrow (already handled by extractHelpers)
@@ -439,8 +441,9 @@ function isSignificantFunction(fn: ts.ArrowFunction | ts.FunctionExpression): bo
   return ts.isCallExpression(fn.body) || ts.isTaggedTemplateExpression(fn.body);
 }
 
-function isCloudscapeInfraFunction(name: string): boolean {
-  return INFRA_FUNCTIONS.has(name);
+export function isInfraFunction(name: string, infraFunctions?: Set<string>): boolean {
+  const fns = infraFunctions ?? INFRA_FUNCTIONS;
+  return fns.has(name);
 }
 
 /**

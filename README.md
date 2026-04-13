@@ -13,6 +13,14 @@ A compiler that transforms React function components into Lit web component clas
 ## Architecture
 
 ```
+                       ┌──────────────────┐
+                       │  CompilerConfig   │
+                       │  (--config file,  │
+                       │   --preset, or    │
+                       │   defaults)       │
+                       └────────┬─────────┘
+                                │ drives all transforms
+                                ▼
 React source (.tsx)         Published declarations (.d.ts)
         │                              │
         ▼                              ▼
@@ -56,16 +64,62 @@ React source (.tsx)         Published declarations (.d.ts)
 
 ## Usage
 
+### Generic usage
+
+The compiler can target **any** React component library. Behaviour is controlled
+via a `CompilerConfig` object provided through `--config` or `--preset`.
+
+```bash
+# With a custom config file (JS or TS module)
+npx react-to-lit --config react-to-lit.config.ts \
+  --input vendor/my-lib/src/button --output src/button/internal.ts
+
+# With a built-in preset
+npx react-to-lit --preset cloudscape \
+  --input vendor/source/src --output src --batch
+
+# Zero-config (sensible defaults — works for simple libraries)
+npx react-to-lit --input vendor/source/src/badge --output src/badge/internal.ts
+```
+
+| Flag | Description |
+|------|-------------|
+| `-i, --input <path>` | Input directory (single component or source root) |
+| `-o, --output <path>` | Output directory or file |
+| `-b, --batch` | Batch mode: process all component directories under `--input` |
+| `-c, --component <name>` | Process a single component from a batch input |
+| `--config <path>` | Path to a config file (JS/TS module exporting a `CompilerConfig`) |
+| `--preset <name>` | Use a built-in preset (e.g., `cloudscape`) |
+| `--dry-run` | Print output to stdout instead of writing files |
+| `--verbose` | Log parsing decisions |
+
+For a full walkthrough on writing a config for a new library, see
+[docs/adding-a-library.md](docs/adding-a-library.md).
+
+### Cloudscape preset
+
+The Cloudscape design system has a built-in preset that pre-configures all
+cleanup rules, skip directories, class naming, and infrastructure function
+stripping. Use it with `--preset cloudscape`:
+
 ```bash
 # Single component
-npx react-to-lit --input vendor/source/src/badge --output src/badge/internal.ts
+npx react-to-lit --preset cloudscape \
+  --input vendor/source/src/badge --output src/badge/internal.ts
 
 # Batch
-npx react-to-lit --input vendor/source/src --output src
+npx react-to-lit --preset cloudscape \
+  --input vendor/source/src --output src --batch
 
 # Dry run
-npx react-to-lit --input vendor/source/src/badge --dry-run
+npx react-to-lit --preset cloudscape \
+  --input vendor/source/src/badge --dry-run
 ```
+
+The Cloudscape preset sets `classPrefix: 'Cs'`, `classSuffix: 'Internal'`,
+strips Cloudscape-specific infrastructure functions (`applyDisplayName`,
+`getBaseProps`, etc.), and unwraps framework wrappers like `AnalyticsFunnel`,
+`FocusLock`, `CSSTransition`, and React Context providers.
 
 ## Quality gates
 
@@ -100,6 +154,16 @@ import { CsAlertInternal } from './alert/internal.js';
 customElements.define('cs-alert', CsAlertInternal);
 // Remap el-internal-icon → cs-icon in build step
 ```
+
+## Adding support for a new library
+
+react-to-lit is library-agnostic. To use it with a React component library
+other than Cloudscape, create a `react-to-lit.config.ts` that describes your
+library's naming conventions, infrastructure props, sub-component mappings, and
+event dispatch pattern.
+
+See **[docs/adding-a-library.md](docs/adding-a-library.md)** for a complete
+step-by-step guide with worked examples and a full configuration reference.
 
 ## What's not in scope
 

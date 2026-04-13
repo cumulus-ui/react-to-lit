@@ -5,6 +5,7 @@
  * a deduplicated, sorted import block.
  */
 import type { ComponentIR } from '../ir/types.js';
+import type { OutputConfig } from '../config.js';
 import { someInTemplate } from '../template-walker.js';
 import { collectIRText } from '../ir/transform-helpers.js';
 
@@ -124,7 +125,7 @@ export class ImportCollector {
 // Pre-populate imports from IR
 // ---------------------------------------------------------------------------
 
-export function collectImports(ir: ComponentIR): ImportCollector {
+export function collectImports(ir: ComponentIR, outputConfig?: OutputConfig): ImportCollector {
   const collector = new ImportCollector();
 
   // Always need html from lit
@@ -184,7 +185,9 @@ export function collectImports(ir: ComponentIR): ImportCollector {
   if (ir.baseClass) {
     collector.addNamed(ir.baseClass.importPath, ir.baseClass.name);
   } else {
-    collector.addNamed('../internal/base-element.js', 'CsBaseElement');
+    const baseName = outputConfig?.baseClass?.name ?? 'CsBaseElement';
+    const baseImport = outputConfig?.baseClass?.import ?? '../internal/base-element.js';
+    collector.addNamed(baseImport, baseName);
   }
 
   // Style imports

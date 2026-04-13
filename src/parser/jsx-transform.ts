@@ -5,20 +5,23 @@
  * using the TypeScript compiler API, then re-parses as plain TS.
  */
 import ts from 'typescript';
-import { jsxToLitTransformerFactory } from '../transforms/jsx-to-lit.js';
+import { jsxToLitTransformerFactory, createJsxToLitTransformerFactory, type JsxToLitConfig } from '../transforms/jsx-to-lit.js';
 
 /**
  * Transform all JSX in a source file to Lit html`` tagged templates.
  * Returns a new SourceFile with no JSX syntax.
+ *
+ * When `config` is omitted the Cloudscape defaults are used.
  */
-export function transformJsxToLit(sourceFile: ts.SourceFile): ts.SourceFile {
+export function transformJsxToLit(sourceFile: ts.SourceFile, config?: JsxToLitConfig): ts.SourceFile {
   // Skip files that don't contain JSX
   if (!sourceFile.fileName.endsWith('.tsx') && !sourceFile.fileName.endsWith('.jsx')) {
     return sourceFile;
   }
 
-  // Run the transformer
-  const result = ts.transform(sourceFile, [jsxToLitTransformerFactory]);
+  // Run the transformer — use custom factory when config is provided
+  const factory = config ? createJsxToLitTransformerFactory(config) : jsxToLitTransformerFactory;
+  const result = ts.transform(sourceFile, [factory]);
   const transformed = result.transformed[0];
 
   // Print the transformed AST back to source text

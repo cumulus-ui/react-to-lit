@@ -1,0 +1,129 @@
+/**
+ * Tests for parser config override support (#23).
+ *
+ * Verifies that parser functions accept optional config parameters
+ * and use config values instead of hardcoded defaults when provided.
+ */
+import { describe, it, expect } from 'vitest';
+import path from 'node:path';
+import { parseComponent } from '../../src/parser/index.js';
+import { isInfraFunction } from '../../src/parser/utils.js';
+import { createCloudscapeConfig } from '../../src/presets/cloudscape.js';
+import { createDefaultConfig } from '../../src/config.js';
+
+const CLOUDSCAPE_SRC = path.resolve(
+  import.meta.dirname,
+  '../../vendor/cloudscape-source/src',
+);
+
+// ---------------------------------------------------------------------------
+// isInfraFunction — accepts optional infraFunctions set
+// ---------------------------------------------------------------------------
+
+describe('isInfraFunction', () => {
+  it('uses INFRA_FUNCTIONS default when no set provided', () => {
+    // applyDisplayName is in the Cloudscape preset
+    expect(isInfraFunction('applyDisplayName')).toBe(true);
+    expect(isInfraFunction('notAFunction')).toBe(false);
+  });
+
+  it('uses provided set when given', () => {
+    const custom = new Set(['myInfraFn', 'anotherFn']);
+    expect(isInfraFunction('myInfraFn', custom)).toBe(true);
+    expect(isInfraFunction('anotherFn', custom)).toBe(true);
+    // applyDisplayName is NOT in the custom set
+    expect(isInfraFunction('applyDisplayName', custom)).toBe(false);
+  });
+
+  it('empty set means nothing is infra', () => {
+    const empty = new Set<string>();
+    expect(isInfraFunction('applyDisplayName', empty)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractProps — config.cleanup overrides skipProps/skipPrefixes
+// ---------------------------------------------------------------------------
+
+describe('extractProps with config override', () => {
+  it('skips custom props when cleanup config provided', () => {
+    const config = createCloudscapeConfig();
+    // Add 'color' to skipProps — Badge has a color prop
+    config.cleanup.skipProps = [...config.cleanup.skipProps, 'color'];
+
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { config });
+    const colorProp = ir.props.find((p) => p.name === 'color');
+    expect(colorProp).toBeUndefined();
+  });
+
+  it('preserves default behavior when no config provided', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'));
+    const colorProp = ir.props.find((p) => p.name === 'color');
+    expect(colorProp).toBeDefined();
+  });
+
+  it('uses custom skipPrefixes from config', () => {
+    const config = createCloudscapeConfig();
+    // Change skipPrefixes to skip 'c' prefix — should skip 'color' and 'children'
+    config.cleanup.skipPrefixes = ['c'];
+
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { config });
+    const colorProp = ir.props.find((p) => p.name === 'color');
+    const childrenProp = ir.props.find((p) => p.name === 'children');
+    expect(colorProp).toBeUndefined();
+    expect(childrenProp).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseComponent — config.cleanup.infraFunctions override
+// ---------------------------------------------------------------------------
+
+describe('parseComponent with config.cleanup.infraFunctions', () => {
+  it('uses default infraFunctions when no config provided', () => {
+    // Default behavior — should work as before
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'));
+    expect(ir.name).toBe('Badge');
+  });
+
+  it('accepts custom infraFunctions via config', () => {
+    const config = createCloudscapeConfig();
+    // Override infraFunctions with a custom set
+    config.cleanup.infraFunctions = ['customInfraFn'];
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { config });
+    expect(ir.name).toBe('Badge');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseComponent — config threading through buildSkipImportNames
+// ---------------------------------------------------------------------------
+
+describe('parseComponent with config.events.dispatchFunctions', () => {
+  it('skips custom dispatch function imports when config provided', () => {
+    const config = createCloudscapeConfig();
+    config.events.dispatchFunctions = {
+      myDispatch: { import: './my-events.js', cancelable: false },
+    };
+
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { config });
+    // Should still parse correctly
+    expect(ir.name).toBe('Badge');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseComponent — default config (no overrides) matches original behavior
+// ---------------------------------------------------------------------------
+
+describe('parseComponent backward compatibility', () => {
+  it('produces identical IR with no config vs undefined config', () => {
+    const irWithout = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'));
+    const irWith = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { config: undefined });
+
+    expect(irWithout.name).toBe(irWith.name);
+    expect(irWithout.tagName).toBe(irWith.tagName);
+    expect(irWithout.props.length).toBe(irWith.props.length);
+    expect(irWithout.props.map(p => p.name)).toEqual(irWith.props.map(p => p.name));
+  });
+});

@@ -14,31 +14,86 @@ import { getBooleanAttributes, getHtmlTagNames } from '../standards.js';
 import { toTagName, toLitEventName, isEventProp, reactAttrToHtml } from '../naming.js';
 
 // ---------------------------------------------------------------------------
+// Configuration interface
+// ---------------------------------------------------------------------------
+
+/** Configuration for the JSX-to-Lit transformer. All fields are optional —
+ *  omitting any field falls back to the Cloudscape defaults. */
+export interface JsxToLitConfig {
+  /** Attribute names to remove from JSX elements. */
+  removeAttributes?: Set<string>;
+  /** Attribute name prefixes to remove from JSX elements. */
+  removeAttributePrefixes?: string[];
+  /** Predicate that returns true for component names that should be unwrapped
+   *  (children kept, wrapper element discarded). */
+  shouldUnwrap?: (name: string) => boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Resolved (internal) config — all fields guaranteed present
+// ---------------------------------------------------------------------------
+
+interface ResolvedConfig {
+  removeAttrs: Set<string>;
+  removeAttrPrefixes: string[];
+  shouldUnwrap: (name: string) => boolean;
+}
+
+function resolveConfig(config?: JsxToLitConfig): ResolvedConfig {
+  return {
+    removeAttrs: config?.removeAttributes ?? REMOVE_ATTRS,
+    removeAttrPrefixes: config?.removeAttributePrefixes ?? REMOVE_ATTR_PREFIXES,
+    shouldUnwrap: config?.shouldUnwrap ?? shouldUnwrapComponent,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The transformer factory
 // ---------------------------------------------------------------------------
 
+/**
+ * Create a TransformerFactory that converts JSX to Lit html`` tagged templates.
+ *
+ * Accepts optional config to override which attributes are removed and which
+ * components are unwrapped. When config is omitted the Cloudscape defaults
+ * from `cloudscape-config.ts` are used.
+ */
+export function createJsxToLitTransformerFactory(
+  config?: JsxToLitConfig,
+): ts.TransformerFactory<ts.SourceFile> {
+  const resolved = resolveConfig(config);
+  return (context: ts.TransformationContext): ts.Transformer<ts.SourceFile> => {
+    return (sourceFile) => {
+      function visitor(node: ts.Node): ts.Node | ts.Node[] {
+        // Transform JSX elements
+        if (ts.isJsxElement(node)) {
+          return convertJsxElement(node, visitor, context, resolved);
+        }
+        if (ts.isJsxSelfClosingElement(node)) {
+          return convertSelfClosing(node, visitor, context, resolved);
+        }
+        if (ts.isJsxFragment(node)) {
+          return convertFragment(node, visitor, context);
+        }
+
+        // Recurse into ALL other nodes
+        return ts.visitEachChild(node, visitor, context);
+      }
+
+      return ts.visitNode(sourceFile, visitor) as ts.SourceFile;
+    };
+  };
+}
+
+/**
+ * Backward-compatible transformer factory that uses Cloudscape defaults.
+ *
+ * Can be passed directly to `ts.transform(sourceFile, [jsxToLitTransformerFactory])`.
+ */
 export function jsxToLitTransformerFactory(
   context: ts.TransformationContext,
 ): ts.Transformer<ts.SourceFile> {
-  return (sourceFile) => {
-    function visitor(node: ts.Node): ts.Node | ts.Node[] {
-      // Transform JSX elements
-      if (ts.isJsxElement(node)) {
-        return convertJsxElement(node, visitor, context);
-      }
-      if (ts.isJsxSelfClosingElement(node)) {
-        return convertSelfClosing(node, visitor, context);
-      }
-      if (ts.isJsxFragment(node)) {
-        return convertFragment(node, visitor, context);
-      }
-
-      // Recurse into ALL other nodes
-      return ts.visitEachChild(node, visitor, context);
-    }
-
-    return ts.visitNode(sourceFile, visitor) as ts.SourceFile;
-  };
+  return createJsxToLitTransformerFactory()(context);
 }
 
 // ---------------------------------------------------------------------------
@@ -49,27 +104,28 @@ function convertJsxElement(
   node: ts.JsxElement,
   visitor: ts.Visitor,
   context: ts.TransformationContext,
+  cfg: ResolvedConfig,
 ): ts.Expression {
   const originalTag = getOriginalTagName(node.openingElement.tagName);
 
   // WithNativeAttributes: extract tag prop, use as element, keep other attrs
   if (originalTag === 'WithNativeAttributes') {
-    return convertWithNativeAttributes(node, visitor, context);
+    return convertWithNativeAttributes(node, visitor, context, cfg);
   }
 
   // Unwrap components (keep children only)
-  if (shouldUnwrapComponent(originalTag)) {
+  if (cfg.shouldUnwrap(originalTag)) {
     return convertChildrenToTemplate(node.children, visitor, context);
   }
 
-  const tagName = resolveTagName(node.openingElement.tagName);
+  const tagName = resolveTagName(node.openingElement.tagName, cfg);
   const builder = new TemplateBuilder();
 
   // Opening tag
   builder.appendStatic(`<${tagName}`);
 
   // Attributes
-  emitAttributes(node.openingElement.attributes, builder, visitor, context);
+  emitAttributes(node.openingElement.attributes, builder, visitor, context, cfg);
 
   builder.appendStatic('>');
 
@@ -86,10 +142,11 @@ function convertSelfClosing(
   node: ts.JsxSelfClosingElement,
   visitor: ts.Visitor,
   context: ts.TransformationContext,
+  cfg: ResolvedConfig,
 ): ts.Expression {
-  const tagName = resolveTagName(node.tagName);
+  const tagName = resolveTagName(node.tagName, cfg);
 
-  if (shouldUnwrapComponent(getOriginalTagName(node.tagName))) {
+  if (cfg.shouldUnwrap(getOriginalTagName(node.tagName))) {
     // Self-closing unwrap → nothing
     return ts.factory.createIdentifier('nothing');
   }
@@ -97,7 +154,7 @@ function convertSelfClosing(
   const builder = new TemplateBuilder();
 
   builder.appendStatic(`<${tagName}`);
-  emitAttributes(node.attributes, builder, visitor, context);
+  emitAttributes(node.attributes, builder, visitor, context, cfg);
   builder.appendStatic(`></${tagName}>`);
 
   return builder.build();
@@ -119,6 +176,7 @@ function convertWithNativeAttributes(
   node: ts.JsxElement,
   visitor: ts.Visitor,
   context: ts.TransformationContext,
+  cfg: ResolvedConfig,
 ): ts.Expression {
   const attrs = node.openingElement.attributes;
   let tagName = 'div'; // default
@@ -136,12 +194,12 @@ function convertWithNativeAttributes(
   builder.appendStatic(`<${tagName}`);
 
   // Emit non-WNA attributes (className, style, etc.)
-  const wnaSkip = new Set(['tag', 'componentName', 'nativeAttributes', 'skipWarnings', 'ref', ...REMOVE_ATTRS]);
+  const wnaSkip = new Set(['tag', 'componentName', 'nativeAttributes', 'skipWarnings', 'ref', ...cfg.removeAttrs]);
   for (const attr of attrs.properties) {
     if (ts.isJsxAttribute(attr)) {
       const attrName = ts.isIdentifier(attr.name) ? attr.name.text : attr.name.getText();
       if (wnaSkip.has(attrName)) continue;
-      emitAttribute(attr, builder, visitor, context);
+      emitAttribute(attr, builder, visitor, context, cfg);
     }
   }
 
@@ -174,10 +232,11 @@ function emitAttributes(
   builder: TemplateBuilder,
   visitor: ts.Visitor,
   context: ts.TransformationContext,
+  cfg: ResolvedConfig,
 ): void {
   for (const attr of attributes.properties) {
     if (ts.isJsxAttribute(attr)) {
-      emitAttribute(attr, builder, visitor, context);
+      emitAttribute(attr, builder, visitor, context, cfg);
     } else if (ts.isJsxSpreadAttribute(attr)) {
       // Spread attributes — skip (no Lit equivalent)
       // Could be expanded to individual attrs if needed
@@ -190,12 +249,13 @@ function emitAttribute(
   builder: TemplateBuilder,
   visitor: ts.Visitor,
   context: ts.TransformationContext,
+  cfg: ResolvedConfig,
 ): void {
   const name = ts.isIdentifier(attr.name) ? attr.name.text : attr.name.getText();
 
   // Skip infrastructure attributes
-  if (REMOVE_ATTRS.has(name)) return;
-  if (REMOVE_ATTR_PREFIXES.some((p) => name.startsWith(p))) return;
+  if (cfg.removeAttrs.has(name)) return;
+  if (cfg.removeAttrPrefixes.some((p) => name.startsWith(p))) return;
 
   // Map attribute names
   const litName = mapAttributeName(name);
@@ -289,14 +349,14 @@ function emitChildren(
 // Tag name resolution
 // ---------------------------------------------------------------------------
 
-function resolveTagName(tagName: ts.JsxTagNameExpression): string {
+function resolveTagName(tagName: ts.JsxTagNameExpression, cfg: ResolvedConfig): string {
   const original = getOriginalTagName(tagName);
 
   // Native HTML tag (from DOM spec)
   if (getHtmlTagNames().has(original)) return original;
 
   // React builtins and wrappers to unwrap
-  if (shouldUnwrapComponent(original)) return '__unwrap__';
+  if (cfg.shouldUnwrap(original)) return '__unwrap__';
 
   // PascalCase component → el-kebab-name
   if (/^[A-Z]/.test(original)) return toTagName(original);

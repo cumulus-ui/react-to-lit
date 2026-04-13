@@ -14,12 +14,19 @@ import { walkTemplate } from '../template-walker.js';
 
 /**
  * Recursively unwrap WithNativeAttributes nodes in the template tree.
+ *
+ * @param node - The template node to process
+ * @param removeAttrs - Optional set of attribute names to strip. Falls back to the
+ *   default REMOVE_ATTRS from cloudscape-config when omitted.
  */
-export function unwrapWithNativeAttributes(node: TemplateNodeIR): TemplateNodeIR {
+export function unwrapWithNativeAttributes(
+  node: TemplateNodeIR,
+  removeAttrs?: Set<string>,
+): TemplateNodeIR {
   return walkTemplate(node, {
     node: (n) => {
       if (n.kind === 'component' && n.tag === 'WithNativeAttributes') {
-        return unwrapNode(n);
+        return unwrapNode(n, removeAttrs);
       }
       return undefined; // keep as-is
     },
@@ -30,7 +37,7 @@ export function unwrapWithNativeAttributes(node: TemplateNodeIR): TemplateNodeIR
 // Unwrap logic
 // ---------------------------------------------------------------------------
 
-function unwrapNode(node: TemplateNodeIR): TemplateNodeIR {
+function unwrapNode(node: TemplateNodeIR, removeAttrs?: Set<string>): TemplateNodeIR {
   // Extract the tag prop value
   const tagAttr = node.attributes.find((a) => a.name === 'tag');
   const tag = tagAttr
@@ -38,7 +45,8 @@ function unwrapNode(node: TemplateNodeIR): TemplateNodeIR {
     : 'div';
 
   // Filter out WithNativeAttributes-specific props
-  const skipAttrs = new Set([...REMOVE_ATTRS, 'tag']);
+  const attrsToRemove = removeAttrs ?? REMOVE_ATTRS;
+  const skipAttrs = new Set([...attrsToRemove, 'tag']);
 
   const keptAttrs: AttributeIR[] = [];
   for (const attr of node.attributes) {

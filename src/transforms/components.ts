@@ -11,6 +11,9 @@ import type { TemplateNodeIR, AttributeIR } from '../ir/types.js';
 import { UNWRAP_COMPONENTS, shouldUnwrapComponent } from '../cloudscape-config.js';
 import { toTagName } from '../naming.js';
 
+// React builtins that are ALWAYS unwrapped regardless of config
+const REACT_BUILTINS = ['Fragment', 'React.Fragment', 'Suspense', 'StrictMode', 'Profiler'];
+
 
 // ---------------------------------------------------------------------------
 // Registry types
@@ -39,6 +42,27 @@ function getAttr(node: TemplateNodeIR, name: string): string | undefined {
   if (!attr) return undefined;
   if (typeof attr.value === 'string') return attr.value;
   return attr.value.expression;
+}
+
+// ---------------------------------------------------------------------------
+// Config-aware unwrap check
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if a component name should be unwrapped, using an optional custom set.
+ * Falls back to the default UNWRAP_COMPONENTS when no set is provided.
+ *
+ * React builtins (Fragment, Suspense, StrictMode, Profiler) and Context
+ * wrappers (.Provider, .Consumer) are ALWAYS unwrapped regardless of config.
+ */
+function shouldUnwrapComponentWithConfig(name: string, unwrapSet?: Set<string>): boolean {
+  const set = unwrapSet ?? UNWRAP_COMPONENTS;
+  if (set.has(name)) return true;
+  // React builtins always unwrap (universal, not library-specific)
+  if (REACT_BUILTINS.includes(name)) return true;
+  // Any Xxx.Provider or Xxx.Consumer is a React Context wrapper
+  if (name.endsWith('.Provider') || name.endsWith('.Consumer')) return true;
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,9 +191,10 @@ export const cloudscapeComponentRegistry: ComponentRegistry = {
 export function resolveComponentReferences(
   node: TemplateNodeIR,
   registry: ComponentRegistry = cloudscapeComponentRegistry,
+  unwrapComponents?: Set<string>,
 ): { template: TemplateNodeIR; sideEffectImports: Set<string> } {
   const imports = new Set<string>();
-  const transformed = resolveNode(node, registry, imports);
+  const transformed = resolveNode(node, registry, imports, unwrapComponents);
   return { template: transformed, sideEffectImports: imports };
 }
 
@@ -181,6 +206,7 @@ function resolveNode(
   node: TemplateNodeIR,
   registry: ComponentRegistry,
   imports: Set<string>,
+  unwrapComponents?: Set<string>,
 ): TemplateNodeIR {
   let resolvedNode = node;
 
@@ -208,7 +234,7 @@ function resolveNode(
       };
       const componentPath = deriveImportPath(entry);
       if (componentPath) imports.add(componentPath);
-    } else if (shouldUnwrapComponent(node.tag)) {
+    } else if (shouldUnwrapComponentWithConfig(node.tag, unwrapComponents)) {
       // Dynamic pattern match (e.g., any Xxx.Provider not explicitly listed)
       resolvedNode = {
         kind: 'fragment',
@@ -233,7 +259,7 @@ function resolveNode(
 
   // Recurse into children
   const transformedChildren = resolvedNode.children.map((child) =>
-    resolveNode(child, registry, imports),
+    resolveNode(child, registry, imports, unwrapComponents),
   );
 
   return {
@@ -243,7 +269,7 @@ function resolveNode(
       ? {
           ...resolvedNode.condition,
           alternate: resolvedNode.condition.alternate
-            ? resolveNode(resolvedNode.condition.alternate, registry, imports)
+            ? resolveNode(resolvedNode.condition.alternate, registry, imports, unwrapComponents)
             : undefined,
         }
       : undefined,
