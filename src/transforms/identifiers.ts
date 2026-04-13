@@ -275,6 +275,7 @@ function rewriteQuickPatterns(text: string, ir: ComponentIR): string {
   let result = text;
 
   // setFoo(val) → this._foo = val
+  // setFoo(prev => newVal) → this._foo = ((prev) => newVal)(this._foo)
   for (const s of ir.state) {
     const setter = s.setter;
     const field = `_${s.name}`;
@@ -285,8 +286,12 @@ function rewriteQuickPatterns(text: string, ir: ComponentIR): string {
       const argStart = start + match[0].length;
       const argEnd = findMatchingParen(result, argStart - 1);
       if (argEnd === -1) continue;
-      const arg = result.slice(argStart, argEnd);
-      const replacement = `this.${field} = ${arg}`;
+      const arg = result.slice(argStart, argEnd).trim();
+      // Detect updater function pattern: (prev) => expr or prev => expr
+      const isUpdater = /^\(?[\w,\s]*\)?\s*=>/.test(arg);
+      const replacement = isUpdater
+        ? `this.${field} = (${arg})(this.${field})`
+        : `this.${field} = ${arg}`;
       result = result.slice(0, start) + replacement + result.slice(argEnd + 1);
       pattern.lastIndex = start + replacement.length;
     }
@@ -309,8 +314,11 @@ function rewriteQuickPatterns(text: string, ir: ComponentIR): string {
       const argStart = start + match[0].length;
       const argEnd = findMatchingParen(result, argStart - 1);
       if (argEnd === -1) continue;
-      const arg = result.slice(argStart, argEnd);
-      const replacement = `this.${field} = ${arg}`;
+      const arg = result.slice(argStart, argEnd).trim();
+      const isUpdater = /^\(?[\w,\s]*\)?\s*=>/.test(arg);
+      const replacement = isUpdater
+        ? `this.${field} = (${arg})(this.${field})`
+        : `this.${field} = ${arg}`;
       result = result.slice(0, start) + replacement + result.slice(argEnd + 1);
       pattern.lastIndex = start + replacement.length;
     }
