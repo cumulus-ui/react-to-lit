@@ -26,18 +26,17 @@ library-specific configuration needed for discovery.
 
 ### Step 1: Component discovery
 
-Given a package name (e.g., `@cloudscape-design/components`), the compiler
-reads the barrel `index.d.ts` using the TypeScript type checker. Every export
-that is a React component (has a call signature returning JSX) is discovered
-automatically:
+Given a package name, the compiler uses the TypeScript type checker to resolve
+every export and identify which are React components. Props types and their
+source files are traced through the type graph:
 
 ```typescript
 import { discoverComponents } from '@cumulus-ui/react-to-lit';
 
 const components = discoverComponents('@cloudscape-design/components');
 // [
-//   { name: 'Alert',  dir: './alert',  propsType: 'AlertProps',  propsFile: '.../interfaces.d.ts' },
-//   { name: 'Button', dir: './button', propsType: 'ButtonProps', propsFile: '.../interfaces.d.ts' },
+//   { name: 'Alert',  dir: './alert',  propsType: 'AlertProps',  propsFile: 'alert/interfaces.d.ts' },
+//   { name: 'Button', dir: './button', propsType: 'ButtonProps', propsFile: 'button/interfaces.d.ts' },
 //   ...91 components
 // ]
 ```
