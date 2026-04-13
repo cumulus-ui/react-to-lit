@@ -18,7 +18,7 @@ import type {
 import { getNodeText } from './program.js';
 import { lookupHook, type HookRegistry } from '../hooks/registry.js';
 import { SKIP_PREFIXES } from '../cloudscape-config.js';
-import { collectBindingNames } from './utils.js';
+import { collectBindingNames, isHookCall } from './utils.js';
 
 // ---------------------------------------------------------------------------
 // Result type
@@ -70,8 +70,15 @@ export function extractHooks(
     // Variable declarations: const [x, setX] = useState(init)
     if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
-        if (decl.initializer && ts.isCallExpression(decl.initializer)) {
+        if (!decl.initializer || !isHookCall(decl.initializer)) continue;
+        // Direct hook call: const x = useHook(...) — full structural extraction
+        if (ts.isCallExpression(decl.initializer)) {
           processHookCall(decl, decl.initializer, sourceFile, hookRegistry, result, body);
+        }
+        // Wrapped hook call (e.g. useHook(...).property) — preserve variables
+        // so the identifier rewriter can map them to class fields.
+        else {
+          collectPreservedVars(decl, result.preservedVars);
         }
       }
       continue;

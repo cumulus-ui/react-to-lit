@@ -365,16 +365,23 @@ function containsJSX(source: string): boolean {
 // ---------------------------------------------------------------------------
 
 export function isHookCall(expr: ts.Expression): boolean {
-  if (!ts.isCallExpression(expr)) return false;
-  const callee = expr.expression;
-  if (ts.isIdentifier(callee) && callee.text.startsWith('use')) return true;
-  if (
-    ts.isPropertyAccessExpression(callee) &&
-    ts.isIdentifier(callee.expression) &&
-    callee.expression.text === 'React' &&
-    callee.name.text.startsWith('use')
-  ) {
-    return true;
+  // Direct hook call: useHook(...) or React.useHook(...)
+  if (ts.isCallExpression(expr)) {
+    const callee = expr.expression;
+    if (ts.isIdentifier(callee) && callee.text.startsWith('use')) return true;
+    if (
+      ts.isPropertyAccessExpression(callee) &&
+      ts.isIdentifier(callee.expression) &&
+      callee.expression.text === 'React' &&
+      callee.name.text.startsWith('use')
+    ) {
+      return true;
+    }
+    return false;
+  }
+  // Property access on hook call: useHook(...).property
+  if (ts.isPropertyAccessExpression(expr) && ts.isCallExpression(expr.expression)) {
+    return isHookCall(expr.expression);
   }
   return false;
 }
