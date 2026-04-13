@@ -267,6 +267,13 @@ export interface LoopIR {
 
   /** Index variable name if present, e.g. "index" */
   index?: string;
+
+  /**
+   * Variable declarations from the .map() callback body that precede
+   * the return statement. These are local to each loop iteration and
+   * must be emitted inside the map callback as a block body.
+   */
+  preamble?: string[];
 }
 
 // ---------------------------------------------------------------------------

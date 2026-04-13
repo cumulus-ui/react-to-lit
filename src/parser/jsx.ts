@@ -428,18 +428,40 @@ function tryParseMapCall(
     : undefined;
 
   // Parse the callback body as JSX
+  let preamble: string[] | undefined;
   const body = ts.isBlock(callback.body)
     ? (() => {
-        const ret = findReturnStatement(callback.body as ts.Block);
+        const block = callback.body as ts.Block;
+        const ret = findReturnStatement(block);
+        // Collect variable declarations before the return as loop-body preamble
+        const stmts: string[] = [];
+        for (const stmt of block.statements) {
+          if (ts.isReturnStatement(stmt)) break;
+          stmts.push(getNodeText(stmt, sourceFile));
+        }
+        if (stmts.length > 0) preamble = stmts;
         return ret?.expression ? parseExpression(ret.expression, sourceFile) : null;
       })()
     : parseExpression(callback.body, sourceFile);
 
   if (!body) return null;
 
+  // When the loop body is a conditional (ternary inside .map), wrap it in a
+  // fragment so the loop contains the entire conditional — both branches
+  // have access to the loop variable.
+  if (body.condition) {
+    return {
+      kind: 'fragment',
+      tag: undefined,
+      attributes: [],
+      children: [body],
+      loop: { iterable, variable, index, preamble },
+    };
+  }
+
   return {
     ...body,
-    loop: { iterable, variable, index },
+    loop: { iterable, variable, index, preamble },
   };
 }
 

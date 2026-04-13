@@ -334,6 +334,38 @@ describe('parseComponent', () => {
   });
 
   // -------------------------------------------------------------------------
+  // ButtonGroup — loop body with local variables
+  // -------------------------------------------------------------------------
+  describe('ButtonGroup (loop-body locals)', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'button-group'));
+
+    it('should preserve loop-body preamble in the template loop', () => {
+      // button-group has: items.map((itemOrGroup, index) => {
+      //   const itemContent = ...;
+      //   const shouldAddDivider = ...;
+      //   return <JSX>;
+      // })
+      // The loop-body locals should be captured in loop.preamble.
+      function findLoop(node: import('../../src/ir/types.js').TemplateNodeIR): import('../../src/ir/types.js').LoopIR | undefined {
+        if (node.loop) return node.loop;
+        for (const child of node.children) {
+          const found = findLoop(child);
+          if (found) return found;
+        }
+        return undefined;
+      }
+      const loop = findLoop(ir.template);
+      expect(loop).toBeDefined();
+      expect(loop!.preamble).toBeDefined();
+      expect(loop!.preamble!.length).toBeGreaterThan(0);
+      // Should contain the local variable declarations
+      const joined = loop!.preamble!.join('\n');
+      expect(joined).toContain('shouldAddDivider');
+      expect(joined).toContain('itemContent');
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // TagEditor — entry file as implementation when secondary has only helpers
   // -------------------------------------------------------------------------
   describe('TagEditor', () => {

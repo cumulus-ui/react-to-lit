@@ -183,6 +183,14 @@ function emitLoopInline(
   const innerNode = { ...node, loop: undefined };
   const body = emitNodeInline(innerNode, collector, indent + 2);
 
+  // When the loop has a preamble (variable declarations from the .map callback body),
+  // emit a block-body arrow to preserve local scope.
+  if (loop.preamble && loop.preamble.length > 0) {
+    const innerPad = ' '.repeat(indent + 2);
+    const preambleCode = loop.preamble.map(s => `${innerPad}${s}`).join('\n');
+    return `${pad}\${${loop.iterable}.map((${params}) => {\n${preambleCode}\n${innerPad}return html\`\n${body}\n${innerPad}\`;\n${pad}})}`;
+  }
+
   return `${pad}\${${loop.iterable}.map((${params}) => html\`\n${body}\n${pad}\`)}`;
 }
 

@@ -122,11 +122,30 @@ function walkNode(node: TemplateNodeIR, visitor: TemplateVisitor): TemplateNodeI
     result = { ...result, condition };
   }
 
-  // Loop iterable
-  if (result.loop && visitor.loopIterable) {
-    const newIterable = visitor.loopIterable(result.loop.iterable, result);
-    if (newIterable !== undefined) {
-      result = { ...result, loop: { ...result.loop, iterable: newIterable } };
+  // Loop iterable and preamble
+  if (result.loop) {
+    let loopChanged = false;
+    let newLoop = { ...result.loop };
+    if (visitor.loopIterable) {
+      const newIterable = visitor.loopIterable(result.loop.iterable, result);
+      if (newIterable !== undefined) {
+        newLoop = { ...newLoop, iterable: newIterable };
+        loopChanged = true;
+      }
+    }
+    // Transform preamble statements through the expression visitor
+    if (result.loop.preamble && visitor.expression) {
+      const newPreamble = result.loop.preamble.map(stmt => {
+        const transformed = visitor.expression!(stmt, result);
+        return transformed ?? stmt;
+      });
+      if (newPreamble.some((s, i) => s !== result.loop!.preamble![i])) {
+        newLoop = { ...newLoop, preamble: newPreamble };
+        loopChanged = true;
+      }
+    }
+    if (loopChanged) {
+      result = { ...result, loop: newLoop };
     }
   }
 
