@@ -20,10 +20,8 @@ import { promoteEffectCleanupVars } from './effect-cleanup.js';
 // ---------------------------------------------------------------------------
 
 export interface TransformOptions {
-  /** Full compiler config — when provided, drives all transforms */
+  skipProps?: Set<string>;
   config?: CompilerConfig;
-  /** @deprecated Use config.components.registry instead */
-  componentRegistry?: ComponentRegistry;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,11 +63,9 @@ export function transformAll(
 ): ComponentIR {
   const config = options.config;
 
-  // Build registry from config or legacy option
-  const registry = options.componentRegistry
-    ?? (config?.components?.registry && Object.keys(config.components.registry).length > 0
-      ? buildRegistryFromConfig(config.components.registry)
-      : cloudscapeComponentRegistry);
+  const registry = config?.components?.registry && Object.keys(config.components.registry).length > 0
+    ? buildRegistryFromConfig(config.components.registry)
+    : cloudscapeComponentRegistry;
 
   // Resolve unwrap components from config
   const unwrapComponents = config?.cleanup?.unwrapComponents
@@ -79,8 +75,8 @@ export function transformAll(
 
   let result = ir;
 
-  // 1. Remove library internals (was: removeCloudscapeInternals)
-  result = removeLibraryInternals(result, config?.cleanup);
+  // 1. Remove library internals
+  result = removeLibraryInternals(result, options.skipProps ?? new Set());
 
   // 1b. Replace React types with web platform equivalents
   result = cleanupReactTypes(result);

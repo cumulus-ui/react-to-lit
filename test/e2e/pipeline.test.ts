@@ -60,8 +60,8 @@ describe('Full pipeline: parse → transform → emit', () => {
       expect(output).not.toContain('__internalRootRef');
     });
 
-    it('should NOT contain nativeAttributes prop', () => {
-      expect(output).not.toContain('nativeAttributes');
+    it('includes passthrough props when no skipProps provided', () => {
+      expect(output).toContain('nativeAttributes');
     });
 
     it('should contain <span', () => {
@@ -205,33 +205,18 @@ describe('config-driven pipeline', () => {
     expect(configOutput).toBe(legacyOutput);
   });
 
-  it('transformAll with custom config changes transform behaviour', () => {
+  it('transformAll with skipProps changes transform behaviour', () => {
     const ir = parseComponent(path.join(CLOUDSCAPE_SRC_DIR, 'badge'));
-
-    // Create a minimal custom config with different cleanup rules
-    const customConfig: CompilerConfig = {
-      ...createDefaultConfig(),
-      cleanup: {
-        ...createDefaultConfig().cleanup,
-        // Keep all props (no skip), minimal removeAttributes
-        skipProps: [],
-        skipPrefixes: [],
-        removeAttributes: [],
-        removeAttributePrefixes: [],
-        infraFunctions: [],
-        unwrapComponents: ['Fragment', 'React.Fragment'],
-      },
-    };
 
     const defaultResult = transformAll(ir);
     const defaultOutput = emitComponent(defaultResult);
 
-    const customResult = transformAll(ir, { config: customConfig });
-    const customOutput = emitComponent(customResult);
+    const withSkipResult = transformAll(ir, { skipProps: new Set(['nativeAttributes']) });
+    const withSkipOutput = emitComponent(withSkipResult);
 
-    // With the stripped-down cleanup config, the output should differ
-    // because Cloudscape-specific props / attributes are no longer removed
-    expect(customOutput).not.toBe(defaultOutput);
+    expect(withSkipOutput).not.toBe(defaultOutput);
+    expect(defaultOutput).toContain('nativeAttributes');
+    expect(withSkipOutput).not.toContain('nativeAttributes');
   });
 
   it('transformAll with custom config respects events config', () => {

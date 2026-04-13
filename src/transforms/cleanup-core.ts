@@ -9,8 +9,7 @@
  * by the orchestrator in `cleanup.ts`.
  */
 import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
-import type { CleanupConfig } from '../config.js';
-import { SKIP_PROPS, REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, INFRA_FUNCTIONS } from '../cloudscape-config.js';
+import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, INFRA_FUNCTIONS } from '../cloudscape-config.js';
 import { walkTemplate } from '../template-walker.js';
 import { stripFunctionCalls, stripIfBlocks, unwrapFunctionCall } from '../text-utils.js';
 
@@ -69,14 +68,11 @@ export const BASE_PROPS_CLASSNAME_RE = /\bbaseProps\.className\b,?\s*/g;
  * Library-specific patterns are NOT applied here — use a
  * {@link CleanupPlugin} via the orchestrator for those.
  */
-export function applyCoreCleanup(ir: ComponentIR, config?: CleanupConfig): ComponentIR {
-  // Resolve config values — fall back to module-level Cloudscape defaults
-  const skipProps = config ? new Set(config.skipProps) : SKIP_PROPS;
-  const removeAttrs = config ? new Set(config.removeAttributes) : REMOVE_ATTRS;
-  const removeAttrPrefixes = config?.removeAttributePrefixes ?? REMOVE_ATTR_PREFIXES;
-  const infraFunctions = config ? new Set(config.infraFunctions) : INFRA_FUNCTIONS;
+export function applyCoreCleanup(ir: ComponentIR, skipProps: Set<string>): ComponentIR {
+  const removeAttrs = REMOVE_ATTRS;
+  const removeAttrPrefixes = REMOVE_ATTR_PREFIXES;
+  const infraFunctions = INFRA_FUNCTIONS;
 
-  // Remove internal props
   const props = ir.props.filter((p) => {
     if (p.name.startsWith('__')) return false;
     if (skipProps.has(p.name)) return false;

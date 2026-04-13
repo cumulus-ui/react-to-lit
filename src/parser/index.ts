@@ -33,21 +33,10 @@ import type { CompilerConfig } from '../config.js';
 // ---------------------------------------------------------------------------
 
 export interface ParseOptions {
-  /** Custom hook registry overrides */
-  hookMappings?: HookRegistry;
-
-  /**
-   * Path to published declaration files (e.g., node_modules/@cloudscape-design/components).
-   * When provided, the parser reads .d.ts interfaces for complete prop type information
-   * instead of relying solely on React source destructuring.
-   */
-  declarationsDir?: string;
-
-  /** Full compiler configuration — when provided, parser uses config values instead of hardcoded defaults. */
-  config?: CompilerConfig;
-
-  /** Props to skip (e.g., passthrough bags identified by the PackageAnalyzer). */
   skipProps?: Set<string>;
+  hookMappings?: HookRegistry;
+  declarationsDir?: string;
+  config?: CompilerConfig;
 }
 
 // ---------------------------------------------------------------------------

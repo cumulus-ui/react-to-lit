@@ -82,7 +82,7 @@ async function processComponents(
 
     try {
       const ir = parseComponent(dir, { skipProps });
-      const transformed = transformAll(ir);
+      const transformed = transformAll(ir, { skipProps });
       const output = emitComponent(transformed);
 
       if (opts.dryRun) {
