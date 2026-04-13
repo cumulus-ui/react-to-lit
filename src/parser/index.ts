@@ -760,10 +760,6 @@ function isComponentImportPath(specifier: string): boolean {
   if (specifier.includes('analytics-metadata')) return true;
   // Analytics hooks — React-specific, handled by hook registry
   if (specifier.includes('analytics/hooks')) return true;
-  // Context providers (already handled by transforms)
-  if (specifier.includes('/context')) return true;
-  // Hooks — handled by the hook registry
-  if (specifier.includes('/hooks') || specifier.includes('use-')) return true;
   // Base component infrastructure
   if (specifier.includes('base-component') || specifier.includes('base-element')) return true;
   // i18n — needs separate Lit i18n strategy

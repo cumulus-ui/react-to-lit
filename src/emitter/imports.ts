@@ -224,10 +224,11 @@ export function collectImports(ir: ComponentIR): ImportCollector {
     ...ir.fileConstants,
     ...ir.fileTypeDeclarations,
     ...ir.bodyPreamble,
-    ...ir.computedValues.map(c => c.expression),
+    ...ir.computedValues.map(c => c.expression + (c.type ?? '')),
     ...ir.publicMethods.map(m => m.body),
-    ...ir.state.map(s => s.initialValue),
-    ...ir.refs.map(r => r.initialValue),
+    ...ir.state.map(s => s.initialValue + (s.type ?? '')),
+    ...ir.refs.map(r => r.initialValue + (r.type ?? '')),
+    ...ir.props.map(p => p.type),
     templateToText(ir.template),
   ].join('\n');
 
