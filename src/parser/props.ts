@@ -11,9 +11,7 @@ import { Project, ts as morphTs } from 'ts-morph';
 import type { PropIR } from '../ir/types.js';
 import { getNodeText, parseFile } from './program.js';
 import type { RawComponent } from './component.js';
-import { SKIP_PROPS, SKIP_PREFIXES } from '../cloudscape-config.js';
 import { camelToKebab, isEventProp } from '../naming.js';
-import type { CleanupConfig } from '../config.js';
 
 // ---------------------------------------------------------------------------
 // Main extraction
@@ -33,10 +31,10 @@ import type { CleanupConfig } from '../config.js';
 export function extractProps(
   component: RawComponent,
   sourceFile: ts.SourceFile,
+  skipProps: Set<string>,
   componentDir?: string,
   declarationsDir?: string,
   componentName?: string,
-  cleanupConfig?: CleanupConfig,
 ): PropIR[] {
   // Build type map — prefer published .d.ts, fall back to vendor interfaces.ts
   let interfaceTypeMap = new Map<string, string>();
@@ -79,7 +77,7 @@ export function extractProps(
   const props: PropIR[] = [];
   const seen = new Set<string>();
   for (const [propName, typeText, defaultValue] of candidates) {
-    if (shouldSkipProp(propName, cleanupConfig)) continue;
+    if (shouldSkipProp(propName, skipProps)) continue;
     if (seen.has(propName)) continue;
     seen.add(propName);
     props.push(classifyProp(propName, typeText, defaultValue));
@@ -406,12 +404,8 @@ function extractEventDetailType(typeText: string): string | undefined {
   return match?.[1] || undefined;
 }
 
-function shouldSkipProp(name: string, config?: CleanupConfig): boolean {
-  const skipProps = config ? new Set(config.skipProps) : SKIP_PROPS;
-  const skipPrefixes = config?.skipPrefixes ?? SKIP_PREFIXES;
-  if (skipProps.has(name)) return true;
-  if (skipPrefixes.some((p) => name.startsWith(p))) return true;
-  return false;
+function shouldSkipProp(name: string, skipProps: Set<string>): boolean {
+  return skipProps.has(name);
 }
 
 /**

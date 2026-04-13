@@ -41,11 +41,9 @@ describe('parseComponent', () => {
       expect(childrenProp!.category).toBe('slot');
     });
 
-    it('should skip Cloudscape internal props', () => {
-      const internalProps = ir.props.filter(
-        (p) => p.name.startsWith('__') || p.name === 'nativeAttributes',
-      );
-      expect(internalProps).toHaveLength(0);
+    it('should include passthrough props when no skipProps provided', () => {
+      const nativeAttr = ir.props.find(p => p.name === 'nativeAttributes');
+      expect(nativeAttr).toBeDefined();
     });
 
     it('should have no state (no useState calls)', () => {

@@ -45,29 +45,23 @@ describe('isInfraFunction', () => {
 // extractProps — config.cleanup overrides skipProps/skipPrefixes
 // ---------------------------------------------------------------------------
 
-describe('extractProps with config override', () => {
-  it('skips custom props when cleanup config provided', () => {
-    const config = createCloudscapeConfig();
-    // Add 'color' to skipProps — Badge has a color prop
-    config.cleanup.skipProps = [...config.cleanup.skipProps, 'color'];
-
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { config });
+describe('extractProps with skipProps override', () => {
+  it('skips props in the provided set', () => {
+    const skipProps = new Set(['color']);
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { skipProps });
     const colorProp = ir.props.find((p) => p.name === 'color');
     expect(colorProp).toBeUndefined();
   });
 
-  it('preserves default behavior when no config provided', () => {
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'));
+  it('preserves all props when skipProps is empty', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { skipProps: new Set() });
     const colorProp = ir.props.find((p) => p.name === 'color');
     expect(colorProp).toBeDefined();
   });
 
-  it('uses custom skipPrefixes from config', () => {
-    const config = createCloudscapeConfig();
-    // Change skipPrefixes to skip 'c' prefix — should skip 'color' and 'children'
-    config.cleanup.skipPrefixes = ['c'];
-
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { config });
+  it('skips multiple props', () => {
+    const skipProps = new Set(['color', 'children']);
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { skipProps });
     const colorProp = ir.props.find((p) => p.name === 'color');
     const childrenProp = ir.props.find((p) => p.name === 'children');
     expect(colorProp).toBeUndefined();

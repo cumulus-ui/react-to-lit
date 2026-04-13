@@ -45,6 +45,9 @@ export interface ParseOptions {
 
   /** Full compiler configuration — when provided, parser uses config values instead of hardcoded defaults. */
   config?: CompilerConfig;
+
+  /** Props to skip (e.g., passthrough bags identified by the PackageAnalyzer). */
+  skipProps?: Set<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,7 +126,7 @@ export function parseComponent(
   // 4. Extract props
   const sourceFile = component.sourceFile;
   const dirName = path.basename(componentDir);
-  const props = extractProps(component, sourceFile, componentDir, declarationsDir, dirName, options.config?.cleanup);
+  const props = extractProps(component, sourceFile, options.skipProps ?? new Set(), componentDir, declarationsDir, dirName);
 
   // 5. Extract hooks from the implementation body
   const hookResult = ts.isBlock(component.body)

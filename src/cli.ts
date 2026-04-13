@@ -6,6 +6,7 @@ import { parseComponent } from './parser/index.js';
 import { transformAll } from './transforms/index.js';
 import { emitComponent } from './emitter/index.js';
 import { discoverComponents } from './config.js';
+import { PackageAnalyzer } from './package-analyzer.js';
 
 const program = new Command();
 
@@ -26,22 +27,39 @@ program
     const sourceRoot = path.resolve(opts.source);
     const outputRoot = path.resolve(opts.output);
 
+    const analyzer = new PackageAnalyzer(opts.package);
     const discovered = discoverComponents(opts.package);
-    const components = discovered.map(c => ({
-      name: c.name,
-      dir: path.resolve(sourceRoot, c.dir.replace(/^\.\//, '')),
-    }));
 
-    if (opts.component) {
-      const filtered = components.filter(c => c.name === opts.component || path.basename(c.dir) === opts.component);
-      if (filtered.length === 0) {
-        console.error(`Component '${opts.component}' not found in ${opts.package}`);
-        process.exit(1);
+    const componentEntries = discovered.map(c => {
+      const skipProps = new Set<string>();
+
+      if (c.propsType && c.propsFile) {
+        const propsType = analyzer.getPropsType(c.propsType, c.propsFile);
+        if (propsType) {
+          const classified = analyzer.classifyAllProps(propsType);
+          for (const [name, info] of classified) {
+            if (info.classification === 'passthrough') skipProps.add(name);
+          }
+        }
       }
-      await processComponents(filtered, outputRoot, opts);
-    } else {
-      await processComponents(components, outputRoot, opts);
+
+      return {
+        name: c.name,
+        dir: path.resolve(sourceRoot, c.dir.replace(/^\.\//, '')),
+        skipProps,
+      };
+    });
+
+    const toProcess = opts.component
+      ? componentEntries.filter(c => c.name === opts.component)
+      : componentEntries;
+
+    if (opts.component && toProcess.length === 0) {
+      console.error(`Component '${opts.component}' not found in ${opts.package}`);
+      process.exit(1);
     }
+
+    await processComponents(toProcess, outputRoot, opts);
   });
 
 program.parse();
@@ -51,7 +69,7 @@ program.parse();
 // ---------------------------------------------------------------------------
 
 async function processComponents(
-  components: Array<{ name: string; dir: string }>,
+  components: Array<{ name: string; dir: string; skipProps: Set<string> }>,
   outputRoot: string,
   opts: { dryRun?: boolean; verbose?: boolean },
 ): Promise<void> {
@@ -59,11 +77,11 @@ async function processComponents(
   let failed = 0;
   const failures: Array<{ name: string; error: string }> = [];
 
-  for (const { name, dir } of components) {
+  for (const { name, dir, skipProps } of components) {
     const outputFile = path.join(outputRoot, path.basename(dir), 'internal.ts');
 
     try {
-      const ir = parseComponent(dir);
+      const ir = parseComponent(dir, { skipProps });
       const transformed = transformAll(ir);
       const output = emitComponent(transformed);
 
