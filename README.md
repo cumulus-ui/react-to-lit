@@ -18,6 +18,87 @@ infrastructure props to strip, sub-component mappings, event dispatch pattern,
 and naming rules. A built-in preset for the Cloudscape Design System is
 included, but the core pipeline is library-agnostic.
 
+## How the compiler understands a React library
+
+The compiler reads your React library's **published npm package** to understand
+what it contains. No hardcoded component lists, no naming conventions, no
+library-specific configuration needed for discovery.
+
+### Step 1: Component discovery
+
+Given a package name (e.g., `@cloudscape-design/components`), the compiler
+reads the barrel `index.d.ts` using the TypeScript type checker. Every export
+that is a React component (has a call signature returning JSX) is discovered
+automatically:
+
+```typescript
+import { discoverComponents } from '@cumulus-ui/react-to-lit';
+
+const components = discoverComponents('@cloudscape-design/components');
+// [
+//   { name: 'Alert',  dir: './alert',  propsType: 'AlertProps',  propsFile: '.../interfaces.d.ts' },
+//   { name: 'Button', dir: './button', propsType: 'ButtonProps', propsFile: '.../interfaces.d.ts' },
+//   ...91 components
+// ]
+```
+
+The type checker resolves all export patterns -- function components, forwardRef
+wrappers, opaque type aliases -- without assuming any naming convention. The
+props type and its source file are traced through the type graph, not guessed
+from names.
+
+### Step 2: Prop classification
+
+For each component, the `PackageAnalyzer` classifies every prop using the
+TypeScript type system:
+
+```typescript
+import { PackageAnalyzer } from '@cumulus-ui/react-to-lit';
+
+const analyzer = new PackageAnalyzer('@cloudscape-design/components');
+const propsType = analyzer.getPropsType('ButtonProps', '.../interfaces.d.ts');
+const classified = analyzer.classifyAllProps(propsType);
+// Map {
+//   'disabled'  => 'prop',    // boolean -- becomes @property({ type: Boolean })
+//   'variant'   => 'prop',    // string enum -- becomes @property({ type: String })
+//   'onClick'   => 'event',   // callback taking a DOM Event -- becomes CustomEvent dispatch
+//   'children'  => 'slot',    // React.ReactNode -- becomes <slot>
+//   'iconSvg'   => 'slot',    // React.ReactNode -- becomes <slot name="icon-svg">
+//   'className' => 'prop',    // string -- consumer decides how to handle
+// }
+```
+
+Classification is based entirely on the type system:
+
+- **`event`** -- the prop is a function taking a single parameter whose type
+  traces back to a DOM Event type (directly, or through utility types like
+  `Omit<CustomEvent<T>, 'preventDefault'>`). Detected by walking the type
+  alias chain and checking declaration source files against `lib.dom.d.ts`.
+- **`slot`** -- the prop's type is declared in `@types/react` (e.g.,
+  `React.ReactNode`). These are React renderables that become Shadow DOM slots.
+- **`prop`** -- everything else. The full TypeScript type is preserved --
+  string enums, nested interfaces, generics, JSDoc documentation all carry
+  through to the Lit output.
+
+No string matching on type names. No hardcoded lists. The type checker does
+the work.
+
+### Step 3: Type preservation
+
+The published types from the npm package (interfaces, enums, JSDoc, generics)
+are preserved in the Lit output. The compiler strips only what's
+framework-specific:
+
+| React type | Lit equivalent | Handled by |
+|------------|---------------|------------|
+| `React.ReactNode` | `<slot>` | Removed from props, emitted as slot |
+| `CancelableEventHandler<Detail>` | `CustomEvent<Detail>` | Removed from props, emitted as event dispatch |
+| Everything else | Preserved as-is | Types, enums, interfaces pass through |
+
+This means consumers of the generated Lit components get the **same type
+safety** as the React originals -- autocomplete for `variant: 'normal' |
+'primary'`, typed event details, documented props.
+
 ### How a consumer adopts the output
 
 The compiler produces standalone Lit classes:
@@ -145,3 +226,5 @@ walkthrough with worked examples and full configuration reference.
 - [Adding a New Library](docs/adding-a-library.md) -- configuration guide
 - [Architecture](docs/architecture.md) -- pipeline internals, contributor
   guidelines, development commands
+- [Semantic Gaps](docs/semantic-gaps.md) -- known React-to-Lit behavioral
+  differences and their implications
