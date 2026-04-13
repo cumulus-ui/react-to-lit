@@ -440,8 +440,16 @@ function extractBodyPreamble(
       continue;
     }
 
-    // After hooks: capture the preamble code
-    if (pastHooks) {
+    // Capture preamble code: both pre-hook setup statements and
+    // post-hook computations. In React all these are in the same
+    // flat function scope.
+    // Skip pre-hook statements that destructure the raw props parameter
+    // (those are infrastructure, not user logic).
+    if (!pastHooks) {
+      const text = sourceFile.text.slice(stmt.getStart(sourceFile), stmt.getEnd());
+      if (text.includes('props') || text.includes('getBaseProps') || text.includes('useBaseComponent')) continue;
+    }
+    {
       const text = sourceFile.text.slice(stmt.getStart(sourceFile), stmt.getEnd());
       // Skip Cloudscape infrastructure
       if ([...INFRA_FUNCTIONS].some(fn => text.includes(fn))) continue;
