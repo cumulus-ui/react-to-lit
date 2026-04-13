@@ -8,6 +8,7 @@
  * - Pattern C: forwardRef in index.tsx + forwardRef in internal.tsx (Button)
  */
 import ts from 'typescript';
+import path from 'node:path';
 import { getNodeText } from './program.js';
 import { isExported, isDefault } from './utils.js';
 
@@ -79,7 +80,39 @@ export function findComponent(
     };
   }
 
-  // If internal.tsx exists, find the implementation there
+  // If a second source file exists, check whether the entry file actually
+  // delegates to it. In the wrapper+implementation pattern, the entry file
+  // imports from the second file and re-exports or wraps it. If the entry
+  // doesn't reference the second file at all, it's self-contained and the
+  // second file only has helper components (not the main implementation).
+  const entryDir = path.dirname(indexFile.fileName);
+  const secondFileBase = path.resolve(internalFile.fileName).replace(/\.\w+$/, '');
+  const entryDelegatesToSecondFile = indexFile.statements.some(stmt => {
+    if (!ts.isImportDeclaration(stmt)) return false;
+    const spec = (stmt.moduleSpecifier as ts.StringLiteral).text;
+    if (!spec.startsWith('.')) return false;
+    // Resolve the specifier relative to the entry file's directory,
+    // stripping any extension so bare specifiers match too.
+    const resolved = path.resolve(entryDir, spec).replace(/\.\w+$/, '');
+    return resolved === secondFileBase;
+  });
+
+  if (!entryDelegatesToSecondFile) {
+    // Entry file is self-contained — use it as the implementation
+    return {
+      name: indexComponent.name,
+      forwardRef: indexComponent.forwardRef,
+      body: indexComponent.body,
+      parameters: indexComponent.parameters,
+      sourceFile: indexFile,
+      propsTypeName: indexComponent.propsTypeName,
+      defaultsFromIndex,
+      defaultsFromInternal: new Map(),
+      hasInternal: false,
+    };
+  }
+
+  // The entry delegates to the second file — find the implementation there
   const internalComponent = findComponentInFile(internalFile);
   if (!internalComponent) {
     throw new Error(`No component function found in ${internalFile.fileName}`);
