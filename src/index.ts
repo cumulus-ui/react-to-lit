@@ -18,7 +18,7 @@ export {
   transformEvents,
   rewriteIdentifiers,
   resolveComponentReferences,
-  cloudscapeComponentRegistry,
+  componentRegistry,
   removeLibraryInternals,
   removeCloudscapeInternals,
   cleanupReactTypes,

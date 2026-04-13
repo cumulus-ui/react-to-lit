@@ -29,6 +29,7 @@ program
 
     const analyzer = new PackageAnalyzer(opts.package);
     const discovered = discoverComponents(opts.package);
+    const knownComponents = new Set(discovered.map(c => c.name));
 
     const componentEntries = discovered.map(c => {
       const skipProps = new Set<string>();
@@ -47,6 +48,7 @@ program
         name: c.name,
         dir: path.resolve(sourceRoot, c.dir.replace(/^\.\//, '')),
         skipProps,
+        knownComponents,
       };
     });
 
@@ -69,7 +71,7 @@ program.parse();
 // ---------------------------------------------------------------------------
 
 async function processComponents(
-  components: Array<{ name: string; dir: string; skipProps: Set<string> }>,
+  components: Array<{ name: string; dir: string; skipProps: Set<string>; knownComponents: Set<string> }>,
   outputRoot: string,
   opts: { dryRun?: boolean; verbose?: boolean },
 ): Promise<void> {
@@ -77,12 +79,12 @@ async function processComponents(
   let failed = 0;
   const failures: Array<{ name: string; error: string }> = [];
 
-  for (const { name, dir, skipProps } of components) {
+  for (const { name, dir, skipProps, knownComponents } of components) {
     const outputFile = path.join(outputRoot, path.basename(dir), 'internal.ts');
 
     try {
       const ir = parseComponent(dir, { skipProps });
-      const transformed = transformAll(ir, { skipProps });
+      const transformed = transformAll(ir, { skipProps, knownComponents });
       const output = emitComponent(transformed);
 
       if (opts.dryRun) {

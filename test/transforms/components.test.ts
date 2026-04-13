@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   resolveComponentReferences,
-  cloudscapeComponentRegistry,
+  componentRegistry,
   type ComponentRegistry,
 } from '../../src/transforms/components.js';
 import type { TemplateNodeIR } from '../../src/ir/types.js';
@@ -72,30 +72,26 @@ describe('resolveComponentReferences', () => {
     expect(template.children).toHaveLength(1);
   });
 
-  it('custom unwrap list unwraps different components', () => {
-    const customUnwrap = new Set(['MyWrapper', 'AnotherWrapper']);
-    // Empty registry so we fall through to the unwrap check
+  it('unwraps components not in knownComponents set', () => {
+    const knownComponents = new Set(['KeepThis']);
     const registry: ComponentRegistry = {};
 
     const child = textNode('inner');
     const input = componentNode('MyWrapper', [child]);
-    const { template } = resolveComponentReferences(input, registry, customUnwrap);
+    const { template } = resolveComponentReferences(input, registry, knownComponents);
 
-    // MyWrapper should be unwrapped to a fragment
     expect(template.kind).toBe('fragment');
     expect(template.children).toHaveLength(1);
     expect(template.children[0].expression).toBe('inner');
   });
 
-  it('custom unwrap list does NOT unwrap components not in the set', () => {
-    const customUnwrap = new Set(['OnlyThis']);
+  it('keeps components that are in knownComponents set', () => {
+    const knownComponents = new Set(['SomethingElse']);
     const registry: ComponentRegistry = {};
 
     const input = componentNode('SomethingElse', [textNode('child')]);
-    const { template } = resolveComponentReferences(input, registry, customUnwrap);
+    const { template } = resolveComponentReferences(input, registry, knownComponents);
 
-    // SomethingElse is NOT in the unwrap set and not a React builtin,
-    // so it should be auto-derived to a custom element tag
     expect(template.kind).toBe('element');
     expect(template.tag).toBe('el-something-else');
   });
@@ -184,43 +180,32 @@ describe('resolveComponentReferences', () => {
   // Default behavior (no config) preserves backward compat
   // ---------------------------------------------------------------------------
 
-  it('default registry (no args) uses cloudscapeComponentRegistry', () => {
+  it('without knownComponents, only React builtins are unwrapped', () => {
     const child = textNode('inside');
-    // CSSTransition is in the default UNWRAP_COMPONENTS for Cloudscape
-    // Use the default registry (cloudscapeComponentRegistry) by not passing one
     const input = componentNode('CSSTransition', [child]);
     const { template } = resolveComponentReferences(input);
 
-    // CSSTransition should be in the default registry as __UNWRAP__
-    expect(template.kind).toBe('fragment');
-    expect(template.children).toHaveLength(1);
+    expect(template.kind).toBe('element');
+    expect(template.tag).toBe('el-csstransition');
   });
 
-  it('cloudscapeComponentRegistry is exported and has entries', () => {
-    expect(cloudscapeComponentRegistry).toBeDefined();
-    expect(typeof cloudscapeComponentRegistry).toBe('object');
-    // Should have AbstractSwitch (function-based) at minimum
-    expect(cloudscapeComponentRegistry['AbstractSwitch']).toBeDefined();
+  it('componentRegistry is exported and has entries', () => {
+    expect(componentRegistry).toBeDefined();
+    expect(typeof componentRegistry).toBe('object');
+    expect(componentRegistry['AbstractSwitch']).toBeDefined();
   });
 
-  // ---------------------------------------------------------------------------
-  // Nested children are recursed with config
-  // ---------------------------------------------------------------------------
-
-  it('custom unwrap config recurses into nested children', () => {
-    const customUnwrap = new Set(['Outer', 'Inner']);
+  it('knownComponents recurses into nested children', () => {
+    const knownComponents = new Set<string>();
     const registry: ComponentRegistry = {};
 
     const input = componentNode('Outer', [
       componentNode('Inner', [textNode('deep')]),
     ]);
-    const { template } = resolveComponentReferences(input, registry, customUnwrap);
+    const { template } = resolveComponentReferences(input, registry, knownComponents);
 
-    // Outer → fragment
     expect(template.kind).toBe('fragment');
-    // Inner → also fragment
     expect(template.children[0].kind).toBe('fragment');
-    // deep text
     expect(template.children[0].children[0].expression).toBe('deep');
   });
 });

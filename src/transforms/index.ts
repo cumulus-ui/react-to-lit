@@ -9,7 +9,7 @@ import { transformClsx } from './clsx.js';
 import { unwrapWithNativeAttributes } from './unwrap.js';
 import { transformEvents } from './events.js';
 import { rewriteIdentifiers } from './identifiers.js';
-import { resolveComponentReferences, type ComponentRegistry, cloudscapeComponentRegistry } from './components.js';
+import { resolveComponentReferences, type ComponentRegistry, componentRegistry } from './components.js';
 import { removeLibraryInternals } from './cleanup.js';
 import { cleanupReactTypes } from './cleanup-react-types.js';
 import { transformSlots } from './slots.js';
@@ -21,6 +21,7 @@ import { promoteEffectCleanupVars } from './effect-cleanup.js';
 
 export interface TransformOptions {
   skipProps?: Set<string>;
+  knownComponents?: Set<string>;
   config?: CompilerConfig;
 }
 
@@ -65,13 +66,7 @@ export function transformAll(
 
   const registry = config?.components?.registry && Object.keys(config.components.registry).length > 0
     ? buildRegistryFromConfig(config.components.registry)
-    : cloudscapeComponentRegistry;
-
-  // Resolve unwrap components from config
-  const unwrapComponents = config?.cleanup?.unwrapComponents
-    ? new Set(config.cleanup.unwrapComponents) : undefined;
-  const removeAttrs = config?.cleanup?.removeAttributes
-    ? new Set(config.cleanup.removeAttributes) : undefined;
+    : componentRegistry;
 
   let result = ir;
 
@@ -82,13 +77,13 @@ export function transformAll(
   result = cleanupReactTypes(result);
 
   // 2. Unwrap WithNativeAttributes
-  result = { ...result, template: unwrapWithNativeAttributes(result.template, removeAttrs) };
+  result = { ...result, template: unwrapWithNativeAttributes(result.template) };
 
   // 3. Resolve component references
   const { template: resolvedTemplate, sideEffectImports } = resolveComponentReferences(
     result.template,
     registry,
-    unwrapComponents,
+    options.knownComponents,
   );
   result = {
     ...result,
@@ -128,7 +123,7 @@ export { transformClsx } from './clsx.js';
 export { unwrapWithNativeAttributes } from './unwrap.js';
 export { transformEvents } from './events.js';
 export { rewriteIdentifiers } from './identifiers.js';
-export { resolveComponentReferences, cloudscapeComponentRegistry } from './components.js';
+export { resolveComponentReferences, componentRegistry } from './components.js';
 export type { ComponentRegistry, RegistryEntry } from './components.js';
 export { removeLibraryInternals, removeCloudscapeInternals } from './cleanup.js';
 export { cleanupReactTypes } from './cleanup-react-types.js';

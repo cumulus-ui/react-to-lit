@@ -8,10 +8,13 @@
  *   - function: (node) => TemplateNodeIR — full template replacement
  */
 import type { TemplateNodeIR, AttributeIR } from '../ir/types.js';
-import { UNWRAP_COMPONENTS, shouldUnwrapComponent } from '../cloudscape-config.js';
 import { toTagName } from '../naming.js';
 
-// React builtins that are ALWAYS unwrapped regardless of config
+function shouldUnwrap(name: string, knownComponents?: Set<string>): boolean {
+  if (knownComponents) return !knownComponents.has(name);
+  return REACT_BUILTINS.includes(name);
+}
+
 const REACT_BUILTINS = ['Fragment', 'React.Fragment', 'Suspense', 'StrictMode', 'Profiler'];
 
 
@@ -47,23 +50,6 @@ function getAttr(node: TemplateNodeIR, name: string): string | undefined {
 // ---------------------------------------------------------------------------
 // Config-aware unwrap check
 // ---------------------------------------------------------------------------
-
-/**
- * Check if a component name should be unwrapped, using an optional custom set.
- * Falls back to the default UNWRAP_COMPONENTS when no set is provided.
- *
- * React builtins (Fragment, Suspense, StrictMode, Profiler) and Context
- * wrappers (.Provider, .Consumer) are ALWAYS unwrapped regardless of config.
- */
-function shouldUnwrapComponentWithConfig(name: string, unwrapSet?: Set<string>): boolean {
-  const set = unwrapSet ?? UNWRAP_COMPONENTS;
-  if (set.has(name)) return true;
-  // React builtins always unwrap (universal, not library-specific)
-  if (REACT_BUILTINS.includes(name)) return true;
-  // Any Xxx.Provider or Xxx.Consumer is a React Context wrapper
-  if (name.endsWith('.Provider') || name.endsWith('.Consumer')) return true;
-  return false;
-}
 
 // ---------------------------------------------------------------------------
 // AbstractSwitch template builder
@@ -175,13 +161,8 @@ function buildAbstractSwitch(node: TemplateNodeIR): TemplateNodeIR {
 // Default Cloudscape registry
 // ---------------------------------------------------------------------------
 
-export const cloudscapeComponentRegistry: ComponentRegistry = {
-  // Template replacements — function-based
+export const componentRegistry: ComponentRegistry = {
   'AbstractSwitch': buildAbstractSwitch,
-
-  // React-only wrappers → unwrap (keep children)
-  // Generated from the shared UNWRAP_COMPONENTS set in cloudscape-config.ts
-  ...Object.fromEntries([...UNWRAP_COMPONENTS].map(name => [name, '__UNWRAP__' as const])),
 };
 
 // ---------------------------------------------------------------------------
@@ -190,11 +171,11 @@ export const cloudscapeComponentRegistry: ComponentRegistry = {
 
 export function resolveComponentReferences(
   node: TemplateNodeIR,
-  registry: ComponentRegistry = cloudscapeComponentRegistry,
-  unwrapComponents?: Set<string>,
+  registry: ComponentRegistry = componentRegistry,
+  knownComponents?: Set<string>,
 ): { template: TemplateNodeIR; sideEffectImports: Set<string> } {
   const imports = new Set<string>();
-  const transformed = resolveNode(node, registry, imports, unwrapComponents);
+  const transformed = resolveNode(node, registry, imports, knownComponents);
   return { template: transformed, sideEffectImports: imports };
 }
 
@@ -206,7 +187,7 @@ function resolveNode(
   node: TemplateNodeIR,
   registry: ComponentRegistry,
   imports: Set<string>,
-  unwrapComponents?: Set<string>,
+  knownComponents?: Set<string>,
 ): TemplateNodeIR {
   let resolvedNode = node;
 
@@ -234,7 +215,7 @@ function resolveNode(
       };
       const componentPath = deriveImportPath(entry);
       if (componentPath) imports.add(componentPath);
-    } else if (shouldUnwrapComponentWithConfig(node.tag, unwrapComponents)) {
+    } else if (shouldUnwrap(node.tag, knownComponents)) {
       // Dynamic pattern match (e.g., any Xxx.Provider not explicitly listed)
       resolvedNode = {
         kind: 'fragment',
@@ -259,7 +240,7 @@ function resolveNode(
 
   // Recurse into children
   const transformedChildren = resolvedNode.children.map((child) =>
-    resolveNode(child, registry, imports, unwrapComponents),
+    resolveNode(child, registry, imports, knownComponents),
   );
 
   return {
@@ -269,7 +250,7 @@ function resolveNode(
       ? {
           ...resolvedNode.condition,
           alternate: resolvedNode.condition.alternate
-            ? resolveNode(resolvedNode.condition.alternate, registry, imports, unwrapComponents)
+            ? resolveNode(resolvedNode.condition.alternate, registry, imports, knownComponents)
             : undefined,
         }
       : undefined,
