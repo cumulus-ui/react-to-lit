@@ -223,6 +223,9 @@ function emitAttribute(
     case 'property':
       return `.${attr.name}=\${${getExpression(attr.value)}}`;
 
+    case 'attribute':
+      return `${attr.name}=\${${getExpression(attr.value)}}`;
+
     case 'boolean':
       return `?${attr.name}=\${${getExpression(attr.value)}}`;
 

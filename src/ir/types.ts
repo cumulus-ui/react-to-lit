@@ -239,7 +239,7 @@ export interface AttributeIR {
   value: string | DynamicValueIR;
 
   /** What kind of binding this is */
-  kind: 'static' | 'property' | 'boolean' | 'event' | 'spread' | 'classMap' | 'styleMap';
+  kind: 'static' | 'attribute' | 'property' | 'boolean' | 'event' | 'spread' | 'classMap' | 'styleMap';
 }
 
 export interface DynamicValueIR {

@@ -300,6 +300,13 @@ function emitAttribute(
       return;
     }
 
+    // Attribute bindings: aria-*, role, data-* are HTML attributes, not properties
+    if (litName.startsWith('aria-') || litName.startsWith('data-') || litName === 'role') {
+      builder.appendStatic(` ${litName}=`);
+      builder.addExpression(visitedExpr);
+      return;
+    }
+
     // Default: property binding
     builder.appendStatic(` .${litName}=`);
     builder.addExpression(visitedExpr);

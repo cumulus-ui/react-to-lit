@@ -97,12 +97,12 @@ function buildAbstractSwitch(node: TemplateNodeIR): TemplateNodeIR {
     { name: 'checked', value: { expression: 'this.checked' }, kind: 'boolean' },
     { name: 'disabled', value: { expression: disabled }, kind: 'boolean' },
   ];
-  if (controlId) inputAttrs.push({ name: 'id', value: { expression: controlId }, kind: 'property' });
-  if (ariaLabel) inputAttrs.push({ name: 'aria-label', value: { expression: ariaLabel }, kind: 'property' });
-  if (ariaLabelledby) inputAttrs.push({ name: 'aria-labelledby', value: { expression: ariaLabelledby }, kind: 'property' });
-  if (ariaDescribedby) inputAttrs.push({ name: 'aria-describedby', value: { expression: ariaDescribedby }, kind: 'property' });
+  if (controlId) inputAttrs.push({ name: 'id', value: { expression: controlId }, kind: 'attribute' });
+  if (ariaLabel) inputAttrs.push({ name: 'aria-label', value: { expression: ariaLabel }, kind: 'attribute' });
+  if (ariaLabelledby) inputAttrs.push({ name: 'aria-labelledby', value: { expression: ariaLabelledby }, kind: 'attribute' });
+  if (ariaDescribedby) inputAttrs.push({ name: 'aria-describedby', value: { expression: ariaDescribedby }, kind: 'attribute' });
   if (readOnly !== 'false') {
-    inputAttrs.push({ name: 'aria-disabled', value: { expression: `${readOnly} && !${disabled} ? 'true' : undefined` }, kind: 'property' });
+    inputAttrs.push({ name: 'aria-disabled', value: { expression: `${readOnly} && !${disabled} ? 'true' : undefined` }, kind: 'attribute' });
   }
 
   // Build control class expression — handle clsx in controlClassName

@@ -183,4 +183,61 @@ describe('jsxToLitTransformerFactory config', () => {
       expect(printed).toContain('id="main"');
     });
   });
+
+  describe('ARIA attribute binding', () => {
+    it('emits aria-label as attribute binding, not property binding', () => {
+      const src = 'const x = <div aria-label={label}>text</div>;';
+      const out = transformTsx(src);
+      expect(out).toContain(' aria-label=');
+      expect(out).not.toContain('.aria-label=');
+    });
+
+    it('emits aria-hidden as attribute binding', () => {
+      const src = 'const x = <div aria-hidden={!visible}>text</div>;';
+      const out = transformTsx(src);
+      expect(out).toContain(' aria-hidden=');
+      expect(out).not.toContain('.aria-hidden=');
+    });
+
+    it('emits aria-describedby as attribute binding', () => {
+      const src = 'const x = <input aria-describedby={descId} />;';
+      const out = transformTsx(src);
+      expect(out).toContain(' aria-describedby=');
+      expect(out).not.toContain('.aria-describedby=');
+    });
+
+    it('emits aria-disabled as attribute binding', () => {
+      const src = 'const x = <button aria-disabled={isDisabled}>click</button>;';
+      const out = transformTsx(src);
+      expect(out).toContain(' aria-disabled=');
+      expect(out).not.toContain('.aria-disabled=');
+    });
+
+    it('emits role as attribute binding', () => {
+      const src = 'const x = <div role={dynamicRole}>text</div>;';
+      const out = transformTsx(src);
+      expect(out).toContain(' role=');
+      expect(out).not.toContain('.role=');
+    });
+
+    it('emits data-* as attribute binding', () => {
+      const src = 'const x = <div data-testid={testId}>text</div>;';
+      const out = transformTsx(src);
+      expect(out).toContain(' data-testid=');
+      expect(out).not.toContain('.data-testid=');
+    });
+
+    it('still emits non-ARIA dynamic props as property binding', () => {
+      const src = 'const x = <input value={val} />;';
+      const out = transformTsx(src);
+      expect(out).toContain('.value=');
+    });
+
+    it('preserves static aria-label as plain attribute', () => {
+      const src = 'const x = <div aria-label="close">X</div>;';
+      const out = transformTsx(src);
+      expect(out).toContain('aria-label="close"');
+      expect(out).not.toContain('.aria-label');
+    });
+  });
 });

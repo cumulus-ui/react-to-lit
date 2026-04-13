@@ -249,6 +249,15 @@ function parseJsxAttribute(
       };
     }
 
+    // Attribute bindings: aria-*, role, data-* are always HTML attributes
+    if (isAttributeBinding(name)) {
+      return {
+        name,
+        value: { expression: exprText },
+        kind: 'attribute',
+      };
+    }
+
     // Default: dynamic attribute
     return {
       name,
@@ -489,6 +498,10 @@ function isPropertyBinding(name: string): boolean {
     'value', 'checked', 'indeterminate', 'selectedIndex',
   ]);
   return propertyBindings.has(name);
+}
+
+function isAttributeBinding(name: string): boolean {
+  return name.startsWith('aria-') || name.startsWith('data-') || name === 'role';
 }
 
 function findReturnStatement(block: ts.Block): ts.ReturnStatement | undefined {
