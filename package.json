@@ -19,7 +19,7 @@
     "analyze": "tsx scripts/diff-analysis.ts"
   },
   "dependencies": {
-    "commander": "^13.1.0",
+    "commander": "^14.0.3",
     "ts-morph": "^28.0.0",
     "typescript": "^6.0.2"
   },
