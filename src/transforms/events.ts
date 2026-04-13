@@ -106,9 +106,9 @@ function rewriteEventCalls(
   let result = text;
 
   for (const [propName, eventName] of eventProps) {
-    // fireNonCancelableEvent(propName, ...)
+    // fireNonCancelableEvent(propName, ...) or fireNonCancelableEvent(props.propName, ...)
     const nonCancelablePattern = new RegExp(
-      `fireNonCancelableEvent\\(\\s*${escapeRegex(propName)}\\b`,
+      `fireNonCancelableEvent\\(\\s*(?:props\\.)?${escapeRegex(propName)}\\b`,
       'g',
     );
     result = result.replace(
@@ -118,7 +118,7 @@ function rewriteEventCalls(
 
     // fireCancelableEvent(propName, detail, event)
     const cancelablePattern = new RegExp(
-      `fireCancelableEvent\\(\\s*${escapeRegex(propName)}\\b`,
+      `fireCancelableEvent\\(\\s*(?:props\\.)?${escapeRegex(propName)}\\b`,
       'g',
     );
     result = result.replace(
@@ -128,7 +128,7 @@ function rewriteEventCalls(
 
     // fireKeyboardEvent(propName, event) → fireNonCancelableEvent(this, 'eventName', event)
     const keyboardPattern = new RegExp(
-      `fireKeyboardEvent\\(\\s*${escapeRegex(propName)}\\b`,
+      `fireKeyboardEvent\\(\\s*(?:props\\.)?${escapeRegex(propName)}\\b`,
       'g',
     );
     result = result.replace(
@@ -136,10 +136,10 @@ function rewriteEventCalls(
       `fireNonCancelableEvent(this, '${eventName}'`,
     );
 
-    // Direct callback invocation: propName?.(detail)
+    // Direct callback invocation: propName?.(detail) or props.propName?.(detail)
     // onChange?.({ checked: true }) → fireNonCancelableEvent(this, 'change', { checked: true })
     const directCallOptional = new RegExp(
-      `${escapeRegex(propName)}\\?\\.\\(`,
+      `(?:props\\.)?${escapeRegex(propName)}\\?\\.\\(`,
       'g',
     );
     result = result.replace(
@@ -147,16 +147,26 @@ function rewriteEventCalls(
       `fireNonCancelableEvent(this, '${eventName}', `,
     );
 
-    // Direct callback invocation (non-optional): propName(detail)
+    // Direct callback invocation (non-optional): propName(detail) or props.propName(detail)
     // onChange({ checked: true }) → fireNonCancelableEvent(this, 'change', { checked: true })
     // Only match when NOT preceded by '.', a word char, or a quote (to avoid matching
     // already-converted patterns like fireNonCancelableEvent(this, 'change') or object.onChange(x))
+    // The `props.` prefix variant is handled separately since the lookbehind would block it.
     const directCall = new RegExp(
       `(?<![.\\w'"])${escapeRegex(propName)}\\(`,
       'g',
     );
     result = result.replace(
       directCall,
+      `fireNonCancelableEvent(this, '${eventName}', `,
+    );
+    // props.propName(detail) variant
+    const directCallProps = new RegExp(
+      `props\\.${escapeRegex(propName)}\\(`,
+      'g',
+    );
+    result = result.replace(
+      directCallProps,
       `fireNonCancelableEvent(this, '${eventName}', `,
     );
 
