@@ -297,4 +297,58 @@ describe('removeCloudscapeInternals', () => {
       expect(expr).toContain("'hidden': false");
     });
   });
+
+  describe('__-prefixed object property removal', () => {
+    it('removes __-prefixed key-value pairs from object literals', () => {
+      const ir = minimalIR({
+        handlers: [{
+          name: 'h',
+          body: 'const obj = { visible: true, __internal: someCall(a, b), name: "test" };',
+          params: '',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).not.toContain('__internal');
+      expect(result.handlers[0].body).toContain('visible: true');
+      expect(result.handlers[0].body).toContain('name: "test"');
+    });
+
+    it('removes __-prefixed function parameters', () => {
+      const ir = minimalIR({
+        helpers: [{
+          name: 'fn',
+          source: 'function fn({ size, __darkHeader, visible }: Props) { return size; }',
+        }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.helpers[0].source).not.toContain('__darkHeader');
+      expect(result.helpers[0].source).toContain('size');
+    });
+  });
+
+  describe('dead-code simplification', () => {
+    it('simplifies undefined ?? expr to expr', () => {
+      const ir = minimalIR({
+        handlers: [{ name: 'h', body: 'const x = undefined ?? fallback;', params: '' }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).toBe('const x = fallback;');
+    });
+
+    it('simplifies undefined || expr to expr', () => {
+      const ir = minimalIR({
+        handlers: [{ name: 'h', body: 'const x = undefined || fallback;', params: '' }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).toBe('const x = fallback;');
+    });
+
+    it('simplifies !undefined to true', () => {
+      const ir = minimalIR({
+        handlers: [{ name: 'h', body: 'const x = !undefined;', params: '' }],
+      });
+      const result = removeCloudscapeInternals(ir);
+      expect(result.handlers[0].body).toBe('const x = true;');
+    });
+  });
 });

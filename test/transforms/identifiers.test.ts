@@ -654,4 +654,61 @@ describe('rewriteIdentifiers', () => {
       expect(result.handlers[0].body).toBe('return this._isNarrow || this._isMedium');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Spread operator handling
+  // ---------------------------------------------------------------------------
+
+  describe('spread operator', () => {
+    it('rewrites identifiers after spread operator (...)', () => {
+      const ir = minimalIR({
+        props: [prop('items')],
+        handlers: [{ name: 'h', body: 'return [...items, newItem]', params: '' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.handlers[0].body).toBe('return [...this.items, newItem]');
+    });
+
+    it('does not rewrite property access after dot (obj.field)', () => {
+      const ir = minimalIR({
+        props: [prop('items')],
+        handlers: [{ name: 'h', body: 'return obj.items', params: '' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.handlers[0].body).toBe('return obj.items');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // setState updater pattern
+  // ---------------------------------------------------------------------------
+
+  describe('setState updater functions', () => {
+    it('converts setState(value) to this._state = value', () => {
+      const ir = minimalIR({
+        state: [{ name: 'count', setter: 'setCount', initialValue: '0', type: 'number' }],
+        handlers: [{ name: 'h', body: 'setCount(5)', params: '' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.handlers[0].body).toBe('this._count = 5');
+    });
+
+    it('converts setState(prev => newVal) to IIFE pattern', () => {
+      const ir = minimalIR({
+        state: [{ name: 'count', setter: 'setCount', initialValue: '0', type: 'number' }],
+        handlers: [{ name: 'h', body: 'setCount(prev => prev + 1)', params: '' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.handlers[0].body).toBe('this._count = (prev => prev + 1)(this._count)');
+    });
+
+    it('converts setState((prev) => expr) with parens to IIFE', () => {
+      const ir = minimalIR({
+        state: [{ name: 'items', setter: 'setItems', initialValue: '[]', type: 'any[]' }],
+        handlers: [{ name: 'h', body: 'setItems((prev) => [...prev, item])', params: '' }],
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.handlers[0].body).toContain('this._items = ((prev) => [...prev, item])(this._items)');
+    });
+  });
 });
