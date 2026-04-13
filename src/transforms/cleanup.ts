@@ -172,9 +172,11 @@ function cleanHandlerBody(body: string): string {
   // Remove assignments to __-prefixed vars: __foo = expr; or __foo = __foo ?? expr;
   result = result.replace(/^\s*__\w+\s*=[^=][^;]*;?\s*$/gm, '');
 
-  // Remove __-prefixed key-value pairs from object literals.
-  // Uses balanced-paren-aware removal to handle function calls in values.
+  // Remove __-prefixed key-value pairs and shorthand properties from object literals.
   result = removeInternalPrefixedProperties(result);
+  // Also remove properties whose VALUE is a bare __xxx reference
+  // e.g., { iconClass: __iconClass, size: 'lg' } → { size: 'lg' }
+  result = result.replace(/,?\s*\w+\s*:\s*__\w+\s*(?=[,}])/g, '');
 
   // Remove __-prefixed parameters from destructuring and function params.
   // { foo, __bar, baz } → { foo, baz }
@@ -318,6 +320,10 @@ function cleanInternalPrefixedRefs(text: string): string {
   let result = text;
   // __xxx && expr → remove (the internal flag is always false/absent)
   result = result.replace(/\b__\w+\s*&&\s*[^;,\n]+[;,]?\s*/g, '');
+  // expr && __xxx → expr && false (keep the left side, __xxx is always false)
+  result = result.replace(/&&\s*__\w+\b/g, '&& false');
+  // expr || __xxx → expr (remove the __xxx alternative)
+  result = result.replace(/\|\|\s*__\w+\b/g, '');
   // __xxx ?? fallback → fallback (the internal prop is always absent)
   result = result.replace(/\b__\w+\s*\?\?\s*/g, '');
   // __xxx || fallback → fallback (the internal prop is always falsy)
