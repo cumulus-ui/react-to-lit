@@ -34,7 +34,7 @@ export class PackageAnalyzer {
       target: ts.ScriptTarget.Latest,
       moduleResolution: ts.ModuleResolutionKind.Bundler,
       baseUrl: this.pkgRoot,
-      lib: ['lib.dom.d.ts', 'lib.es2022.d.ts'],
+      lib: ['lib.dom.d.ts', 'lib.esnext.d.ts'],
     });
     this.checker = this.program.getTypeChecker();
   }
