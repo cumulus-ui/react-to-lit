@@ -70,5 +70,6 @@ function mergeWithDefaults(partial: Partial<CompilerConfig>): CompilerConfig {
     cleanup: { ...defaults.cleanup, ...partial.cleanup },
     components: { ...defaults.components, ...partial.components },
     events: { ...defaults.events, ...partial.events },
+    hooks: { ...defaults.hooks, ...partial.hooks },
   };
 }

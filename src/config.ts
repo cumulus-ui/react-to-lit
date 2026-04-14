@@ -15,17 +15,15 @@ import ts from 'typescript';
 // ---------------------------------------------------------------------------
 
 /** Top-level configuration for the React → Lit compiler. */
+import type { HookRegistry } from './hooks/registry.js';
+
 export interface CompilerConfig {
-  /** Settings that control how input source files are located and read. */
   input: InputConfig;
-  /** Settings that control the shape of the generated Lit output. */
   output: OutputConfig;
-  /** Rules for stripping React/infrastructure artefacts from the output. */
   cleanup: CleanupConfig;
-  /** Component name → tag mapping and resolution strategy. */
   components: ComponentsConfig;
-  /** Event dispatch configuration. */
   events: EventsConfig;
+  hooks: HookRegistry;
 }
 
 /** Controls how input source files are located and read. */
@@ -123,6 +121,7 @@ export function createDefaultConfig(): CompilerConfig {
       dispatchFunctions: {},
       dispatchMode: 'native',
     },
+    hooks: {},
   };
 }
 

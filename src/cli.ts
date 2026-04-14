@@ -7,7 +7,8 @@ import { transformAll } from './transforms/index.js';
 import { emitComponent } from './emitter/index.js';
 import { discoverComponents } from './config.js';
 import { PackageAnalyzer } from './package-analyzer.js';
-import { cloudscapeHookRegistry } from './hooks/registry.js';
+import { loadConfig } from './config-loader.js';
+import type { HookRegistry } from './hooks/registry.js';
 
 const program = new Command();
 
@@ -25,6 +26,7 @@ program
   .option('--verbose', 'Log parsing decisions')
   .option('--preset <name>', 'Use a built-in preset (e.g. "cloudscape")')
   .action(async (opts) => {
+    const config = await loadConfig(undefined, opts.preset);
     const sourceRoot = path.resolve(opts.source);
     const outputRoot = path.resolve(opts.output);
 
@@ -50,6 +52,7 @@ program
         dir: path.resolve(sourceRoot, c.dir.replace(/^\.\//, '')),
         skipProps,
         knownComponents,
+        hookMappings: config.hooks,
       };
     });
 
@@ -72,7 +75,7 @@ program.parse();
 // ---------------------------------------------------------------------------
 
 async function processComponents(
-  components: Array<{ name: string; dir: string; skipProps: Set<string>; knownComponents: Set<string> }>,
+  components: Array<{ name: string; dir: string; skipProps: Set<string>; knownComponents: Set<string>; hookMappings: HookRegistry }>,
   outputRoot: string,
   opts: { dryRun?: boolean; verbose?: boolean },
 ): Promise<void> {
@@ -80,11 +83,11 @@ async function processComponents(
   let failed = 0;
   const failures: Array<{ name: string; error: string }> = [];
 
-  for (const { name, dir, skipProps, knownComponents } of components) {
+  for (const { name, dir, skipProps, knownComponents, hookMappings } of components) {
     const outputFile = path.join(outputRoot, path.basename(dir), 'internal.ts');
 
     try {
-      const ir = parseComponent(dir, { skipProps, knownComponents, hookMappings: cloudscapeHookRegistry });
+      const ir = parseComponent(dir, { skipProps, knownComponents, hookMappings });
       const transformed = transformAll(ir, { skipProps, knownComponents });
       const output = emitComponent(transformed);
 

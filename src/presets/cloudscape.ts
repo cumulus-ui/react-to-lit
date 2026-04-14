@@ -7,6 +7,7 @@
  * unaffected.
  */
 import type { CompilerConfig } from '../config.js';
+import type { HookRegistry } from '../hooks/registry.js';
 
 // ---------------------------------------------------------------------------
 // Component lists (same groupings as the original cloudscape-config.ts)
@@ -132,5 +133,48 @@ export function createCloudscapeConfig(): CompilerConfig {
       dispatchFunctions: {},
       dispatchMode: 'native',
     },
+    hooks: {
+      'useBaseComponent': { action: 'skip', reason: 'Cloudscape telemetry' },
+      'useModalContextLoadingComponent': { action: 'skip', reason: 'Cloudscape modal analytics' },
+      'useModalContextLoadingButtonComponent': { action: 'skip', reason: 'Cloudscape modal analytics' },
+      'usePerformanceMarks': { action: 'skip', reason: 'Cloudscape performance instrumentation' },
+      'useSingleTabStopNavigation': { action: 'skip', reason: 'Cloudscape component-toolkit internal' },
+      'useVisualRefresh': { action: 'skip', reason: 'Visual refresh detection' },
+      'useInternalI18n': { action: 'skip', reason: 'Cloudscape i18n' },
+      'useFunnel': { action: 'skip', reason: 'Cloudscape funnel analytics' },
+      'useFunnelStep': { action: 'skip', reason: 'Cloudscape funnel analytics' },
+      'useFunnelSubStep': { action: 'skip', reason: 'Cloudscape funnel analytics' },
+      'useHiddenDescription': { action: 'skip', reason: 'ARIA pattern handled differently in Shadow DOM' },
+      'useModalContext': { action: 'skip', reason: 'Cloudscape modal analytics' },
+      'useControllable': {
+        action: 'controller',
+        controller: { className: 'ControllableController', importPath: '../internal/controllers/controllable.js' },
+      },
+      'useForwardFocus': { action: 'skip', reason: 'Handled by useImperativeHandle extraction' },
+      'useFormFieldContext': {
+        action: 'context',
+        context: {
+          contextName: 'formFieldContext',
+          contextImport: '../internal/context/form-field-context.js',
+          type: 'FormFieldContext',
+          defaultImport: 'defaultFormFieldContext',
+          defaultValue: 'defaultFormFieldContext',
+        },
+      },
+      'useButtonContext': {
+        action: 'context',
+        context: {
+          contextName: 'buttonContext',
+          contextImport: '../internal/context/button-context.js',
+          type: 'ButtonContext',
+          defaultValue: '{ onClick: () => {} }',
+        },
+      },
+      'useUniqueId': {
+        action: 'utility',
+        utility: { functionName: 'generateUniqueId', importPath: '../internal/hooks/use-unique-id.js' },
+      },
+      'useMergeRefs': { action: 'skip', reason: 'Ref merging not needed in Lit' },
+    } satisfies HookRegistry,
   };
 }
