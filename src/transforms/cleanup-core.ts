@@ -13,43 +13,11 @@ import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, INFRA_FUNCTIONS } from '../cloudsca
 import { walkTemplate } from '../template-walker.js';
 import { stripFunctionCalls, stripIfBlocks, unwrapFunctionCall } from '../text-utils.js';
 
-// ---------------------------------------------------------------------------
-// Plugin interface
-// ---------------------------------------------------------------------------
-
-/**
- * Extension point for library-specific cleanup patterns.
- *
- * Each method is called at the appropriate phase of cleanup processing:
- * - `cleanBody` runs on handler bodies, effect bodies, helper source,
- *   preamble statements, computed value expressions, and file-level
- *   constants/type declarations.
- * - `cleanAttribute` runs on each template attribute after core
- *   attribute filtering. Return `null` to remove the attribute.
- * - `cleanExpression` runs on template expression text (inline
- *   expressions, attribute expressions, and condition expressions).
- */
 export interface CleanupPlugin {
-  /** Applied to handler/effect/helper/preamble code bodies. */
   cleanBody?: (text: string) => string;
-  /** Applied to template attribute expressions. Return `null` to remove. */
   cleanAttribute?: (attr: AttributeIR) => AttributeIR | null;
-  /** Applied to template expression text. */
   cleanExpression?: (expr: string) => string;
 }
-
-// ---------------------------------------------------------------------------
-// Shared regex constants
-// ---------------------------------------------------------------------------
-
-/** Matches testUtilStyles/testutilStyles/testStyles bracket or dot access. */
-export const TEST_UTIL_STYLES_RE = /\btestUtilStyles(?:\[['"\w-]+\]|\.\w+)|\btestutilStyles(?:\[['"\w-]+\]|\.\w+)|\btestStyles(?:\[['"\w-]+\]|\.\w+)/g;
-
-/** Matches analyticsSelectors bracket or dot access. */
-export const ANALYTICS_SELECTORS_RE = /\banalyticsSelectors(?:\[['"\w-]+\]|\.\w+)/g;
-
-/** Matches `baseProps.className` with optional trailing comma/whitespace. */
-export const BASE_PROPS_CLASSNAME_RE = /\bbaseProps\.className\b,?\s*/g;
 
 // ---------------------------------------------------------------------------
 // Main core transform

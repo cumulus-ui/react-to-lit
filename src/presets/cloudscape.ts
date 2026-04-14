@@ -8,6 +8,13 @@
  */
 import type { CompilerConfig } from '../config.js';
 import type { HookRegistry } from '../hooks/registry.js';
+import type { AttributeIR } from '../ir/types.js';
+import type { CleanupPlugin } from '../transforms/cleanup-core.js';
+import { stripFunctionCalls, replaceFunctionCalls, stripIfBlocks } from '../text-utils.js';
+
+const TEST_UTIL_STYLES_RE = /\btestUtilStyles(?:\[['"\w-]+\]|\.\w+)|\btestutilStyles(?:\[['"\w-]+\]|\.\w+)|\btestStyles(?:\[['"\w-]+\]|\.\w+)/g;
+const ANALYTICS_SELECTORS_RE = /\banalyticsSelectors(?:\[['"\w-]+\]|\.\w+)/g;
+const BASE_PROPS_CLASSNAME_RE = /\bbaseProps\.className\b,?\s*/g;
 
 // ---------------------------------------------------------------------------
 // Component lists (same groupings as the original cloudscape-config.ts)
@@ -178,3 +185,75 @@ export function createCloudscapeConfig(): CompilerConfig {
     } satisfies HookRegistry,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Cleanup plugin
+// ---------------------------------------------------------------------------
+
+function cleanCloudscapeBody(body: string): string {
+  let result = body;
+  result = result.replace(/const\s+baseProps\s*=\s*getBaseProps\([^)]*\)\s*;?\s*/g, '');
+  result = result.replace(/\{\s*\.\.\.baseProps\s*\}\s*\n?\s*/g, '');
+  result = result.replace(/\.\.\.baseProps\s*,?\s*/g, '');
+  result = result.replace(BASE_PROPS_CLASSNAME_RE, '');
+  result = result.replace(/checkSafeUrl\([^)]*\)\s*;?\s*/g, '');
+  result = result.replace(/^\s*\w+\.__awsui__\.\w+\s*=[^;]*;\s*$/gm, '');
+  result = result.replace(/^\s*\w+\.__awsui__\s*=\s*\{\s*\}\s*;\s*$/gm, '');
+  result = result.replace(/^\s*if\s*\(\s*!?\w+\.__awsui__\s*\)\s*\{\s*\w+\.__awsui__\s*=\s*\{\s*\}\s*;\s*\}\s*$/gm, '');
+  result = result.replace(/,?\s*\w+:\s*__internalRootRef\b[^,}\n]*/g, '');
+  result = result.replace(/,?\s*__internalRootRef\s*,?/g, (match) => {
+    if (match.includes('\n')) return '\n';
+    if (match.startsWith(',') && match.endsWith(',')) return ',';
+    return '';
+  });
+  result = result.replace(/const\s+mergedRef\s*=\s*useMergeRefs\([^)]*\)\s*;?\s*/g, '');
+  result = result.replace(/const\s+\{[^}]*\}\s*=\s*useBaseComponent\([^)]*\)\s*;?\s*/g, '');
+  result = result.replace(/applyDisplayName\([^)]*\)\s*;?\s*/g, '');
+  result = result.replace(/\b(?:buttonProps|anchorProps|inputProps|linkProps)\.\b(\w+)/g, '$1');
+  result = result.replace(/\s*&\s*InternalBaseComponentProps/g, '');
+  result = result.replace(/\bInternal(\w+Props)\b/g, '$1');
+  result = result.replace(/\.\.\.(getAnalyticsMetadataAttribute|getAnalyticsLabelAttribute)\([^)]*\),?\s*/g, '');
+  result = replaceFunctionCalls(result, 'getAnalyticsMetadataAttribute', '{}');
+  result = replaceFunctionCalls(result, 'getAnalyticsLabelAttribute', '{}');
+  result = result.replace(/\[DATA_ATTR_FUNNEL_VALUE\]\s*:\s*\w+,?\s*/g, '');
+  result = stripFunctionCalls(result, 'warnOnce');
+  result = result.replace(ANALYTICS_SELECTORS_RE, "''");
+  result = result.replace(TEST_UTIL_STYLES_RE, "''");
+  result = result.replace(/\[DATA_ATTR_\w+\]\s*:\s*[^,}\n]+,?\s*/g, '');
+  result = result.replace(/\bFUNNEL_KEY_\w+/g, "''");
+  result = result.replace(/:\s*(?:GeneratedAnalytics\w+)(?:\s*\|\s*[\w<>,\s]+)*/g, '');
+  result = stripIfBlocks(result, /if\s*\(\s*!?\w+\.__awsui__[^)]*\)/);
+  const analyticsCallPattern = /\bFunnelMetrics\.\w+\(|\b(getSubStepAllSelector|getFunnelValueSelector|getFieldSlotSeletor|getNameFromSelector|getSubStepSelector)\(/g;
+  let match;
+  while ((match = analyticsCallPattern.exec(result)) !== null) {
+    const funcName = match[0].slice(0, -1);
+    result = stripFunctionCalls(result, funcName);
+    analyticsCallPattern.lastIndex = 0;
+  }
+  result = result.replace(/^\s*const\s+(?:analytics(?:Component)?Metadata|componentAnalyticsMetadata)\s*(?::\s*\w+\s*)?=[^;]*;\s*$/gm, '');
+  result = result.replace(/^\s*(?:analytics(?:Component)?Metadata|componentAnalyticsMetadata)(?:\.\w+)+\s*=[^;]*;\s*$/gm, '');
+  return result;
+}
+
+function cleanCloudscapeAttribute(attr: AttributeIR): AttributeIR | null {
+  if (typeof attr.value === 'string') return attr;
+  let expr = attr.value.expression;
+  expr = expr.replace(BASE_PROPS_CLASSNAME_RE, '');
+  expr = expr.replace(TEST_UTIL_STYLES_RE, "''");
+  expr = expr.replace(ANALYTICS_SELECTORS_RE, "''");
+  expr = expr.replace(/,\s*\)/, ')');
+  return { ...attr, value: { expression: expr } };
+}
+
+function cleanCloudscapeExpression(expr: string): string {
+  let result = expr;
+  result = result.replace(TEST_UTIL_STYLES_RE, "''");
+  result = result.replace(ANALYTICS_SELECTORS_RE, "''");
+  return result;
+}
+
+export const cloudscapeCleanupPlugin: CleanupPlugin = {
+  cleanBody: cleanCloudscapeBody,
+  cleanAttribute: cleanCloudscapeAttribute,
+  cleanExpression: cleanCloudscapeExpression,
+};

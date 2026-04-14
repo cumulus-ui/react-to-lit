@@ -5,7 +5,7 @@
  */
 import type { ComponentIR } from '../ir/types.js';
 import { applyCoreCleanup, applyPlugin, type CleanupPlugin } from './cleanup-core.js';
-import { cloudscapeCleanupPlugin } from '../presets/cloudscape/cleanup.js';
+import { cloudscapeCleanupPlugin } from '../presets/cloudscape.js';
 
 export type { CleanupPlugin } from './cleanup-core.js';
 

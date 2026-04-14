@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { applyCoreCleanup, applyPlugin, type CleanupPlugin } from '../../src/transforms/cleanup-core.js';
-import { cloudscapeCleanupPlugin } from '../../src/presets/cloudscape/cleanup.js';
+import { cloudscapeCleanupPlugin } from '../../src/presets/cloudscape.js';
 import { removeLibraryInternals } from '../../src/transforms/cleanup.js';
 import type { ComponentIR } from '../../src/ir/types.js';
 
