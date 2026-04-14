@@ -29,4 +29,4 @@ export const REMOVE_ATTR_PREFIXES = config.cleanup.removeAttributePrefixes;
 // ---------------------------------------------------------------------------
 
 /** Cloudscape helper functions that should be stripped. */
-export const INFRA_FUNCTIONS = new Set(config.cleanup.infraFunctions);
+export const INFRA_FUNCTIONS = config.cleanup.infraFunctions;

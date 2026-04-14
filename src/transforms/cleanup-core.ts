@@ -67,7 +67,7 @@ export function applyCoreCleanup(ir: ComponentIR, skipProps: Set<string>): Compo
   // Clean helpers — remove infrastructure and clean source
   const helpers = ir.helpers
     .filter((h) => {
-      return !infraFunctions.has(h.name);
+      return !infraFunctions.includes(h.name);
     })
     .map((h) => ({
       ...h,

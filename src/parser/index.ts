@@ -181,9 +181,7 @@ export function parseComponent(
 
   // 8. Extract body preamble (code between hooks/handlers and return)
   //    JSX-containing variables become render helpers instead of preamble.
-  const configInfraFunctions = options.config?.cleanup.infraFunctions
-    ? new Set(options.config.cleanup.infraFunctions)
-    : undefined;
+  const configInfraFunctions = options.config?.cleanup.infraFunctions;
   const { preamble: bodyPreamble, renderHelpers, preambleVars } = ts.isBlock(component.body)
     ? extractBodyPreamble(component.body, sourceFile, configInfraFunctions)
     : { preamble: [], renderHelpers: [], preambleVars: [] as PreambleVar[] };
@@ -488,7 +486,7 @@ interface PreambleResult {
 function extractBodyPreamble(
   body: ts.Block,
   sourceFile: ts.SourceFile,
-  infraFunctions?: Set<string>,
+  infraFunctions?: string[],
 ): PreambleResult {
   const preamble: string[] = [];
   const renderHelpers: import('../ir/types.js').HelperIR[] = [];
@@ -523,7 +521,7 @@ function extractBodyPreamble(
     {
       const text = sourceFile.text.slice(stmt.getStart(sourceFile), stmt.getEnd());
       // Skip infrastructure functions
-      if ([...(infraFunctions ?? INFRA_FUNCTIONS)].some(fn => text.includes(fn))) continue;
+      if ((infraFunctions ?? INFRA_FUNCTIONS).some(fn => text.includes(fn))) continue;
       // Skip dev-only validation blocks (contain hooks that violate rules-of-hooks)
       if (ts.isIfStatement(stmt) && text.includes('isDevelopment')) continue;
 
@@ -748,9 +746,7 @@ function buildSkipImportNames(hookRegistry: HookRegistry, config?: CompilerConfi
   }
 
   // Infrastructure functions stripped by cleanup transforms
-  const infraFns = config?.cleanup.infraFunctions
-    ? new Set(config.cleanup.infraFunctions)
-    : INFRA_FUNCTIONS;
+  const infraFns = config?.cleanup.infraFunctions ?? INFRA_FUNCTIONS;
   for (const fn of infraFns) {
     names.add(fn);
   }

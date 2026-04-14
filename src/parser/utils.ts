@@ -101,7 +101,7 @@ export function extractHelpers(
   sourceFile: ts.SourceFile,
   componentFunctionName: string,
   hookRegistry?: HookRegistry,
-  infraFunctions?: Set<string>,
+  infraFunctions?: string[],
 ): HelperIR[] {
   const helpers: HelperIR[] = [];
 
@@ -286,7 +286,7 @@ function extractHelperHooks(
 export function extractFileConstants(
   sourceFile: ts.SourceFile,
   componentFunctionName: string,
-  infraFunctions?: Set<string>,
+  infraFunctions?: string[],
 ): string[] {
   const constants: string[] = [];
 
@@ -448,9 +448,9 @@ function isSignificantFunction(fn: ts.ArrowFunction | ts.FunctionExpression): bo
   return ts.isCallExpression(fn.body) || ts.isTaggedTemplateExpression(fn.body);
 }
 
-export function isInfraFunction(name: string, infraFunctions?: Set<string>): boolean {
+export function isInfraFunction(name: string, infraFunctions?: string[] | Set<string>): boolean {
   const fns = infraFunctions ?? INFRA_FUNCTIONS;
-  return fns.has(name);
+  return fns instanceof Set ? fns.has(name) : fns.includes(name);
 }
 
 /**
