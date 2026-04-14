@@ -126,6 +126,9 @@ export interface PropIR {
 
   /** Lit property type for the @property() decorator */
   litType?: 'String' | 'Boolean' | 'Number' | 'Object' | 'Array';
+
+  /** Whether this prop is marked @deprecated in the public API type. */
+  deprecated?: boolean;
 }
 
 // ---------------------------------------------------------------------------

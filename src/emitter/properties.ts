@@ -33,12 +33,14 @@ export function emitProperties(props: PropIR[]): { code: string; deferred: Defer
     // Event callback props — declare as optional function properties
     // so identifier-rewritten references (this.onChange) compile.
     if (prop.category === 'event') {
+      if (prop.deprecated) lines.push('  /** @deprecated */');
       lines.push(`  ${prop.name}?: (...args: any[]) => void;`);
       continue;
     }
 
     // Slot props — emit a slotted-content check helper
     if (prop.category === 'slot') {
+      if (prop.deprecated) lines.push('  /** @deprecated */');
       if (prop.name === 'children') {
         // Default slot: check any non-slot-assigned children.
         // Use a separate name to avoid conflict with HTMLElement.children.
@@ -75,12 +77,13 @@ export function emitProperties(props: PropIR[]): { code: string; deferred: Defer
     const typeAnnotation = prop.type ? `: ${prop.type}` : '';
 
     if (prop.default && refsThis(prop.default)) {
-      // Defer initialization to firstUpdated to avoid TS2729
+      if (prop.deprecated) lines.push('  /** @deprecated */');
       lines.push(`  ${decorator}`);
       lines.push(`  ${override}${prop.name}${typeAnnotation};`);
       deferred.push({ assignment: `this.${prop.name} ??= ${prop.default};` });
     } else {
       const defaultValue = prop.default ? ` = ${prop.default}` : '';
+      if (prop.deprecated) lines.push('  /** @deprecated */');
       lines.push(`  ${decorator}`);
       lines.push(`  ${override}${prop.name}${typeAnnotation}${defaultValue};`);
     }

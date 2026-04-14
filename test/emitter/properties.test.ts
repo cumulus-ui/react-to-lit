@@ -70,4 +70,50 @@ describe('emitProperties', () => {
     const { code, deferred } = emitProperties(props);
     expect(deferred).toHaveLength(0);
   });
+
+  it('emits @deprecated JSDoc before a deprecated attribute prop', () => {
+    const props: PropIR[] = [
+      { name: 'className', type: 'string', category: 'attribute', deprecated: true },
+    ];
+    const { code } = emitProperties(props);
+    const lines = code.split('\n');
+    const deprecatedIdx = lines.findIndex(l => l.includes('/** @deprecated */'));
+    const propertyIdx = lines.findIndex(l => l.includes('@property('));
+    expect(deprecatedIdx).toBeGreaterThanOrEqual(0);
+    expect(propertyIdx).toBeGreaterThan(deprecatedIdx);
+  });
+
+  it('emits @deprecated JSDoc before a deprecated event callback', () => {
+    const props: PropIR[] = [
+      { name: 'onClick', type: '() => void', category: 'event', deprecated: true },
+    ];
+    const { code } = emitProperties(props);
+    const lines = code.split('\n');
+    const deprecatedIdx = lines.findIndex(l => l.includes('/** @deprecated */'));
+    const callbackIdx = lines.findIndex(l => l.includes('onClick?'));
+    expect(deprecatedIdx).toBeGreaterThanOrEqual(0);
+    expect(callbackIdx).toBeGreaterThan(deprecatedIdx);
+  });
+
+  it('emits @deprecated JSDoc before a deprecated slot getter', () => {
+    const props: PropIR[] = [
+      { name: 'children', type: 'any', category: 'slot', deprecated: true },
+    ];
+    const { code } = emitProperties(props);
+    const lines = code.split('\n');
+    const deprecatedIdx = lines.findIndex(l => l.includes('/** @deprecated */'));
+    const getterIdx = lines.findIndex(l => l.includes('_hasChildren'));
+    expect(deprecatedIdx).toBeGreaterThanOrEqual(0);
+    expect(getterIdx).toBeGreaterThan(deprecatedIdx);
+  });
+
+  it('does not emit @deprecated for non-deprecated props', () => {
+    const props: PropIR[] = [
+      { name: 'variant', type: 'string', category: 'attribute' },
+      { name: 'onChange', type: '() => void', category: 'event' },
+      { name: 'children', type: 'any', category: 'slot' },
+    ];
+    const { code } = emitProperties(props);
+    expect(code).not.toContain('/** @deprecated */');
+  });
 });

@@ -9,6 +9,7 @@ import { discoverComponents } from './config.js';
 import { PackageAnalyzer } from './package-analyzer.js';
 import { loadConfig } from './config-loader.js';
 import type { HookRegistry } from './hooks/registry.js';
+import type { ClassifiedProp } from './package-analyzer.js';
 
 const program = new Command();
 
@@ -37,17 +38,15 @@ program
 
     const componentEntries = discovered.map(c => {
       const keepProps = new Set<string>();
+      let classifiedProps = new Map<string, ClassifiedProp>();
 
       if (c.propsType && c.propsFile) {
         const propsType = analyzer.getPropsType(c.propsType, c.propsFile);
         if (propsType) {
           for (const prop of propsType.getProperties()) {
-            if (!config.input?.includeDeprecatedProps) {
-              const { deprecated } = analyzer.classifyProp(prop);
-              if (deprecated) continue;
-            }
             keepProps.add(prop.name);
           }
+          classifiedProps = analyzer.classifyAllProps(propsType);
         }
       }
 
@@ -55,6 +54,7 @@ program
         name: c.name,
         dir: path.resolve(sourceRoot, c.dir.replace(/^\.\//, '')),
         keepProps,
+        classifiedProps,
         knownComponents,
         reactFrameworkAttributes,
         hookMappings: config.hooks,
@@ -80,7 +80,7 @@ program.parse();
 // ---------------------------------------------------------------------------
 
 async function processComponents(
-  components: Array<{ name: string; dir: string; keepProps: Set<string>; knownComponents: Set<string>; reactFrameworkAttributes: string[]; hookMappings: HookRegistry }>,
+  components: Array<{ name: string; dir: string; keepProps: Set<string>; classifiedProps: Map<string, ClassifiedProp>; knownComponents: Set<string>; reactFrameworkAttributes: string[]; hookMappings: HookRegistry }>,
   outputRoot: string,
   opts: { dryRun?: boolean; verbose?: boolean },
 ): Promise<void> {
@@ -88,11 +88,17 @@ async function processComponents(
   let failed = 0;
   const failures: Array<{ name: string; error: string }> = [];
 
-  for (const { name, dir, keepProps, knownComponents, reactFrameworkAttributes, hookMappings } of components) {
+  for (const { name, dir, keepProps, classifiedProps, knownComponents, reactFrameworkAttributes, hookMappings } of components) {
     const outputFile = path.join(outputRoot, path.basename(dir), 'internal.ts');
 
     try {
       const ir = parseComponent(dir, { keepProps, knownComponents, reactFrameworkAttributes, hookMappings });
+
+      for (const prop of ir.props) {
+        const classified = classifiedProps.get(prop.name);
+        if (classified?.deprecated) prop.deprecated = true;
+      }
+
       const transformed = transformAll(ir, { knownComponents });
       const output = emitComponent(transformed);
 
