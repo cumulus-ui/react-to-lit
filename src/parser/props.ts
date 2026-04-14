@@ -31,7 +31,7 @@ import { camelToKebab, isEventProp } from '../naming.js';
 export function extractProps(
   component: RawComponent,
   sourceFile: ts.SourceFile,
-  skipProps: Set<string>,
+  keepProps: Set<string> | undefined,
   componentDir?: string,
   declarationsDir?: string,
   componentName?: string,
@@ -77,7 +77,7 @@ export function extractProps(
   const props: PropIR[] = [];
   const seen = new Set<string>();
   for (const [propName, typeText, defaultValue] of candidates) {
-    if (shouldSkipProp(propName, skipProps)) continue;
+      if (keepProps && !keepProps.has(propName)) continue;
     if (seen.has(propName)) continue;
     seen.add(propName);
     props.push(classifyProp(propName, typeText, defaultValue));
@@ -402,10 +402,6 @@ function extractEventDetailType(typeText: string): string | undefined {
   // CancelableEventHandler<BaseKeyDetail> → BaseKeyDetail
   const match = typeText.match(/(?:Non)?CancelableEventHandler<(.+?)>/);
   return match?.[1] || undefined;
-}
-
-function shouldSkipProp(name: string, skipProps: Set<string>): boolean {
-  return skipProps.has(name);
 }
 
 /**

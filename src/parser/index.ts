@@ -33,7 +33,7 @@ import type { CompilerConfig } from '../config.js';
 // ---------------------------------------------------------------------------
 
 export interface ParseOptions {
-  skipProps?: Set<string>;
+  keepProps?: Set<string>;
   knownComponents?: Set<string>;
   reactFrameworkAttributes?: Set<string>;
   hookMappings?: HookRegistry;
@@ -125,7 +125,7 @@ export function parseComponent(
   // 4. Extract props
   const sourceFile = component.sourceFile;
   const dirName = path.basename(componentDir);
-  const props = extractProps(component, sourceFile, options.skipProps ?? new Set(), componentDir, declarationsDir, dirName);
+  const props = extractProps(component, sourceFile, options.keepProps, componentDir, declarationsDir, dirName);
 
   // 5. Extract hooks from the implementation body
   const hookResult = ts.isBlock(component.body)

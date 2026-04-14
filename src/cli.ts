@@ -36,14 +36,13 @@ program
     const reactFrameworkAttributes = analyzer.getReactFrameworkAttributes();
 
     const componentEntries = discovered.map(c => {
-      const skipProps = new Set<string>();
+      const keepProps = new Set<string>();
 
       if (c.propsType && c.propsFile) {
         const propsType = analyzer.getPropsType(c.propsType, c.propsFile);
         if (propsType) {
-          const classified = analyzer.classifyAllProps(propsType);
-          for (const [name, info] of classified) {
-            if (info.classification === 'passthrough') skipProps.add(name);
+          for (const prop of propsType.getProperties()) {
+            keepProps.add(prop.name);
           }
         }
       }
@@ -51,7 +50,7 @@ program
       return {
         name: c.name,
         dir: path.resolve(sourceRoot, c.dir.replace(/^\.\//, '')),
-        skipProps,
+        keepProps,
         knownComponents,
         reactFrameworkAttributes,
         hookMappings: config.hooks,
@@ -77,7 +76,7 @@ program.parse();
 // ---------------------------------------------------------------------------
 
 async function processComponents(
-  components: Array<{ name: string; dir: string; skipProps: Set<string>; knownComponents: Set<string>; reactFrameworkAttributes: Set<string>; hookMappings: HookRegistry }>,
+  components: Array<{ name: string; dir: string; keepProps: Set<string>; knownComponents: Set<string>; reactFrameworkAttributes: Set<string>; hookMappings: HookRegistry }>,
   outputRoot: string,
   opts: { dryRun?: boolean; verbose?: boolean },
 ): Promise<void> {
@@ -85,12 +84,12 @@ async function processComponents(
   let failed = 0;
   const failures: Array<{ name: string; error: string }> = [];
 
-  for (const { name, dir, skipProps, knownComponents, reactFrameworkAttributes, hookMappings } of components) {
+  for (const { name, dir, keepProps, knownComponents, reactFrameworkAttributes, hookMappings } of components) {
     const outputFile = path.join(outputRoot, path.basename(dir), 'internal.ts');
 
     try {
-      const ir = parseComponent(dir, { skipProps, knownComponents, reactFrameworkAttributes, hookMappings });
-      const transformed = transformAll(ir, { skipProps, knownComponents });
+      const ir = parseComponent(dir, { keepProps, knownComponents, reactFrameworkAttributes, hookMappings });
+      const transformed = transformAll(ir, { knownComponents });
       const output = emitComponent(transformed);
 
       if (opts.dryRun) {

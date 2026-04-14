@@ -45,27 +45,24 @@ describe('isInfraFunction', () => {
 // extractProps — config.cleanup overrides skipProps/skipPrefixes
 // ---------------------------------------------------------------------------
 
-describe('extractProps with skipProps override', () => {
-  it('skips props in the provided set', () => {
-    const skipProps = new Set(['color']);
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { skipProps });
+describe('extractProps with keepProps', () => {
+  it('keeps only props in the provided set', () => {
+    const keepProps = new Set(['children']);
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { keepProps });
     const colorProp = ir.props.find((p) => p.name === 'color');
     expect(colorProp).toBeUndefined();
   });
 
-  it('preserves all props when skipProps is empty', () => {
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { skipProps: new Set() });
+  it('preserves all props when keepProps is not provided', () => {
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'));
     const colorProp = ir.props.find((p) => p.name === 'color');
     expect(colorProp).toBeDefined();
   });
 
-  it('skips multiple props', () => {
-    const skipProps = new Set(['color', 'children']);
-    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { skipProps });
-    const colorProp = ir.props.find((p) => p.name === 'color');
-    const childrenProp = ir.props.find((p) => p.name === 'children');
-    expect(colorProp).toBeUndefined();
-    expect(childrenProp).toBeUndefined();
+  it('keeps only specified props', () => {
+    const keepProps = new Set(['color']);
+    const ir = parseComponent(path.join(CLOUDSCAPE_SRC, 'badge'), { keepProps });
+    expect(ir.props.map(p => p.name)).toEqual(['color']);
   });
 });
 
