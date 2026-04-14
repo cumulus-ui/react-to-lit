@@ -31,7 +31,7 @@ export class PackageAnalyzer {
     const dtsPath = path.join(this.pkgRoot, mainEntry.replace(/\.js$/, '.d.ts'));
 
     this.program = ts.createProgram([dtsPath], {
-      target: ts.ScriptTarget.ES2022,
+      target: ts.ScriptTarget.Latest,
       moduleResolution: ts.ModuleResolutionKind.Bundler,
       baseUrl: this.pkgRoot,
       lib: ['lib.dom.d.ts', 'lib.es2022.d.ts'],
