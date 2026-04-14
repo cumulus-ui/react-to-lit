@@ -14,8 +14,6 @@ import { createCloudscapeConfig } from './presets/cloudscape.js';
 
 const config = createCloudscapeConfig();
 
-export const SKIP_PREFIXES = config.cleanup.skipPrefixes;
-
 // ---------------------------------------------------------------------------
 // Template attributes to remove
 // ---------------------------------------------------------------------------

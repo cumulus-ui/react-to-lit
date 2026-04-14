@@ -17,7 +17,6 @@ import type {
 } from '../ir/types.js';
 import { getNodeText } from './program.js';
 import { lookupHook, type HookRegistry } from '../hooks/registry.js';
-import { SKIP_PREFIXES } from '../cloudscape-config.js';
 import { collectBindingNames, isHookCall } from './utils.js';
 import type { CleanupConfig } from '../config.js';
 
@@ -547,8 +546,7 @@ function processContextHook(
 function collectPreservedVars(decl: ts.VariableDeclaration, preservedVars: string[], skipPrefixes?: string[]): void {
   const names = new Set<string>();
   collectBindingNames(decl.name, names);
-  // Filter out infrastructure variables (e.g. __internalRootRef)
-  const prefixes = skipPrefixes ?? SKIP_PREFIXES;
+  const prefixes = skipPrefixes ?? ['__'];
   for (const name of names) {
     if (!prefixes.some(prefix => name.startsWith(prefix))) {
       preservedVars.push(name);

@@ -112,7 +112,6 @@ describe('createCloudscapeConfig', () => {
     const legacy = await import('../src/cloudscape-config.js');
 
     // Verify the shim-derived Sets match the config arrays
-    expect(legacy.SKIP_PREFIXES).toEqual(config.cleanup.skipPrefixes);
     expect([...legacy.REMOVE_ATTRS]).toEqual(config.cleanup.removeAttributes);
     expect(legacy.REMOVE_ATTR_PREFIXES).toEqual(config.cleanup.removeAttributePrefixes);
     expect([...legacy.INFRA_FUNCTIONS]).toEqual(config.cleanup.infraFunctions);
