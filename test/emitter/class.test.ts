@@ -45,29 +45,25 @@ describe('emitComponent output config', () => {
     const withoutConfig = emitComponent(ir);
     const withEmptyConfig = emitComponent(ir, {});
     expect(withoutConfig).toBe(withEmptyConfig);
-    // Verify default class name pattern
-    expect(withoutConfig).toContain('export class CsTestInternal extends LitElement');
+    // Verify class name is just ir.name
+    expect(withoutConfig).toContain('export class Test extends LitElement');
   });
 
-  it('custom class prefix produces My${name}Internal instead of Cs${name}Internal', () => {
+  it('class name is just ir.name with custom base class', () => {
     const ir = minimalIR({ name: 'Button' });
-    const output = emitComponent(ir, { output: { classPrefix: 'My', classSuffix: 'Internal', tagPrefix: 'el-', importExtension: '.js', baseClass: { name: 'CsBaseElement', import: '../internal/base-element.js' } } });
-    expect(output).toContain('export class MyButtonInternal extends CsBaseElement');
-    expect(output).not.toContain('CsButtonInternal');
+    const output = emitComponent(ir, { output: { tagPrefix: 'el-', importExtension: '.js', baseClass: { name: 'CsBaseElement', import: '../internal/base-element.js' } } });
+    expect(output).toContain('export class Button extends CsBaseElement');
   });
 
-  it('custom class suffix', () => {
+  it('class name is just ir.name for Badge', () => {
     const ir = minimalIR({ name: 'Badge' });
-    const output = emitComponent(ir, { output: { classPrefix: 'Cs', classSuffix: 'Base', tagPrefix: 'el-', importExtension: '.js', baseClass: { name: 'CsBaseElement', import: '../internal/base-element.js' } } });
-    expect(output).toContain('export class CsBadgeBase extends CsBaseElement');
-    expect(output).not.toContain('CsBadgeInternal');
+    const output = emitComponent(ir, { output: { tagPrefix: 'el-', importExtension: '.js', baseClass: { name: 'CsBaseElement', import: '../internal/base-element.js' } } });
+    expect(output).toContain('export class Badge extends CsBaseElement');
   });
 
   it('custom base class name and import path', () => {
     const ir = minimalIR({ name: 'Alert' });
     const config: OutputConfig = {
-      classPrefix: 'Cs',
-      classSuffix: 'Internal',
       tagPrefix: 'el-',
       importExtension: '.js',
       baseClass: { name: 'MyBaseElement', import: '../base/my-element.js' },
@@ -85,8 +81,6 @@ describe('emitComponent output config', () => {
       baseClass: { name: 'SharedBase', importPath: '../shared/base.js' },
     });
     const config: OutputConfig = {
-      classPrefix: 'Cs',
-      classSuffix: 'Internal',
       tagPrefix: 'el-',
       importExtension: '.js',
       baseClass: { name: 'ShouldNotAppear', import: '../should-not.js' },
@@ -103,8 +97,6 @@ describe('emitComponent output config', () => {
       mixins: ['FormControlMixin'],
     });
     const config: OutputConfig = {
-      classPrefix: 'Cs',
-      classSuffix: 'Internal',
       tagPrefix: 'el-',
       importExtension: '.js',
       baseClass: { name: 'MyBase', import: '../base.js' },
@@ -114,11 +106,9 @@ describe('emitComponent output config', () => {
     expect(output).toContain('extends Base');
   });
 
-  it('empty prefix and suffix produce plain class name', () => {
+  it('plain class name with default config', () => {
     const ir = minimalIR({ name: 'Card' });
     const config: OutputConfig = {
-      classPrefix: '',
-      classSuffix: '',
       tagPrefix: 'el-',
       importExtension: '.js',
       baseClass: { name: 'LitElement', import: 'lit' },
@@ -144,8 +134,6 @@ describe('collectImports output config', () => {
   it('uses custom base element import with config', () => {
     const ir = minimalIR();
     const config: OutputConfig = {
-      classPrefix: 'Cs',
-      classSuffix: 'Internal',
       tagPrefix: 'el-',
       importExtension: '.js',
       baseClass: { name: 'MyBase', import: '@my-lib/base.js' },
@@ -163,8 +151,6 @@ describe('collectImports output config', () => {
       baseClass: { name: 'SharedBase', importPath: '../shared/base.js' },
     });
     const config: OutputConfig = {
-      classPrefix: 'Cs',
-      classSuffix: 'Internal',
       tagPrefix: 'el-',
       importExtension: '.js',
       baseClass: { name: 'ShouldNotAppear', import: '../should-not.js' },

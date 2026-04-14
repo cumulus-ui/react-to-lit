@@ -38,10 +38,6 @@ export interface InputConfig {
 export interface OutputConfig {
   /** Base class for generated components. */
   baseClass: { name: string; import: string };
-  /** Class name prefix (e.g., 'Cs'). */
-  classPrefix: string;
-  /** Class name suffix (e.g., 'Internal'). */
-  classSuffix: string;
   /** Custom element tag prefix (e.g., 'el-'). */
   tagPrefix: string;
   /** File extension for imports (e.g., '.js'). */
@@ -96,8 +92,6 @@ export function createDefaultConfig(): CompilerConfig {
     },
     output: {
       baseClass: { name: 'LitElement', import: 'lit' },
-      classPrefix: '',
-      classSuffix: '',
       tagPrefix: 'el-',
       importExtension: '.js',
     },

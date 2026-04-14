@@ -26,7 +26,7 @@ describe('E2E: parse → emit', () => {
     });
 
     it('should contain class declaration', () => {
-      expect(output).toContain('export class CsBadgeInternal extends LitElement');
+      expect(output).toContain('export class Badge extends LitElement');
     });
 
     it('should contain static styles', () => {
@@ -82,7 +82,7 @@ describe('E2E: parse → emit', () => {
     const output = emitComponent(ir);
 
     it('should contain class declaration', () => {
-      expect(output).toContain('export class CsSpinnerInternal extends LitElement');
+      expect(output).toContain('export class Spinner extends LitElement');
     });
 
     it('should contain properties for size and variant', () => {
@@ -111,7 +111,7 @@ describe('E2E: parse → emit', () => {
     const output = emitComponent(ir);
 
     it('should contain class declaration', () => {
-      expect(output).toContain('export class CsStatusIndicatorInternal extends LitElement');
+      expect(output).toContain('export class StatusIndicator extends LitElement');
     });
 
     it('should contain type property', () => {

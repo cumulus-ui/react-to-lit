@@ -101,9 +101,7 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   }
 
   // --- Class declaration ---
-  const classPrefix = _options.output?.classPrefix ?? 'Cs';
-  const classSuffix = _options.output?.classSuffix ?? 'Internal';
-  const className = `${classPrefix}${ir.name}${classSuffix}`;
+  const className = ir.name;
   const typeParamStr = ir.typeParams?.length ? `<${ir.typeParams.join(', ')}>` : '';
   sections.push(`export class ${className}${typeParamStr} extends ${baseClassName} {`);
   sections.push(`  static override styles = [sharedStyles, componentStyles, hostStyles];`);

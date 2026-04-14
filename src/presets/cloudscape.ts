@@ -105,8 +105,6 @@ export function createCloudscapeConfig(): CompilerConfig {
     },
     output: {
       baseClass: { name: 'LitElement', import: 'lit' },
-      classPrefix: 'Cs',
-      classSuffix: 'Internal',
       tagPrefix: 'el-',
       importExtension: '.js',
     },

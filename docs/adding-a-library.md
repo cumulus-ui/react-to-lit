@@ -43,14 +43,11 @@ const config: CompilerConfig = {
 
   output: {
     baseClass: { name: 'LitElement', import: 'lit' },
-    classPrefix: 'Mui',
-    classSuffix: '',
     tagPrefix: 'el-',
     importExtension: '.js',
   },
 
   cleanup: {
-    skipProps: ['classes', 'sx', 'theme'],
     skipPrefixes: ['__', 'mui'],
     removeAttributes: ['key', 'ref', 'className'],
     removeAttributePrefixes: ['__', 'data-testid'],
@@ -308,8 +305,6 @@ const config: CompilerConfig = {
 
   output: {
     baseClass: { name: 'LitElement', import: 'lit' },
-    classPrefix: 'Mui',
-    classSuffix: '',
     tagPrefix: 'el-',
     importExtension: '.js',
   },
@@ -415,8 +410,6 @@ customElements.define('mui-button', MuiButton);
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `baseClass` | `{ name: string; import: string }` | `{ name: 'LitElement', import: 'lit' }` | Base class for generated components. Change this to extend a custom base class. |
-| `classPrefix` | `string` | `''` | Prefix added to generated class names (e.g., `'Cs'` → `CsButton`). |
-| `classSuffix` | `string` | `''` | Suffix added to generated class names (e.g., `'Internal'` → `ButtonInternal`). |
 | `tagPrefix` | `string` | `'el-'` | Prefix for custom element tags in templates (e.g., `'el-'` → `<el-button>`). |
 | `importExtension` | `string` | `'.js'` | File extension appended to relative imports in generated code. |
 

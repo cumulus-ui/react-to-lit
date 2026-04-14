@@ -86,8 +86,8 @@ describe('Phase 5: Full generation — all Cloudscape components', () => {
   it('should generate output with correct class names', () => {
     for (const r of results.filter((r) => r.success)) {
       const output = r.output!;
-      // Should have CsXxxInternal class pattern (optionally with generic type params)
-      expect(output).toMatch(/export class Cs\w+Internal(?:<[^>]+>)? extends/);
+      // Should have class name matching component name (optionally with generic type params)
+      expect(output).toMatch(/export class \w+(?:<[^>]+>)? extends/);
     }
   });
 

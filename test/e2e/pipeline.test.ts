@@ -37,7 +37,7 @@ describe('Full pipeline: parse → transform → emit', () => {
     const output = fullPipeline('badge');
 
     it('should produce valid class declaration', () => {
-      expect(output).toContain('export class CsBadgeInternal extends LitElement');
+      expect(output).toContain('export class Badge extends LitElement');
     });
 
     it('should NOT contain WithNativeAttributes', () => {
@@ -196,7 +196,7 @@ describe('config-driven pipeline', () => {
     const result = transformAll(ir, { config: cloudscapeConfig });
     const output = emitComponent(result);
 
-    expect(output).toContain('class Cs');
+    expect(output).toContain('class Spinner');
     expect(output).toContain('render()');
   });
 
