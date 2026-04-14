@@ -9,7 +9,7 @@
  * Runs BEFORE IR extraction so all downstream code operates on JSX-free source.
  */
 import ts from 'typescript';
-import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES } from '../cloudscape-config.js';
+import { createDefaultConfig } from '../config.js';
 import { getHtmlTagNames, isVoidElement } from '../standards.js';
 import { toTagName, toLitEventName, classifyBinding, reactAttrToHtml } from '../naming.js';
 
@@ -41,8 +41,8 @@ interface ResolvedConfig {
 
 function resolveConfig(config?: JsxToLitConfig): ResolvedConfig {
   return {
-    removeAttrs: config?.removeAttributes ?? REMOVE_ATTRS,
-    removeAttrPrefixes: config?.removeAttributePrefixes ?? REMOVE_ATTR_PREFIXES,
+    removeAttrs: config?.removeAttributes ?? createDefaultConfig().cleanup.removeAttributes,
+    removeAttrPrefixes: config?.removeAttributePrefixes ?? createDefaultConfig().cleanup.removeAttributePrefixes,
     shouldUnwrap: config?.shouldUnwrap ?? (() => false),
   };
 }
@@ -55,8 +55,8 @@ function resolveConfig(config?: JsxToLitConfig): ResolvedConfig {
  * Create a TransformerFactory that converts JSX to Lit html`` tagged templates.
  *
  * Accepts optional config to override which attributes are removed and which
- * components are unwrapped. When config is omitted the Cloudscape defaults
- * from `cloudscape-config.ts` are used.
+ * components are unwrapped. When config is omitted the generic defaults
+ * from `createDefaultConfig()` are used.
  */
 export function createJsxToLitTransformerFactory(
   config?: JsxToLitConfig,

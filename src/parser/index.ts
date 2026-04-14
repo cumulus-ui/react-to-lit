@@ -25,8 +25,7 @@ import { createHookRegistry, type HookRegistry } from '../hooks/registry.js';
 import { containsHtmlTemplate } from '../text-utils.js';
 import { transformJsxToLit } from './jsx-transform.js';
 import { toTagName, escapeRegex } from '../naming.js';
-import { INFRA_FUNCTIONS } from '../cloudscape-config.js';
-import type { CompilerConfig } from '../config.js';
+import { createDefaultConfig, type CompilerConfig } from '../config.js';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -521,7 +520,7 @@ function extractBodyPreamble(
     {
       const text = sourceFile.text.slice(stmt.getStart(sourceFile), stmt.getEnd());
       // Skip infrastructure functions
-      if ((infraFunctions ?? INFRA_FUNCTIONS).some(fn => text.includes(fn))) continue;
+      if ((infraFunctions ?? createDefaultConfig().cleanup.infraFunctions).some(fn => text.includes(fn))) continue;
       // Skip dev-only validation blocks (contain hooks that violate rules-of-hooks)
       if (ts.isIfStatement(stmt) && text.includes('isDevelopment')) continue;
 
@@ -746,7 +745,7 @@ function buildSkipImportNames(hookRegistry: HookRegistry, config?: CompilerConfi
   }
 
   // Infrastructure functions stripped by cleanup transforms
-  const infraFns = config?.cleanup.infraFunctions ?? INFRA_FUNCTIONS;
+  const infraFns = config?.cleanup.infraFunctions ?? createDefaultConfig().cleanup.infraFunctions;
   for (const fn of infraFns) {
     names.add(fn);
   }

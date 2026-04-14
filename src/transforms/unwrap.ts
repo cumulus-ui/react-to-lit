@@ -5,7 +5,7 @@
  * This transform replaces the wrapper with a plain element using the tag prop value.
  */
 import type { TemplateNodeIR, AttributeIR } from '../ir/types.js';
-import { REMOVE_ATTRS } from '../cloudscape-config.js';
+import { createDefaultConfig } from '../config.js';
 import { walkTemplate } from '../template-walker.js';
 
 // ---------------------------------------------------------------------------
@@ -17,7 +17,7 @@ import { walkTemplate } from '../template-walker.js';
  *
  * @param node - The template node to process
  * @param removeAttrs - Optional set of attribute names to strip. Falls back to the
- *   default REMOVE_ATTRS from cloudscape-config when omitted.
+ *   generic defaults from createDefaultConfig() when omitted.
  */
 export function unwrapWithNativeAttributes(
   node: TemplateNodeIR,
@@ -45,7 +45,7 @@ function unwrapNode(node: TemplateNodeIR, removeAttrs?: string[]): TemplateNodeI
     : 'div';
 
   // Filter out WithNativeAttributes-specific props
-  const attrsToRemove = removeAttrs ?? REMOVE_ATTRS;
+  const attrsToRemove = removeAttrs ?? createDefaultConfig().cleanup.removeAttributes;
   const skipAttrs = new Set([...attrsToRemove, 'tag']);
 
   const keptAttrs: AttributeIR[] = [];

@@ -71,13 +71,13 @@ export function transformAll(
   let result = ir;
 
   // 1. Remove library internals
-  result = removeLibraryInternals(result, options.skipProps ?? new Set());
+  result = removeLibraryInternals(result, options.skipProps ?? new Set(), undefined, config?.cleanup);
 
   // 1b. Replace React types with web platform equivalents
   result = cleanupReactTypes(result);
 
   // 2. Unwrap WithNativeAttributes
-  result = { ...result, template: unwrapWithNativeAttributes(result.template) };
+  result = { ...result, template: unwrapWithNativeAttributes(result.template, config?.cleanup?.removeAttributes) };
 
   // 3. Resolve component references
   const { template: resolvedTemplate, sideEffectImports } = resolveComponentReferences(

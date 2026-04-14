@@ -21,9 +21,9 @@ const CLOUDSCAPE_SRC = path.resolve(
 // ---------------------------------------------------------------------------
 
 describe('isInfraFunction', () => {
-  it('uses INFRA_FUNCTIONS default when no set provided', () => {
-    // applyDisplayName is in the Cloudscape preset
-    expect(isInfraFunction('applyDisplayName')).toBe(true);
+  it('uses generic defaults (empty) when no set provided', () => {
+    // With generic defaults, no function is infra unless explicitly configured
+    expect(isInfraFunction('applyDisplayName')).toBe(false);
     expect(isInfraFunction('notAFunction')).toBe(false);
   });
 

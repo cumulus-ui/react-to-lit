@@ -4,7 +4,7 @@
 import ts from 'typescript';
 import { getNodeText } from './program.js';
 import type { HandlerIR, HelperIR } from '../ir/types.js';
-import { INFRA_FUNCTIONS } from '../cloudscape-config.js';
+import { createDefaultConfig } from '../config.js';
 import { containsHtmlTemplate } from '../text-utils.js';
 import { extractHooks } from './hooks.js';
 import type { HookRegistry } from '../hooks/registry.js';
@@ -449,7 +449,7 @@ function isSignificantFunction(fn: ts.ArrowFunction | ts.FunctionExpression): bo
 }
 
 export function isInfraFunction(name: string, infraFunctions?: string[] | Set<string>): boolean {
-  const fns = infraFunctions ?? INFRA_FUNCTIONS;
+  const fns = infraFunctions ?? createDefaultConfig().cleanup.infraFunctions;
   return fns instanceof Set ? fns.has(name) : fns.includes(name);
 }
 
