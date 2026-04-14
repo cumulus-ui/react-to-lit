@@ -176,3 +176,53 @@ describe('collectImports output config', () => {
     expect(output).not.toContain('ShouldNotAppear');
   });
 });
+
+// ---------------------------------------------------------------------------
+// emitComponent — skipped hook variable filtering
+// ---------------------------------------------------------------------------
+
+describe('emitComponent skipped hook var filtering', () => {
+  it('emits stubs only for hook vars referenced in IR text', () => {
+    const ir = minimalIR({
+      skippedHookVars: ['used', 'unused'],
+      handlers: [{ name: 'handleClick', params: '', body: 'console.log(this._used);' }],
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('private _used: any;');
+    expect(output).not.toContain('private _unused: any;');
+  });
+
+  it('emits nothing when all hook vars are unused', () => {
+    const ir = minimalIR({
+      skippedHookVars: ['alpha', 'beta'],
+    });
+    const output = emitComponent(ir);
+    expect(output).not.toContain('private _alpha: any;');
+    expect(output).not.toContain('private _beta: any;');
+  });
+
+  it('emits nothing when skippedHookVars is empty', () => {
+    const ir = minimalIR({ skippedHookVars: [] });
+    const output = emitComponent(ir);
+    expect(output).not.toMatch(/private _\w+: any;/);
+  });
+
+  it('uses word-boundary matching to avoid partial name collisions', () => {
+    const ir = minimalIR({
+      skippedHookVars: ['foo', 'fooBar'],
+      handlers: [{ name: 'h', params: '', body: 'this._fooBar' }],
+    });
+    const output = emitComponent(ir);
+    expect(output).not.toContain('private _foo: any;');
+    expect(output).toContain('private _fooBar: any;');
+  });
+
+  it('detects references in effect bodies', () => {
+    const ir = minimalIR({
+      skippedHookVars: ['loadingButtonCount'],
+      effects: [{ body: 'this._loadingButtonCount++', deps: [] }],
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('private _loadingButtonCount: any;');
+  });
+});

@@ -8,6 +8,7 @@ import type { ComponentIR } from '../ir/types.js';
 import type { OutputConfig } from '../config.js';
 import { Project, Node, ts } from 'ts-morph';
 import { containsHtmlTemplate } from '../text-utils.js';
+import { collectIRText } from '../ir/transform-helpers.js';
 import { collectImports } from './imports.js';
 import { emitProperties, emitState, emitControllers, emitContexts, emitComputed, emitRefs, emitSkippedHookVars } from './properties.js';
 import type { DeferredInit } from './properties.js';
@@ -144,7 +145,12 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   allDeferred.push(...controllerResult.deferred);
 
   // --- Skipped hook variable stubs ---
-  const skippedCode = emitSkippedHookVars(ir.skippedHookVars);
+  // Filter out stubs that are never referenced anywhere in the IR.
+  const allCode = collectIRText(ir);
+  const usedHookVars = ir.skippedHookVars.filter(
+    name => new RegExp('\\b_' + name + '\\b').test(allCode),
+  );
+  const skippedCode = emitSkippedHookVars(usedHookVars);
   if (skippedCode.trim()) {
     sections.push(skippedCode);
   }
