@@ -114,8 +114,18 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   }
 
   // --- Properties ---
+  // Collect all IR text once — used for filtering unused slot getters and hook vars.
+  const allCode = collectIRText(ir);
+
+  // Filter out slot props whose getter is never referenced in the IR.
+  const filteredProps = ir.props.filter(prop => {
+    if (prop.category !== 'slot') return true;
+    const getterName = prop.name === 'children' ? '_hasChildren' : prop.name;
+    return new RegExp('\\b' + getterName + '\\b').test(allCode);
+  });
+
   const allDeferred: DeferredInit[] = [];
-  const propsResult = emitProperties(ir.props);
+  const propsResult = emitProperties(filteredProps);
   if (propsResult.code.trim()) {
     sections.push(propsResult.code);
   }
@@ -144,7 +154,6 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
 
   // --- Skipped hook variable stubs ---
   // Filter out stubs that are never referenced anywhere in the IR.
-  const allCode = collectIRText(ir);
   const usedHookVars = ir.skippedHookVars.filter(
     name => new RegExp('\\b_' + name + '\\b').test(allCode),
   );

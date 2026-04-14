@@ -297,3 +297,72 @@ describe('emitComponent body preamble filtering', () => {
     expect(output).not.toContain('const item = getItem()');
   });
 });
+
+// ---------------------------------------------------------------------------
+// emitComponent — unused slot getter filtering
+// ---------------------------------------------------------------------------
+
+describe('emitComponent unused slot getter filtering', () => {
+  it('removes children slot getter when _hasChildren is not referenced', () => {
+    const ir = minimalIR({
+      props: [
+        { name: 'children', type: 'ReactNode', category: 'slot' },
+      ],
+      template: { kind: 'element', tag: 'div', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).not.toContain('private get _hasChildren');
+  });
+
+  it('keeps children slot getter when _hasChildren IS referenced in handler', () => {
+    const ir = minimalIR({
+      props: [
+        { name: 'children', type: 'ReactNode', category: 'slot' },
+      ],
+      handlers: [{ name: 'handleRender', params: '', body: 'if (this._hasChildren) { }' }],
+      template: { kind: 'element', tag: 'div', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('private get _hasChildren');
+  });
+
+  it('keeps named slot getter when referenced in template', () => {
+    const ir = minimalIR({
+      props: [
+        { name: 'header', type: 'ReactNode', category: 'slot' },
+      ],
+      template: {
+        kind: 'expression',
+        attributes: [],
+        children: [],
+        expression: 'html`${this.header ? html`<div>${this.header}</div>` : nothing}`',
+      },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('private get header');
+  });
+
+  it('removes named slot getter when not referenced', () => {
+    const ir = minimalIR({
+      props: [
+        { name: 'header', type: 'ReactNode', category: 'slot' },
+      ],
+      template: { kind: 'element', tag: 'div', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).not.toContain('private get header');
+  });
+
+  it('preserves non-slot props regardless of reference', () => {
+    const ir = minimalIR({
+      props: [
+        { name: 'variant', type: 'string', category: 'attribute', litType: 'String' },
+        { name: 'children', type: 'ReactNode', category: 'slot' },
+      ],
+      template: { kind: 'element', tag: 'div', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('variant');
+    expect(output).not.toContain('private get _hasChildren');
+  });
+});
