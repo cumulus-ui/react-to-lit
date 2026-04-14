@@ -127,6 +127,13 @@ export function parseComponent(
   const dirName = path.basename(componentDir);
   const props = extractProps(component, sourceFile, options.keepProps, componentDir, declarationsDir, dirName);
 
+  const defaults = extractDefaultValues(origIndexFile);
+  for (const prop of props) {
+    if (!prop.default && defaults.has(prop.name)) {
+      prop.default = defaults.get(prop.name)!;
+    }
+  }
+
   // 5. Extract hooks from the implementation body
   const hookResult = ts.isBlock(component.body)
     ? extractHooks(component.body, sourceFile, hookRegistry, options.config?.cleanup)
@@ -907,4 +914,23 @@ function getTypeArguments(typeNode: ts.TypeNode): readonly ts.TypeNode[] | undef
     }
   }
   return undefined;
+}
+
+function extractDefaultValues(sourceFile: ts.SourceFile): Map<string, string> {
+  const defaults = new Map<string, string>();
+  function visit(node: ts.Node) {
+    if ((ts.isArrowFunction(node) || ts.isFunctionExpression(node)) && node.parameters.length > 0) {
+      const param = node.parameters[0];
+      if (ts.isObjectBindingPattern(param.name)) {
+        for (const element of param.name.elements) {
+          if (element.initializer && ts.isIdentifier(element.name)) {
+            defaults.set(element.name.text, element.initializer.getText(sourceFile));
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(sourceFile);
+  return defaults;
 }
