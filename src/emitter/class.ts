@@ -209,11 +209,23 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
     if (stmt.trimStart().startsWith('=')) return false;
     return true;
   });
-  if (safePreamble.length > 0) {
+  // Filter preamble: keep only statements whose assigned variable is
+  // actually referenced in the template or render-helper bodies.
+  // Conservative: destructured assignments and side-effect statements
+  // (no simple variable name extractable) are always kept.
+  const renderRefCorpus = renderCode + '\n' + renderHelpers.map(h => h.source).join('\n');
+  const usedPreamble = safePreamble.filter(stmt => {
+    const match = stmt.trimStart().match(/^(?:const|let|var)\s+(\w+)\s*=/);
+    if (!match) return true; // side-effect, destructuring, etc. — keep
+    const varName = match[1];
+    return new RegExp('\\b' + varName + '\\b').test(renderRefCorpus);
+  });
+
+  if (usedPreamble.length > 0) {
     // Strip classMap() wrapper from preamble variables — the template emitter
     // will add classMap() when rendering the class attribute. Keeping classMap()
     // in the preamble would cause double-wrapping.
-    const preambleLines = safePreamble
+    const preambleLines = usedPreamble
       .map((stmt) => unwrapClassMapInPreamble(stmt))
       .map((stmt) => `    ${stmt}`)
       .join('\n');

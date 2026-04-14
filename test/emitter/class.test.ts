@@ -226,3 +226,88 @@ describe('emitComponent skipped hook var filtering', () => {
     expect(output).toContain('private _loadingButtonCount: any;');
   });
 });
+
+// ---------------------------------------------------------------------------
+// emitComponent — body preamble unused variable filtering
+// ---------------------------------------------------------------------------
+
+describe('emitComponent body preamble filtering', () => {
+  it('keeps preamble variables referenced in template, removes unused ones', () => {
+    const ir = minimalIR({
+      bodyPreamble: [
+        'const unused = getBaseProps(rest)',
+        'const classes = { root: true }',
+      ],
+      template: {
+        kind: 'element',
+        tag: 'div',
+        attributes: [{ name: 'class', value: { expression: 'classMap(classes)' }, kind: 'classMap' }],
+        children: [],
+      },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('const classes = { root: true }');
+    expect(output).not.toContain('const unused = getBaseProps(rest)');
+  });
+
+  it('preserves destructured assignments (conservative — no simple variable name)', () => {
+    const ir = minimalIR({
+      bodyPreamble: ['const { a, b } = computeStuff()'],
+      template: { kind: 'fragment', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('const { a, b } = computeStuff()');
+  });
+
+  it('preserves side-effect statements (no variable assignment)', () => {
+    const ir = minimalIR({
+      bodyPreamble: ['if (x) warnOnce("deprecated")'],
+      template: { kind: 'fragment', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('if (x) warnOnce("deprecated")');
+  });
+
+  it('keeps preamble variables referenced in render helpers', () => {
+    const ir = minimalIR({
+      bodyPreamble: ['const helperData = buildData()'],
+      helpers: [
+        { name: 'renderContent', source: 'function renderContent() { return html`${helperData}`; }' },
+      ],
+      template: { kind: 'fragment', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('const helperData = buildData()');
+  });
+
+  it('removes all preamble when none are referenced', () => {
+    const ir = minimalIR({
+      bodyPreamble: [
+        'const baseProps = getBaseProps(rest)',
+        'const iconProps = buildIconProps()',
+      ],
+      template: { kind: 'fragment', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).not.toContain('const baseProps');
+    expect(output).not.toContain('const iconProps');
+  });
+
+  it('uses word-boundary matching to avoid partial name collisions', () => {
+    const ir = minimalIR({
+      bodyPreamble: [
+        'const item = getItem()',
+        'const items = getItems()',
+      ],
+      template: {
+        kind: 'expression',
+        attributes: [],
+        children: [],
+        expression: 'html`${items.map(i => html`<li>${i}</li>`)}`',
+      },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('const items = getItems()');
+    expect(output).not.toContain('const item = getItem()');
+  });
+});
