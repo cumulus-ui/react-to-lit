@@ -39,6 +39,11 @@ describe('createDefaultConfig', () => {
     const config = createDefaultConfig();
     expect(config.components.autoDerive).toBe(true);
   });
+
+  it('does not set includeDeprecatedProps by default', () => {
+    const config = createDefaultConfig();
+    expect(config.input.includeDeprecatedProps).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -105,7 +110,10 @@ describe('createCloudscapeConfig', () => {
     expect(unwrap).toContain('WidthsContext.Provider');
   });
 
-
+  it('does not set includeDeprecatedProps by default', () => {
+    const config = createCloudscapeConfig();
+    expect(config.input.includeDeprecatedProps).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

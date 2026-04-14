@@ -42,6 +42,10 @@ program
         const propsType = analyzer.getPropsType(c.propsType, c.propsFile);
         if (propsType) {
           for (const prop of propsType.getProperties()) {
+            if (!config.input?.includeDeprecatedProps) {
+              const { deprecated } = analyzer.classifyProp(prop);
+              if (deprecated) continue;
+            }
             keepProps.add(prop.name);
           }
         }

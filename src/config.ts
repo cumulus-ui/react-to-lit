@@ -32,6 +32,8 @@ export interface InputConfig {
   declarationsPackage?: string;
   /** Directory names to skip during batch processing. */
   skipDirectories?: string[];
+  /** Include props marked @deprecated in keepProps. Default: false (exclude). */
+  includeDeprecatedProps?: boolean;
 }
 
 /** Controls the shape of the generated Lit output. */
