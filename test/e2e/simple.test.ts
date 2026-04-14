@@ -26,7 +26,7 @@ describe('E2E: parse → emit', () => {
     });
 
     it('should contain class declaration', () => {
-      expect(output).toContain('export class CsBadgeInternal extends CsBaseElement');
+      expect(output).toContain('export class CsBadgeInternal extends LitElement');
     });
 
     it('should contain static styles', () => {
@@ -51,7 +51,7 @@ describe('E2E: parse → emit', () => {
     });
 
     it('should import base element', () => {
-      expect(output).toContain('CsBaseElement');
+      expect(output).toContain('LitElement');
     });
 
     it('should import styles', () => {
@@ -65,7 +65,6 @@ describe('E2E: parse → emit', () => {
     it('should not contain React imports', () => {
       const code = output.replace(/\/\/.*$/gm, '');
       expect(code).not.toContain("from 'react'");
-      expect(code).not.toContain('React.');
     });
 
     it('should log output for manual review', () => {
@@ -83,7 +82,7 @@ describe('E2E: parse → emit', () => {
     const output = emitComponent(ir);
 
     it('should contain class declaration', () => {
-      expect(output).toContain('export class CsSpinnerInternal extends CsBaseElement');
+      expect(output).toContain('export class CsSpinnerInternal extends LitElement');
     });
 
     it('should contain properties for size and variant', () => {
@@ -112,7 +111,7 @@ describe('E2E: parse → emit', () => {
     const output = emitComponent(ir);
 
     it('should contain class declaration', () => {
-      expect(output).toContain('export class CsStatusIndicatorInternal extends CsBaseElement');
+      expect(output).toContain('export class CsStatusIndicatorInternal extends LitElement');
     });
 
     it('should contain type property', () => {

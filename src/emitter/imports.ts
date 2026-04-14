@@ -185,8 +185,8 @@ export function collectImports(ir: ComponentIR, outputConfig?: OutputConfig): Im
   if (ir.baseClass) {
     collector.addNamed(ir.baseClass.importPath, ir.baseClass.name);
   } else {
-    const baseName = outputConfig?.baseClass?.name ?? 'CsBaseElement';
-    const baseImport = outputConfig?.baseClass?.import ?? '../internal/base-element.js';
+    const baseName = outputConfig?.baseClass?.name ?? 'LitElement';
+    const baseImport = outputConfig?.baseClass?.import ?? 'lit';
     collector.addNamed(baseImport, baseName);
   }
 

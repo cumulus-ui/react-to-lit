@@ -89,7 +89,7 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   }
 
   // --- Mixin application ---
-  const defaultBase = ir.baseClass?.name ?? _options.output?.baseClass?.name ?? 'CsBaseElement';
+    const defaultBase = ir.baseClass?.name ?? _options.output?.baseClass?.name ?? 'LitElement';
   let baseClassName: string;
   if (ir.mixins.includes('FormControlMixin')) {
     sections.push(`const Base = FormControlMixin(${defaultBase});`);

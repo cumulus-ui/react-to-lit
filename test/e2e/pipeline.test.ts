@@ -36,7 +36,7 @@ describe('Full pipeline: parse → transform → emit', () => {
     const output = fullPipeline('badge');
 
     it('should produce valid class declaration', () => {
-      expect(output).toContain('export class CsBadgeInternal extends CsBaseElement');
+      expect(output).toContain('export class CsBadgeInternal extends LitElement');
     });
 
     it('should NOT contain WithNativeAttributes', () => {
@@ -82,7 +82,7 @@ describe('Full pipeline: parse → transform → emit', () => {
     it('should contain proper imports', () => {
       expect(output).toContain("from 'lit'");
       expect(output).toContain("from 'lit/decorators.js'");
-      expect(output).toContain('CsBaseElement');
+      expect(output).toContain('LitElement');
       expect(output).toContain('componentStyles');
       expect(output).toContain('sharedStyles');
     });

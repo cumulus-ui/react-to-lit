@@ -46,7 +46,7 @@ describe('emitComponent output config', () => {
     const withEmptyConfig = emitComponent(ir, {});
     expect(withoutConfig).toBe(withEmptyConfig);
     // Verify default class name pattern
-    expect(withoutConfig).toContain('export class CsTestInternal extends CsBaseElement');
+    expect(withoutConfig).toContain('export class CsTestInternal extends LitElement');
   });
 
   it('custom class prefix produces My${name}Internal instead of Cs${name}Internal', () => {
@@ -75,7 +75,7 @@ describe('emitComponent output config', () => {
     const output = emitComponent(ir, { output: config });
     expect(output).toContain('extends MyBaseElement');
     expect(output).toContain("from '../base/my-element.js'");
-    expect(output).not.toContain('CsBaseElement');
+    expect(output).not.toContain('LitElement');
     expect(output).not.toContain('../internal/base-element.js');
   });
 
@@ -137,8 +137,8 @@ describe('collectImports output config', () => {
     const ir = minimalIR();
     const collector = collectImports(ir);
     const output = collector.emit();
-    expect(output).toContain('CsBaseElement');
-    expect(output).toContain('../internal/base-element.js');
+    expect(output).toContain('LitElement');
+    expect(output).toContain("from 'lit'");
   });
 
   it('uses custom base element import with config', () => {
@@ -154,7 +154,7 @@ describe('collectImports output config', () => {
     const output = collector.emit();
     expect(output).toContain('MyBase');
     expect(output).toContain('@my-lib/base.js');
-    expect(output).not.toContain('CsBaseElement');
+    expect(output).not.toContain('LitElement');
     expect(output).not.toContain('../internal/base-element.js');
   });
 
