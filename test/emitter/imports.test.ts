@@ -134,6 +134,114 @@ describe('ImportCollector', () => {
 });
 
 // ---------------------------------------------------------------------------
+// ImportCollector.filterUnused()
+// ---------------------------------------------------------------------------
+
+describe('ImportCollector.filterUnused', () => {
+  it('removes named imports not referenced in body', () => {
+    const c = new ImportCollector();
+    c.addNamed('./style.js', 'getBadgeStyles');
+    c.addNamed('./style.js', 'getButtonStyles');
+    c.filterUnused('const x = getButtonStyles();');
+    const output = c.emit();
+    expect(output).toContain('getButtonStyles');
+    expect(output).not.toContain('getBadgeStyles');
+  });
+
+  it('removes entire module when all named imports are unused', () => {
+    const c = new ImportCollector();
+    c.addNamed('./style.js', 'getBadgeStyles');
+    c.filterUnused('no references here');
+    expect(c.emit()).toBe('');
+  });
+
+  it('removes default imports not referenced in body', () => {
+    const c = new ImportCollector();
+    c.addDefault('./config.js', 'unusedConfig');
+    c.filterUnused('const x = 1;');
+    expect(c.emit()).toBe('');
+  });
+
+  it('preserves default imports that appear in body', () => {
+    const c = new ImportCollector();
+    c.addDefault('./config.js', 'myConfig');
+    c.filterUnused('return myConfig.value;');
+    expect(c.emit()).toContain('import myConfig from');
+  });
+
+  it('never removes lit core imports', () => {
+    const c = new ImportCollector();
+    c.addLit('html');
+    c.addLit('css');
+    c.addLit('nothing');
+    c.filterUnused('no lit references');
+    expect(c.emit()).toContain('css');
+    expect(c.emit()).toContain('html');
+    expect(c.emit()).toContain('nothing');
+  });
+
+  it('never removes decorator imports', () => {
+    const c = new ImportCollector();
+    c.addDecorator('property');
+    c.addDecorator('state');
+    c.filterUnused('no decorator references');
+    expect(c.emit()).toContain('property');
+    expect(c.emit()).toContain('state');
+  });
+
+  it('never removes directive imports', () => {
+    const c = new ImportCollector();
+    c.addDirective('lit/directives/class-map.js', 'classMap');
+    c.filterUnused('body without classMap');
+    expect(c.emit()).toContain('classMap');
+  });
+
+  it('never removes context imports', () => {
+    const c = new ImportCollector();
+    c.addContextImport('consume');
+    c.filterUnused('no context references');
+    expect(c.emit()).toContain('consume');
+  });
+
+  it('never removes type-only imports', () => {
+    const c = new ImportCollector();
+    c.addType('./interfaces.js', 'ButtonProps');
+    c.filterUnused('no type references');
+    expect(c.emit()).toContain('ButtonProps');
+  });
+
+  it('never removes side-effect imports', () => {
+    const c = new ImportCollector();
+    c.addSideEffect('./register.js');
+    c.filterUnused('no references');
+    expect(c.emit()).toContain("import './register.js'");
+  });
+
+  it('never removes preserved named imports', () => {
+    const c = new ImportCollector();
+    c.addNamed('./components.js', 'MyComponent');
+    c.markPreserved('MyComponent');
+    c.filterUnused('no MyComponent here');
+    expect(c.emit()).toContain('MyComponent');
+  });
+
+  it('never removes preserved default imports', () => {
+    const c = new ImportCollector();
+    c.addDefault('./widget.js', 'Widget');
+    c.markPreserved('Widget');
+    c.filterUnused('no Widget here');
+    expect(c.emit()).toContain('Widget');
+  });
+
+  it('uses word boundaries to avoid partial matches', () => {
+    const c = new ImportCollector();
+    c.addNamed('./utils.js', 'get');
+    c.filterUnused('getButtonStyles(); target.value;');
+    expect(c.emit()).not.toContain("from './utils.js'");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // collectImports — IR import processing
 // ---------------------------------------------------------------------------
 

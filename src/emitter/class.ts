@@ -241,8 +241,9 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   sections.push('}');
 
   // --- Assemble final output ---
-  const importsStr = collector.emit();
   const bodyStr = sections.join('\n');
+  collector.filterUnused(bodyStr);
+  const importsStr = collector.emit();
 
   const raw = `${importsStr}\n\n${bodyStr}\n`;
 

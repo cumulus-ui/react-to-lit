@@ -22,6 +22,7 @@ export class ImportCollector {
   private _typeImports = new Map<string, Set<string>>(); // module → names
   private _sideEffectImports = new Set<string>();
   private _defaultImports = new Map<string, string>(); // module → default name
+  private _preservedNames = new Set<string>();
 
   /** Add a name to a Map<string, Set<string>>, creating the Set on first use. */
   private _addToMap(map: Map<string, Set<string>>, key: string, name: string): void {
@@ -60,6 +61,36 @@ export class ImportCollector {
 
   addDefault(module: string, name: string): void {
     this._defaultImports.set(module, name);
+  }
+
+  markPreserved(name: string): void {
+    this._preservedNames.add(name);
+  }
+
+  /**
+   * Remove named/default imports whose identifiers don't appear in the
+   * emitted body string.  Lit core, decorators, directives, context,
+   * type-only, side-effect, and preserve-flagged imports are never touched.
+   */
+  filterUnused(bodyString: string): void {
+    for (const [module, names] of this._namedImports) {
+      for (const name of names) {
+        if (this._preservedNames.has(name)) continue;
+        if (!new RegExp('\\b' + name + '\\b').test(bodyString)) {
+          names.delete(name);
+        }
+      }
+      if (names.size === 0) {
+        this._namedImports.delete(module);
+      }
+    }
+
+    for (const [module, name] of this._defaultImports) {
+      if (this._preservedNames.has(name)) continue;
+      if (!new RegExp('\\b' + name + '\\b').test(bodyString)) {
+        this._defaultImports.delete(module);
+      }
+    }
   }
 
   emit(): string {
@@ -245,11 +276,15 @@ export function collectImports(ir: ComponentIR, outputConfig?: OutputConfig): Im
     if (imp.defaultImport) {
       if (imp.preserve || allCode.includes(imp.defaultImport)) {
         collector.addDefault(imp.moduleSpecifier, imp.defaultImport);
+        if (imp.preserve) collector.markPreserved(imp.defaultImport);
       }
     }
     if (imp.namedImports) {
       for (const name of imp.namedImports) {
-        if (imp.preserve || allCode.includes(name)) collector.addNamed(imp.moduleSpecifier, name);
+        if (imp.preserve || allCode.includes(name)) {
+          collector.addNamed(imp.moduleSpecifier, name);
+          if (imp.preserve) collector.markPreserved(name);
+        }
       }
     }
   }
