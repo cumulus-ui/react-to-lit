@@ -10,7 +10,7 @@ import { unwrapWithNativeAttributes } from './unwrap.js';
 import { transformEvents } from './events.js';
 import { rewriteIdentifiers } from './identifiers.js';
 import { resolveComponentReferences, type ComponentRegistry, componentRegistry } from './components.js';
-import { removeLibraryInternals } from './cleanup.js';
+import { removeLibraryInternals, type CleanupPlugin } from './cleanup.js';
 import { cleanupReactTypes } from './cleanup-react-types.js';
 import { transformSlots } from './slots.js';
 import { promoteEffectCleanupVars } from './effect-cleanup.js';
@@ -23,6 +23,7 @@ export interface TransformOptions {
   skipProps?: Set<string>;
   knownComponents?: Set<string>;
   config?: CompilerConfig;
+  cleanupPlugin?: CleanupPlugin;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +72,7 @@ export function transformAll(
   let result = ir;
 
   // 1. Remove library internals
-  result = removeLibraryInternals(result, options.skipProps ?? new Set(), undefined, config?.cleanup);
+  result = removeLibraryInternals(result, options.skipProps ?? new Set(), options.cleanupPlugin, config?.cleanup);
 
   // 1b. Replace React types with web platform equivalents
   result = cleanupReactTypes(result);

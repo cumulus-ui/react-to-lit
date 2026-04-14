@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { removeCloudscapeInternals, removeLibraryInternals } from '../../src/transforms/cleanup.js';
-import { createCloudscapeConfig } from '../../src/presets/cloudscape.js';
+import { createCloudscapeConfig, cloudscapeCleanupPlugin } from '../../src/presets/cloudscape.js';
 import type { ComponentIR } from '../../src/ir/types.js';
 
 // ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         handlers: [{ name: 'h', body: "const cls = testUtilStyles['header'];", params: '' }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('testUtilStyles');
     });
 
@@ -56,7 +56,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         handlers: [{ name: 'h', body: 'const cls = testUtilStyles.header;', params: '' }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('testUtilStyles');
     });
 
@@ -64,7 +64,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         effects: [{ body: 'el.className = testUtilStyles.slider;', deps: [] }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.effects[0].body).not.toContain('testUtilStyles');
     });
 
@@ -72,7 +72,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         computedValues: [{ name: 'cls', expression: 'testUtilStyles.footer', deps: [] }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.computedValues[0].expression).not.toContain('testUtilStyles');
     });
 
@@ -80,7 +80,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         bodyPreamble: ['const cls = testUtilStyles.content;'],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.bodyPreamble[0]).not.toContain('testUtilStyles');
     });
 
@@ -88,7 +88,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         helpers: [{ name: 'fn', source: 'function fn() { return testUtilStyles.root; }' }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.helpers[0].source).not.toContain('testUtilStyles');
     });
   });
@@ -98,7 +98,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         handlers: [{ name: 'h', body: "const s = analyticsSelectors['container'];", params: '' }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('analyticsSelectors');
     });
 
@@ -106,7 +106,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         handlers: [{ name: 'h', body: 'const s = analyticsSelectors.header;', params: '' }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('analyticsSelectors');
     });
 
@@ -114,7 +114,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         effects: [{ body: 'label = analyticsSelectors.container;', deps: [] }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.effects[0].body).not.toContain('analyticsSelectors');
     });
   });
@@ -128,7 +128,7 @@ describe('removeCloudscapeInternals', () => {
           params: '',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('createPortal');
       expect(result.handlers[0].body).toContain('html`<div>${id}</div>`');
     });
@@ -140,7 +140,7 @@ describe('removeCloudscapeInternals', () => {
           source: 'function renderPortal() { return createPortal(content, target); }',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.helpers[0].source).not.toContain('createPortal');
       expect(result.helpers[0].source).toContain('return content;');
     });
@@ -151,7 +151,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         handlers: [{ name: 'h', body: 'const id = rest.controlId;', params: '' }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).toContain('undefined');
       expect(result.handlers[0].body).not.toContain('rest.controlId');
     });
@@ -169,7 +169,7 @@ describe('removeCloudscapeInternals', () => {
           children: [],
         },
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       const attr = result.template.attributes[0];
       const expr = typeof attr.value === 'object' ? attr.value.expression : attr.value;
       expect(expr).toBe('undefined');
@@ -189,7 +189,7 @@ describe('removeCloudscapeInternals', () => {
           }],
         },
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       // restProps.controlId → undefined, then undefined || defaultId → defaultId
       expect(result.template.children[0].expression).toBe('defaultId');
     });
@@ -198,7 +198,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         handlers: [{ name: 'h', body: 'return { disabled, {...rest} };', params: '' }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('rest');
     });
 
@@ -210,7 +210,7 @@ describe('removeCloudscapeInternals', () => {
           params: '',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('= rest');
     });
   });
@@ -220,7 +220,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         handlers: [{ name: 'h', body: '__focusable && doStuff();', params: '' }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('__focusable');
     });
 
@@ -237,7 +237,7 @@ describe('removeCloudscapeInternals', () => {
           children: [],
         },
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       const expr = (result.template.attributes[0].value as { expression: string }).expression;
       expect(expr).not.toContain('__disableActionsWrapping');
       expect(expr).toContain('false');
@@ -256,7 +256,7 @@ describe('removeCloudscapeInternals', () => {
           children: [],
         },
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       const expr = (result.template.attributes[0].value as { expression: string }).expression;
       expect(expr).not.toContain('__stickyHeader');
       expect(expr).toContain("'sticky': false");
@@ -277,7 +277,7 @@ describe('removeCloudscapeInternals', () => {
           }],
         },
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.template.children[0].expression).toBe('this.info');
     });
 
@@ -294,7 +294,7 @@ describe('removeCloudscapeInternals', () => {
           children: [],
         },
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       const expr = (result.template.attributes[0].value as { expression: string }).expression;
       expect(expr).toContain("'hidden': false");
     });
@@ -309,7 +309,7 @@ describe('removeCloudscapeInternals', () => {
           params: '',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('__internal');
       expect(result.handlers[0].body).toContain('visible: true');
       expect(result.handlers[0].body).toContain('name: "test"');
@@ -322,7 +322,7 @@ describe('removeCloudscapeInternals', () => {
           source: 'function fn({ size, __darkHeader, visible }: Props) { return size; }',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.helpers[0].source).not.toContain('__darkHeader');
       expect(result.helpers[0].source).toContain('size');
     });
@@ -333,7 +333,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         handlers: [{ name: 'h', body: 'const x = undefined ?? fallback;', params: '' }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).toBe('const x = fallback;');
     });
 
@@ -341,7 +341,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         handlers: [{ name: 'h', body: 'const x = undefined || fallback;', params: '' }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).toBe('const x = fallback;');
     });
 
@@ -349,7 +349,7 @@ describe('removeCloudscapeInternals', () => {
       const ir = minimalIR({
         handlers: [{ name: 'h', body: 'const x = !undefined;', params: '' }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).toBe('const x = true;');
     });
   });
@@ -366,7 +366,7 @@ describe('removeCloudscapeInternals', () => {
           source: 'function renderContent() { return html`<el-body .closeAction=${__closeAnalyticsAction}></el-body>`; }',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.helpers[0].source).not.toContain('__closeAnalyticsAction');
       expect(result.helpers[0].source).toContain('.closeAction=${false}');
     });
@@ -378,7 +378,7 @@ describe('removeCloudscapeInternals', () => {
           source: 'function renderTrigger() { return html`<el-trigger .inFilter=${__inFilteringToken && true}></el-trigger>`; }',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.helpers[0].source).not.toContain('__inFilteringToken');
     });
 
@@ -390,7 +390,7 @@ describe('removeCloudscapeInternals', () => {
           params: '',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('fireNonCancelableEvent');
       expect(result.handlers[0].body).toContain('this._visible = true');
     });
@@ -403,7 +403,7 @@ describe('removeCloudscapeInternals', () => {
           params: 'e: FocusEvent',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set());
+      const result = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('fireNonCancelableEvent');
     });
   });
@@ -421,7 +421,7 @@ describe('removeCloudscapeInternals', () => {
           params: '',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set(['nativeButtonAttributes', 'nativeAnchorAttributes']));
+      const result = removeCloudscapeInternals(ir, new Set(['nativeButtonAttributes', 'nativeAnchorAttributes']), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('nativeButtonAttributes');
       expect(result.handlers[0].body).not.toContain('nativeAnchorAttributes');
     });
@@ -434,7 +434,7 @@ describe('removeCloudscapeInternals', () => {
           params: '',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set(['nativeAttributes']));
+      const result = removeCloudscapeInternals(ir, new Set(['nativeAttributes']), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('nativeAttributes');
       expect(result.handlers[0].body).toContain('undefined');
     });
@@ -447,7 +447,7 @@ describe('removeCloudscapeInternals', () => {
           params: '',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set(['nativeAttributes']));
+      const result = removeCloudscapeInternals(ir, new Set(['nativeAttributes']), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).toContain('const nativeAttributes');
     });
 
@@ -465,7 +465,7 @@ describe('removeCloudscapeInternals', () => {
           }],
         },
       });
-      const result = removeCloudscapeInternals(ir, new Set(['nativeAttributes']));
+      const result = removeCloudscapeInternals(ir, new Set(['nativeAttributes']), cloudscapeCleanupPlugin);
       expect(result.template.children[0].expression).not.toContain('nativeAttributes');
     });
 
@@ -477,7 +477,7 @@ describe('removeCloudscapeInternals', () => {
           params: '',
         }],
       });
-      const result = removeCloudscapeInternals(ir, new Set(['analyticsMetadata']));
+      const result = removeCloudscapeInternals(ir, new Set(['analyticsMetadata']), cloudscapeCleanupPlugin);
       expect(result.handlers[0].body).not.toContain('analyticsMetadata');
     });
   });
@@ -537,7 +537,7 @@ describe('removeCloudscapeInternals', () => {
       expect(result.template.attributes.map(a => a.name)).toEqual(['title']);
     });
 
-    it('omitting config preserves exact current behavior', () => {
+    it('omitting plugin skips library-specific cleanup', () => {
       const ir = minimalIR({
         props: [
           { name: '__internal', type: 'string', category: 'attribute' },
@@ -545,10 +545,13 @@ describe('removeCloudscapeInternals', () => {
         ],
         handlers: [{ name: 'h', body: "const cls = testUtilStyles['header'];", params: '' }],
       });
-      const withDefault = removeCloudscapeInternals(ir, new Set());
-      const withoutConfig = removeLibraryInternals(ir, new Set());
-      expect(withDefault.props).toEqual(withoutConfig.props);
-      expect(withDefault.handlers).toEqual(withoutConfig.handlers);
+      const withPlugin = removeCloudscapeInternals(ir, new Set(), cloudscapeCleanupPlugin);
+      const withoutPlugin = removeLibraryInternals(ir, new Set());
+      // Core cleanup still runs (strips __internal prefix props)
+      expect(withoutPlugin.props).toEqual(withPlugin.props);
+      // But library-specific cleanup (testUtilStyles) does NOT run without plugin
+      expect(withoutPlugin.handlers[0].body).toContain('testUtilStyles');
+      expect(withPlugin.handlers[0].body).not.toContain('testUtilStyles');
     });
 
     it('removeCloudscapeInternals is an alias for removeLibraryInternals', () => {

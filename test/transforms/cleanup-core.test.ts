@@ -554,7 +554,7 @@ describe('Cloudscape plugin equivalence', () => {
     const ir = minimalIR({
       handlers: [{ name: 'h', body: "const cls = testUtilStyles['header'];", params: '' }],
     });
-    const monolithic = removeLibraryInternals(ir, new Set());
+    const monolithic = removeLibraryInternals(ir, new Set(), cloudscapeCleanupPlugin);
     const split = applyPlugin(applyCoreCleanup(ir, new Set()), cloudscapeCleanupPlugin);
     expect(split.handlers[0].body).toBe(monolithic.handlers[0].body);
   });
@@ -563,7 +563,7 @@ describe('Cloudscape plugin equivalence', () => {
     const ir = minimalIR({
       handlers: [{ name: 'h', body: 'const s = analyticsSelectors.header;', params: '' }],
     });
-    const monolithic = removeLibraryInternals(ir, new Set());
+    const monolithic = removeLibraryInternals(ir, new Set(), cloudscapeCleanupPlugin);
     const split = applyPlugin(applyCoreCleanup(ir, new Set()), cloudscapeCleanupPlugin);
     expect(split.handlers[0].body).toBe(monolithic.handlers[0].body);
   });
@@ -572,7 +572,7 @@ describe('Cloudscape plugin equivalence', () => {
     const ir = minimalIR({
       handlers: [{ name: 'h', body: 'const baseProps = getBaseProps(rest);\n{...baseProps}', params: '' }],
     });
-    const monolithic = removeLibraryInternals(ir, new Set());
+    const monolithic = removeLibraryInternals(ir, new Set(), cloudscapeCleanupPlugin);
     const split = applyPlugin(applyCoreCleanup(ir, new Set()), cloudscapeCleanupPlugin);
     expect(split.handlers[0].body).toBe(monolithic.handlers[0].body);
   });
@@ -581,7 +581,7 @@ describe('Cloudscape plugin equivalence', () => {
     const ir = minimalIR({
       handlers: [{ name: 'h', body: "checkSafeUrl('Button', href);\nreturn href;", params: '' }],
     });
-    const monolithic = removeLibraryInternals(ir, new Set());
+    const monolithic = removeLibraryInternals(ir, new Set(), cloudscapeCleanupPlugin);
     const split = applyPlugin(applyCoreCleanup(ir, new Set()), cloudscapeCleanupPlugin);
     expect(split.handlers[0].body).toBe(monolithic.handlers[0].body);
   });
@@ -590,7 +590,7 @@ describe('Cloudscape plugin equivalence', () => {
     const ir = minimalIR({
       handlers: [{ name: 'h', body: "const { __internalRootRef } = useBaseComponent('Button');", params: '' }],
     });
-    const monolithic = removeLibraryInternals(ir, new Set());
+    const monolithic = removeLibraryInternals(ir, new Set(), cloudscapeCleanupPlugin);
     const split = applyPlugin(applyCoreCleanup(ir, new Set()), cloudscapeCleanupPlugin);
     expect(split.handlers[0].body).toBe(monolithic.handlers[0].body);
   });
@@ -629,7 +629,7 @@ describe('Cloudscape plugin equivalence', () => {
         }],
       },
     });
-    const monolithic = removeLibraryInternals(ir, new Set());
+    const monolithic = removeLibraryInternals(ir, new Set(), cloudscapeCleanupPlugin);
     const split = applyPlugin(applyCoreCleanup(ir, new Set()), cloudscapeCleanupPlugin);
     expect(split.props).toEqual(monolithic.props);
     expect(split.handlers[0].body).toBe(monolithic.handlers[0].body);
@@ -647,12 +647,12 @@ describe('Cloudscape plugin equivalence', () => {
 // ---------------------------------------------------------------------------
 
 describe('removeLibraryInternals orchestrator', () => {
-  it('with no args applies core + Cloudscape plugin', () => {
+  it('with no plugin applies core only (no library-specific cleanup)', () => {
     const ir = minimalIR({
       handlers: [{ name: 'h', body: "const cls = testUtilStyles['header'];", params: '' }],
     });
     const result = removeLibraryInternals(ir, new Set());
-    expect(result.handlers[0].body).not.toContain('testUtilStyles');
+    expect(result.handlers[0].body).toContain('testUtilStyles');
   });
 
   it('with explicit empty plugin applies core only (no Cloudscape)', () => {

@@ -10,6 +10,7 @@ import { parseComponent } from '../../src/parser/index.js';
 import { transformAll } from '../../src/transforms/index.js';
 import { emitComponent } from '../../src/emitter/index.js';
 import { createDefaultConfig, createCloudscapeConfig } from '../../src/config.js';
+import { cloudscapeCleanupPlugin } from '../../src/presets/cloudscape.js';
 import type { CompilerConfig } from '../../src/config.js';
 
 const CLOUDSCAPE_SRC = path.resolve(
@@ -19,7 +20,7 @@ const CLOUDSCAPE_SRC = path.resolve(
 
 function fullPipeline(componentName: string): string {
   const ir = parseComponent(path.join(CLOUDSCAPE_SRC, componentName));
-  const transformed = transformAll(ir);
+  const transformed = transformAll(ir, { cleanupPlugin: cloudscapeCleanupPlugin });
   return emitComponent(transformed);
 }
 

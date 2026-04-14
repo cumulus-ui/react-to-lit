@@ -6,7 +6,6 @@
 import type { ComponentIR } from '../ir/types.js';
 import type { CleanupConfig } from '../config.js';
 import { applyCoreCleanup, applyPlugin, type CleanupPlugin } from './cleanup-core.js';
-import { cloudscapeCleanupPlugin } from '../presets/cloudscape.js';
 
 export type { CleanupPlugin } from './cleanup-core.js';
 
@@ -18,9 +17,8 @@ export function removeLibraryInternals(
 ): ComponentIR {
   let result = applyCoreCleanup(ir, skipProps, cleanupConfig);
 
-  const effectivePlugin = plugin ?? cloudscapeCleanupPlugin;
-  if (effectivePlugin) {
-    result = applyPlugin(result, effectivePlugin);
+  if (plugin) {
+    result = applyPlugin(result, plugin);
   }
 
   return result;

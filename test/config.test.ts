@@ -42,7 +42,7 @@ describe('createDefaultConfig', () => {
 });
 
 // ---------------------------------------------------------------------------
-// createCloudscapeConfig — parity with legacy cloudscape-config.ts exports
+// createCloudscapeConfig — Cloudscape preset values
 // ---------------------------------------------------------------------------
 
 describe('createCloudscapeConfig', () => {
@@ -105,17 +105,7 @@ describe('createCloudscapeConfig', () => {
     expect(unwrap).toContain('WidthsContext.Provider');
   });
 
-  it('produces Sets identical to legacy exports when constructed the same way', async () => {
-    const config = createCloudscapeConfig();
 
-    // Import the legacy shim which now delegates to the same preset
-    const legacy = await import('../src/cloudscape-config.js');
-
-    // Verify the shim-derived Sets match the config arrays
-    expect([...legacy.REMOVE_ATTRS]).toEqual(config.cleanup.removeAttributes);
-    expect(legacy.REMOVE_ATTR_PREFIXES).toEqual(config.cleanup.removeAttributePrefixes);
-    expect([...legacy.INFRA_FUNCTIONS]).toEqual(config.cleanup.infraFunctions);
-  });
 });
 
 // ---------------------------------------------------------------------------
