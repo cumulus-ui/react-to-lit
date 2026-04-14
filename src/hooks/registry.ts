@@ -153,11 +153,8 @@ export const cloudscapeHookRegistry: HookRegistry = {
 // Registry helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Create a merged registry from defaults + user overrides.
- */
-export function createHookRegistry(overrides?: HookRegistry): HookRegistry {
-  return { ...cloudscapeHookRegistry, ...overrides };
+export function createHookRegistry(mappings: HookRegistry = {}): HookRegistry {
+  return mappings;
 }
 
 /**

@@ -7,6 +7,7 @@ import { transformAll } from './transforms/index.js';
 import { emitComponent } from './emitter/index.js';
 import { discoverComponents } from './config.js';
 import { PackageAnalyzer } from './package-analyzer.js';
+import { cloudscapeHookRegistry } from './hooks/registry.js';
 
 const program = new Command();
 
@@ -83,7 +84,7 @@ async function processComponents(
     const outputFile = path.join(outputRoot, path.basename(dir), 'internal.ts');
 
     try {
-      const ir = parseComponent(dir, { skipProps, knownComponents });
+      const ir = parseComponent(dir, { skipProps, knownComponents, hookMappings: cloudscapeHookRegistry });
       const transformed = transformAll(ir, { skipProps, knownComponents });
       const output = emitComponent(transformed);
 
