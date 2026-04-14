@@ -21,7 +21,7 @@ import { toTagName, toLitEventName, classifyBinding, reactAttrToHtml } from '../
  *  omitting any field falls back to the Cloudscape defaults. */
 export interface JsxToLitConfig {
   /** Attribute names to remove from JSX elements. */
-  removeAttributes?: Set<string>;
+  removeAttributes?: string[];
   /** Attribute name prefixes to remove from JSX elements. */
   removeAttributePrefixes?: string[];
   /** Predicate that returns true for component names that should be unwrapped
@@ -34,7 +34,7 @@ export interface JsxToLitConfig {
 // ---------------------------------------------------------------------------
 
 interface ResolvedConfig {
-  removeAttrs: Set<string>;
+  removeAttrs: string[];
   removeAttrPrefixes: string[];
   shouldUnwrap: (name: string) => boolean;
 }
@@ -247,7 +247,6 @@ function emitAttributes(
       emitAttribute(attr, builder, visitor, context, cfg);
     } else if (ts.isJsxSpreadAttribute(attr)) {
       // Spread attributes — skip (no Lit equivalent)
-      // Could be expanded to individual attrs if needed
     }
   }
 }
@@ -262,7 +261,7 @@ function emitAttribute(
   const name = ts.isIdentifier(attr.name) ? attr.name.text : attr.name.getText();
 
   // Skip infrastructure attributes
-  if (cfg.removeAttrs.has(name)) return;
+  if (cfg.removeAttrs.includes(name)) return;
   if (cfg.removeAttrPrefixes.some((p) => name.startsWith(p))) return;
 
   // Map attribute names

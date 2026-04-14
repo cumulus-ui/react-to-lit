@@ -21,7 +21,7 @@ import { walkTemplate } from '../template-walker.js';
  */
 export function unwrapWithNativeAttributes(
   node: TemplateNodeIR,
-  removeAttrs?: Set<string>,
+  removeAttrs?: string[],
 ): TemplateNodeIR {
   return walkTemplate(node, {
     node: (n) => {
@@ -37,7 +37,7 @@ export function unwrapWithNativeAttributes(
 // Unwrap logic
 // ---------------------------------------------------------------------------
 
-function unwrapNode(node: TemplateNodeIR, removeAttrs?: Set<string>): TemplateNodeIR {
+function unwrapNode(node: TemplateNodeIR, removeAttrs?: string[]): TemplateNodeIR {
   // Extract the tag prop value
   const tagAttr = node.attributes.find((a) => a.name === 'tag');
   const tag = tagAttr

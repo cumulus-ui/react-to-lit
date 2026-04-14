@@ -19,7 +19,7 @@ const config = createCloudscapeConfig();
 // ---------------------------------------------------------------------------
 
 /** Attributes to strip from template elements. */
-export const REMOVE_ATTRS = new Set(config.cleanup.removeAttributes);
+export const REMOVE_ATTRS = config.cleanup.removeAttributes;
 
 /** Attribute prefixes to strip from template elements. */
 export const REMOVE_ATTR_PREFIXES = config.cleanup.removeAttributePrefixes;

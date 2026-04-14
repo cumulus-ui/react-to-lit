@@ -287,11 +287,11 @@ export function cleanCoreBody(body: string, skipProps: Set<string>, declaredName
 // Core template cleanup
 // ---------------------------------------------------------------------------
 
-function cleanCoreTemplate(node: TemplateNodeIR, removeAttrs: Set<string>, removeAttrPrefixes: string[], skipProps: Set<string>): TemplateNodeIR {
+function cleanCoreTemplate(node: TemplateNodeIR, removeAttrs: string[], removeAttrPrefixes: string[], skipProps: Set<string>): TemplateNodeIR {
   return walkTemplate(node, {
     attribute: (attr) => {
-      if (removeAttrs.has(attr.name)) return null;
-      if (attr.name.startsWith('.') && removeAttrs.has(attr.name.slice(1))) return null;
+      if (removeAttrs.includes(attr.name)) return null;
+      if (attr.name.startsWith('.') && removeAttrs.includes(attr.name.slice(1))) return null;
       if (removeAttrPrefixes.some((p) => attr.name.startsWith(p))) return null;
       if (attr.name.startsWith('.__')) return null;
 

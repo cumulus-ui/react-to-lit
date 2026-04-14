@@ -62,7 +62,7 @@ describe('jsxToLitTransformerFactory config', () => {
     it('removes custom attributes when removeAttributes is provided', () => {
       const src = 'const x = <div data-test="yes" id="main" role="button">hello</div>;';
       const out = transformTsx(src, {
-        removeAttributes: new Set(['data-test', 'role']),
+        removeAttributes: ['data-test', 'role'],
       });
       expect(out).not.toContain('data-test');
       expect(out).not.toContain('role');
@@ -72,7 +72,7 @@ describe('jsxToLitTransformerFactory config', () => {
     it('preserves default-removed attributes when overridden with empty set', () => {
       const src = 'const x = <div key="k" id="main">hello</div>;';
       const out = transformTsx(src, {
-        removeAttributes: new Set(),
+        removeAttributes: [],
         removeAttributePrefixes: [],
       });
       // "key" is normally removed, but with empty removeAttributes it should be preserved
@@ -101,7 +101,7 @@ describe('jsxToLitTransformerFactory config', () => {
     it('preserves __-prefixed attributes when overridden with empty prefixes', () => {
       const src = 'const x = <div __internal="yes" id="main">hello</div>;';
       const out = transformTsx(src, {
-        removeAttributes: new Set(),
+        removeAttributes: [],
         removeAttributePrefixes: [],
       });
       expect(out).toContain('__internal');
@@ -174,7 +174,7 @@ describe('jsxToLitTransformerFactory config', () => {
         ts.ScriptKind.TSX,
       );
       const factory = createJsxToLitTransformerFactory({
-        removeAttributes: new Set(['data-custom']),
+        removeAttributes: ['data-custom'],
       });
       const result = ts.transform(sourceFile, [factory]);
       const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });

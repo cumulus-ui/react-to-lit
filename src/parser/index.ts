@@ -113,7 +113,7 @@ export function parseComponent(
     knownComponents || options.reactFrameworkAttributes
       ? {
           ...(knownComponents && { shouldUnwrap: (name: string) => !knownComponents.has(name) }),
-          ...(options.reactFrameworkAttributes && { removeAttributes: options.reactFrameworkAttributes }),
+          ...(options.reactFrameworkAttributes && { removeAttributes: [...options.reactFrameworkAttributes] }),
         }
       : undefined;
   let indexFile = transformJsxToLit(origIndexFile, jsxConfig);
