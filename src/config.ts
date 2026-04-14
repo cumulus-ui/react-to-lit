@@ -154,7 +154,7 @@ export function discoverComponents(packageName: string): PackageComponent[] {
 
   const program = ts.createProgram([dtsPath], {
     target: ts.ScriptTarget.Latest,
-    moduleResolution: ts.ModuleResolutionKind.Node10,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
     baseUrl: pkgRoot,
   });
 

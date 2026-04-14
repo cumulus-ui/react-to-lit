@@ -32,7 +32,7 @@ export class PackageAnalyzer {
 
     this.program = ts.createProgram([dtsPath], {
       target: ts.ScriptTarget.ES2022,
-      moduleResolution: ts.ModuleResolutionKind.Node10,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
       baseUrl: this.pkgRoot,
       lib: ['lib.dom.d.ts', 'lib.es2022.d.ts'],
     });
