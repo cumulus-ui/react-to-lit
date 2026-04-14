@@ -72,7 +72,7 @@ export function emitProperties(props: PropIR[]): { code: string; deferred: Defer
       : '@property()';
 
     const override = needsOverride(prop) ? 'override ' : '';
-    const typeAnnotation = getTypeAnnotation(prop);
+    const typeAnnotation = prop.type ? `: ${prop.type}` : '';
 
     if (prop.default && refsThis(prop.default)) {
       // Defer initialization to firstUpdated to avoid TS2729
@@ -239,25 +239,6 @@ function isBlockBody(text: string): boolean {
     inner = inner.slice(end + 2).trimStart();
   }
   return /^(?:const |let |var |return |if |for |while |switch |throw |try )/.test(inner);
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getTypeAnnotation(prop: PropIR): string {
-  // For properties with known Lit types, the type annotation is often implicit
-  // from the default value. But for clarity:
-  switch (prop.litType) {
-    case 'Boolean':
-      return '';  // inferred from default
-    case 'String':
-      return '';  // inferred from default
-    case 'Number':
-      return '';  // inferred from default
-    default:
-      return prop.type && prop.type !== 'unknown' ? `: ${prop.type}` : '';
-  }
 }
 
 // ---------------------------------------------------------------------------
