@@ -33,6 +33,7 @@ program
     const analyzer = new PackageAnalyzer(opts.package);
     const discovered = discoverComponents(opts.package);
     const knownComponents = new Set(discovered.map(c => c.name));
+    const reactFrameworkAttributes = analyzer.getReactFrameworkAttributes();
 
     const componentEntries = discovered.map(c => {
       const skipProps = new Set<string>();
@@ -52,6 +53,7 @@ program
         dir: path.resolve(sourceRoot, c.dir.replace(/^\.\//, '')),
         skipProps,
         knownComponents,
+        reactFrameworkAttributes,
         hookMappings: config.hooks,
       };
     });
@@ -75,7 +77,7 @@ program.parse();
 // ---------------------------------------------------------------------------
 
 async function processComponents(
-  components: Array<{ name: string; dir: string; skipProps: Set<string>; knownComponents: Set<string>; hookMappings: HookRegistry }>,
+  components: Array<{ name: string; dir: string; skipProps: Set<string>; knownComponents: Set<string>; reactFrameworkAttributes: Set<string>; hookMappings: HookRegistry }>,
   outputRoot: string,
   opts: { dryRun?: boolean; verbose?: boolean },
 ): Promise<void> {
@@ -83,11 +85,11 @@ async function processComponents(
   let failed = 0;
   const failures: Array<{ name: string; error: string }> = [];
 
-  for (const { name, dir, skipProps, knownComponents, hookMappings } of components) {
+  for (const { name, dir, skipProps, knownComponents, reactFrameworkAttributes, hookMappings } of components) {
     const outputFile = path.join(outputRoot, path.basename(dir), 'internal.ts');
 
     try {
-      const ir = parseComponent(dir, { skipProps, knownComponents, hookMappings });
+      const ir = parseComponent(dir, { skipProps, knownComponents, reactFrameworkAttributes, hookMappings });
       const transformed = transformAll(ir, { skipProps, knownComponents });
       const output = emitComponent(transformed);
 

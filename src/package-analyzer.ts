@@ -67,6 +67,10 @@ export class PackageAnalyzer {
     return result;
   }
 
+  getReactFrameworkAttributes(): Set<string> {
+    return new Set(['key', 'ref']);
+  }
+
   getEventDetailType(memberSym: ts.Symbol): ts.Type | undefined {
     const type = this.stripNullUndefined(this.checker.getTypeOfSymbol(memberSym));
     const sigs = type.getCallSignatures();

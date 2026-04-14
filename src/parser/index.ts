@@ -35,6 +35,7 @@ import type { CompilerConfig } from '../config.js';
 export interface ParseOptions {
   skipProps?: Set<string>;
   knownComponents?: Set<string>;
+  reactFrameworkAttributes?: Set<string>;
   hookMappings?: HookRegistry;
   declarationsDir?: string;
   config?: CompilerConfig;
@@ -108,9 +109,13 @@ export function parseComponent(
   // plain TS (no JSX syntax in hook bodies, etc.).
   // ---------------------------------------------------------------------------
   const knownComponents = options.knownComponents;
-  const jsxConfig = knownComponents
-    ? { shouldUnwrap: (name: string) => !knownComponents.has(name) }
-    : undefined;
+  const jsxConfig: import('../transforms/jsx-to-lit.js').JsxToLitConfig | undefined =
+    knownComponents || options.reactFrameworkAttributes
+      ? {
+          ...(knownComponents && { shouldUnwrap: (name: string) => !knownComponents.has(name) }),
+          ...(options.reactFrameworkAttributes && { removeAttributes: options.reactFrameworkAttributes }),
+        }
+      : undefined;
   let indexFile = transformJsxToLit(origIndexFile, jsxConfig);
   let internalFile = origInternalFile ? transformJsxToLit(origInternalFile, jsxConfig) : undefined;
 
