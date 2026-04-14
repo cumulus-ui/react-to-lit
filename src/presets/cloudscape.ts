@@ -130,6 +130,7 @@ export function createCloudscapeConfig(): CompilerConfig {
         ...CLOUDSCAPE_WRAPPERS,
         ...CONTEXT_PROVIDERS,
       ],
+      skipJsDocTags: ['awsuiSystem'],
     },
     components: {
       registry: {},

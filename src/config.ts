@@ -32,8 +32,6 @@ export interface InputConfig {
   declarationsPackage?: string;
   /** Directory names to skip during batch processing. */
   skipDirectories?: string[];
-  /** Include props marked @deprecated in keepProps. Default: false (exclude). */
-  includeDeprecatedProps?: boolean;
 }
 
 /** Controls the shape of the generated Lit output. */
@@ -58,6 +56,8 @@ export interface CleanupConfig {
   infraFunctions: string[];
   /** Component names to unwrap (keep children, discard wrapper). */
   unwrapComponents: string[];
+  /** JSDoc tag names whose props should be skipped (e.g., ['awsuiSystem']). */
+  skipJsDocTags?: string[];
 }
 
 /** Component name → tag mapping and resolution strategy. */
@@ -113,6 +113,7 @@ export function createDefaultConfig(): CompilerConfig {
         'StrictMode',
         'Profiler',
       ],
+      skipJsDocTags: [],
     },
     components: {
       registry: {},

@@ -8,6 +8,7 @@ export type PropClassification = 'prop' | 'event' | 'slot' | 'passthrough';
 export interface ClassifiedProp {
   classification: PropClassification;
   deprecated: boolean;
+  jsDocTags: string[];
 }
 
 export interface RefMethod {
@@ -50,13 +51,15 @@ export class PackageAnalyzer {
   }
 
   classifyProp(memberSym: ts.Symbol): ClassifiedProp {
-    const deprecated = memberSym.getJsDocTags().some(t => t.name === 'deprecated');
+    const tags = memberSym.getJsDocTags();
+    const deprecated = tags.some(t => t.name === 'deprecated');
+    const jsDocTags = tags.map(t => t.name);
     const type = this.checker.getTypeOfSymbol(memberSym);
     const stripped = this.stripNullUndefined(type);
-    if (this.isEventHandler(stripped)) return { classification: 'event', deprecated };
-    if (this.isReactType(stripped)) return { classification: 'slot', deprecated };
-    if (this.isPassthrough(stripped)) return { classification: 'passthrough', deprecated };
-    return { classification: 'prop', deprecated };
+    if (this.isEventHandler(stripped)) return { classification: 'event', deprecated, jsDocTags };
+    if (this.isReactType(stripped)) return { classification: 'slot', deprecated, jsDocTags };
+    if (this.isPassthrough(stripped)) return { classification: 'passthrough', deprecated, jsDocTags };
+    return { classification: 'prop', deprecated, jsDocTags };
   }
 
   classifyAllProps(propsType: ts.Type): Map<string, ClassifiedProp> {

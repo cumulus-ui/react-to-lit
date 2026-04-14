@@ -30,6 +30,11 @@ describe('createDefaultConfig', () => {
     expect(config.cleanup.unwrapComponents).toContain('React.Fragment');
   });
 
+  it('defaults skipJsDocTags to empty array', () => {
+    const config = createDefaultConfig();
+    expect(config.cleanup.skipJsDocTags).toEqual([]);
+  });
+
   it('uses native dispatch mode', () => {
     const config = createDefaultConfig();
     expect(config.events.dispatchMode).toBe('native');
@@ -38,11 +43,6 @@ describe('createDefaultConfig', () => {
   it('has auto-derive enabled for components', () => {
     const config = createDefaultConfig();
     expect(config.components.autoDerive).toBe(true);
-  });
-
-  it('does not set includeDeprecatedProps by default', () => {
-    const config = createDefaultConfig();
-    expect(config.input.includeDeprecatedProps).toBeUndefined();
   });
 });
 
@@ -110,10 +110,12 @@ describe('createCloudscapeConfig', () => {
     expect(unwrap).toContain('WidthsContext.Provider');
   });
 
-  it('does not set includeDeprecatedProps by default', () => {
+  it('has skipJsDocTags with awsuiSystem', () => {
     const config = createCloudscapeConfig();
-    expect(config.input.includeDeprecatedProps).toBeUndefined();
+    expect(config.cleanup.skipJsDocTags).toContain('awsuiSystem');
   });
+
+
 });
 
 // ---------------------------------------------------------------------------

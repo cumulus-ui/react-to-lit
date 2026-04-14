@@ -51,9 +51,13 @@ program
         }
       }
 
+      const skipTags = config.cleanup?.skipJsDocTags ?? [];
       const passthroughProps = new Set<string>();
       for (const [name, classified] of classifiedProps) {
         if (classified.classification === 'passthrough') passthroughProps.add(name);
+        if (skipTags.length > 0 && classified.jsDocTags.some(tag => skipTags.includes(tag))) {
+          passthroughProps.add(name);
+        }
       }
 
       return {
@@ -107,7 +111,17 @@ async function processComponents(
         if (classified?.deprecated) prop.deprecated = true;
       }
 
-      const transformed = transformAll(ir, { knownComponents, config, skipProps: passthroughProps });
+      // Extend removeAttributes with passthrough/system-tagged prop names so template bindings are stripped
+      const componentConfig = passthroughProps.size > 0
+        ? {
+            ...config,
+            cleanup: {
+              ...config.cleanup,
+              removeAttributes: [...(config.cleanup?.removeAttributes ?? []), ...passthroughProps],
+            },
+          }
+        : config;
+      const transformed = transformAll(ir, { knownComponents, config: componentConfig, skipProps: passthroughProps });
       const output = emitComponent(transformed);
 
       if (opts.dryRun) {
