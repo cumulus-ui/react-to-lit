@@ -8,6 +8,7 @@ import { emitComponent } from './emitter/index.js';
 import { discoverComponents } from './config.js';
 import { PackageAnalyzer } from './package-analyzer.js';
 import { loadConfig } from './config-loader.js';
+import type { CompilerConfig } from './config.js';
 import type { HookRegistry } from './hooks/registry.js';
 import type { ClassifiedProp } from './package-analyzer.js';
 
@@ -50,11 +51,17 @@ program
         }
       }
 
+      const passthroughProps = new Set<string>();
+      for (const [name, classified] of classifiedProps) {
+        if (classified.classification === 'passthrough') passthroughProps.add(name);
+      }
+
       return {
         name: c.name,
         dir: path.resolve(sourceRoot, c.dir.replace(/^\.\//, '')),
         keepProps,
         classifiedProps,
+        passthroughProps,
         knownComponents,
         reactFrameworkAttributes,
         hookMappings: config.hooks,
@@ -70,7 +77,7 @@ program
       process.exit(1);
     }
 
-    await processComponents(toProcess, outputRoot, opts);
+    await processComponents(toProcess, outputRoot, opts, config);
   });
 
 program.parse();
@@ -80,15 +87,16 @@ program.parse();
 // ---------------------------------------------------------------------------
 
 async function processComponents(
-  components: Array<{ name: string; dir: string; keepProps: Set<string>; classifiedProps: Map<string, ClassifiedProp>; knownComponents: Set<string>; reactFrameworkAttributes: string[]; hookMappings: HookRegistry }>,
+  components: Array<{ name: string; dir: string; keepProps: Set<string>; classifiedProps: Map<string, ClassifiedProp>; passthroughProps: Set<string>; knownComponents: Set<string>; reactFrameworkAttributes: string[]; hookMappings: HookRegistry }>,
   outputRoot: string,
   opts: { dryRun?: boolean; verbose?: boolean },
+  config: CompilerConfig,
 ): Promise<void> {
   let succeeded = 0;
   let failed = 0;
   const failures: Array<{ name: string; error: string }> = [];
 
-  for (const { name, dir, keepProps, classifiedProps, knownComponents, reactFrameworkAttributes, hookMappings } of components) {
+  for (const { name, dir, keepProps, classifiedProps, passthroughProps, knownComponents, reactFrameworkAttributes, hookMappings } of components) {
     const outputFile = path.join(outputRoot, path.basename(dir), 'internal.ts');
 
     try {
@@ -99,7 +107,7 @@ async function processComponents(
         if (classified?.deprecated) prop.deprecated = true;
       }
 
-      const transformed = transformAll(ir, { knownComponents });
+      const transformed = transformAll(ir, { knownComponents, config, skipProps: passthroughProps });
       const output = emitComponent(transformed);
 
       if (opts.dryRun) {
