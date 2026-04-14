@@ -3,6 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { removeCloudscapeInternals, removeLibraryInternals } from '../../src/transforms/cleanup.js';
+import { createCloudscapeConfig } from '../../src/presets/cloudscape.js';
 import type { ComponentIR } from '../../src/ir/types.js';
 
 // ---------------------------------------------------------------------------
@@ -516,7 +517,7 @@ describe('removeCloudscapeInternals', () => {
           { name: 'renderContent', source: 'function renderContent() { return "ok"; }' },
         ],
       });
-      const result = removeLibraryInternals(ir, new Set());
+      const result = removeLibraryInternals(ir, new Set(), undefined, createCloudscapeConfig().cleanup);
       expect(result.helpers.map(h => h.name)).toEqual(['renderContent']);
     });
 
@@ -532,7 +533,7 @@ describe('removeCloudscapeInternals', () => {
           children: [],
         },
       });
-      const result = removeLibraryInternals(ir, new Set());
+      const result = removeLibraryInternals(ir, new Set(), undefined, createCloudscapeConfig().cleanup);
       expect(result.template.attributes.map(a => a.name)).toEqual(['title']);
     });
 

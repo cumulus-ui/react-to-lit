@@ -9,7 +9,7 @@
  * by the orchestrator in `cleanup.ts`.
  */
 import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
-import { REMOVE_ATTRS, REMOVE_ATTR_PREFIXES, INFRA_FUNCTIONS } from '../cloudscape-config.js';
+import { createDefaultConfig, type CleanupConfig } from '../config.js';
 import { walkTemplate } from '../template-walker.js';
 import { stripFunctionCalls, stripIfBlocks, unwrapFunctionCall } from '../text-utils.js';
 
@@ -36,10 +36,10 @@ export interface CleanupPlugin {
  * Library-specific patterns are NOT applied here — use a
  * {@link CleanupPlugin} via the orchestrator for those.
  */
-export function applyCoreCleanup(ir: ComponentIR, skipProps: Set<string>): ComponentIR {
-  const removeAttrs = REMOVE_ATTRS;
-  const removeAttrPrefixes = REMOVE_ATTR_PREFIXES;
-  const infraFunctions = INFRA_FUNCTIONS;
+export function applyCoreCleanup(ir: ComponentIR, skipProps: Set<string>, cleanupConfig?: CleanupConfig): ComponentIR {
+  const removeAttrs = cleanupConfig?.removeAttributes ?? createDefaultConfig().cleanup.removeAttributes;
+  const removeAttrPrefixes = cleanupConfig?.removeAttributePrefixes ?? createDefaultConfig().cleanup.removeAttributePrefixes;
+  const infraFunctions = cleanupConfig?.infraFunctions ?? createDefaultConfig().cleanup.infraFunctions;
 
   const props = ir.props.filter((p) => {
     if (p.name.startsWith('__')) return false;
