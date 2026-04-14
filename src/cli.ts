@@ -76,7 +76,7 @@ program.parse();
 // ---------------------------------------------------------------------------
 
 async function processComponents(
-  components: Array<{ name: string; dir: string; keepProps: Set<string>; knownComponents: Set<string>; reactFrameworkAttributes: Set<string>; hookMappings: HookRegistry }>,
+  components: Array<{ name: string; dir: string; keepProps: Set<string>; knownComponents: Set<string>; reactFrameworkAttributes: string[]; hookMappings: HookRegistry }>,
   outputRoot: string,
   opts: { dryRun?: boolean; verbose?: boolean },
 ): Promise<void> {

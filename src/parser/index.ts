@@ -35,7 +35,7 @@ import type { CompilerConfig } from '../config.js';
 export interface ParseOptions {
   keepProps?: Set<string>;
   knownComponents?: Set<string>;
-  reactFrameworkAttributes?: Set<string>;
+  reactFrameworkAttributes?: string[];
   hookMappings?: HookRegistry;
   declarationsDir?: string;
   config?: CompilerConfig;
@@ -113,7 +113,7 @@ export function parseComponent(
     knownComponents || options.reactFrameworkAttributes
       ? {
           ...(knownComponents && { shouldUnwrap: (name: string) => !knownComponents.has(name) }),
-          ...(options.reactFrameworkAttributes && { removeAttributes: [...options.reactFrameworkAttributes] }),
+          ...(options.reactFrameworkAttributes && { removeAttributes: options.reactFrameworkAttributes }),
         }
       : undefined;
   let indexFile = transformJsxToLit(origIndexFile, jsxConfig);

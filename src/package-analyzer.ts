@@ -67,8 +67,8 @@ export class PackageAnalyzer {
     return result;
   }
 
-  getReactFrameworkAttributes(): Set<string> {
-    return new Set(['key', 'ref']);
+  getReactFrameworkAttributes(): string[] {
+    return ['key', 'ref'];
   }
 
   getEventDetailType(memberSym: ts.Symbol): ts.Type | undefined {
