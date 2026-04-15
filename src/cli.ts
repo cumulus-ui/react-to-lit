@@ -108,7 +108,7 @@ async function processComponents(
   const failures: Array<{ name: string; error: string }> = [];
 
   for (const { name, dir, keepProps, classifiedProps, passthroughProps, knownComponents, reactFrameworkAttributes, hookMappings } of components) {
-    const outputFile = path.join(outputRoot, path.basename(dir), 'internal.ts');
+    const outputFile = path.join(outputRoot, path.basename(dir), 'index.ts');
 
     try {
       const ir = parseComponent(dir, { keepProps, knownComponents, reactFrameworkAttributes, hookMappings });

@@ -101,7 +101,7 @@ describe('CLI --host-display flag', () => {
       { encoding: 'utf-8', timeout: 60_000 },
     );
 
-    const outputFile = path.join(compOutputDir, 'badge', 'internal.ts');
+    const outputFile = path.join(compOutputDir, 'badge', 'index.ts');
     const content = readFileSync(outputFile, 'utf-8');
     expect(content).toContain('display: inline-block');
     expect(content).not.toContain('display: block');
