@@ -68,25 +68,25 @@ describe('ImportCollector', () => {
     const c = new ImportCollector();
     c.addNamed('./utils.js', 'foo');
     c.addNamed('./utils.js', 'bar');
-    expect(c.emit()).toBe("import { bar, foo } from './utils.js';");
+    expect(c.emit()).toBe("import { bar, foo } from './utils';");
   });
 
   it('emits type-only imports', () => {
     const c = new ImportCollector();
     c.addType('./types.js', 'FooProps');
-    expect(c.emit()).toBe("import type { FooProps } from './types.js';");
+    expect(c.emit()).toBe("import type { FooProps } from './types';");
   });
 
   it('emits side-effect imports', () => {
     const c = new ImportCollector();
     c.addSideEffect('./register.js');
-    expect(c.emit()).toBe("import './register.js';");
+    expect(c.emit()).toBe("import './register';");
   });
 
   it('emits default imports', () => {
     const c = new ImportCollector();
     c.addDefault('./config.js', 'config');
-    expect(c.emit()).toBe("import config from './config.js';");
+    expect(c.emit()).toBe("import config from './config';");
   });
 
   it('deduplicates entries', () => {
@@ -121,10 +121,10 @@ describe('ImportCollector', () => {
     expect(lines[0]).toContain("from 'lit'");
     expect(lines[1]).toContain("from 'lit/decorators.js'");
     expect(lines[2]).toContain("from 'lit/directives/class-map.js'");
-    expect(lines[3]).toContain("from './base.js'");
+    expect(lines[3]).toContain("from './base'");
     expect(lines[4]).toContain("import config from");
     expect(lines[5]).toContain("import type");
-    expect(lines[6]).toContain("import './register.js'");
+    expect(lines[6]).toContain("import './register'");
   });
 
   it('handles empty collector', () => {
@@ -232,7 +232,7 @@ describe('ImportCollector.filterUnused', () => {
     const c = new ImportCollector();
     c.addSideEffect('./register.js');
     c.filterUnused('no references');
-    expect(c.emit()).toContain("import './register.js'");
+    expect(c.emit()).toContain("import './register'");
   });
 
   it('never removes preserved named imports', () => {

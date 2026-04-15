@@ -44,7 +44,7 @@ const config: CompilerConfig = {
   output: {
     baseClass: { name: 'LitElement', import: 'lit' },
     tagPrefix: 'el-',
-    importExtension: '.js',
+    importExtension: '',
   },
 
   cleanup: {
@@ -306,7 +306,7 @@ const config: CompilerConfig = {
   output: {
     baseClass: { name: 'LitElement', import: 'lit' },
     tagPrefix: 'el-',
-    importExtension: '.js',
+    importExtension: '',
   },
 
   cleanup: {
@@ -411,7 +411,7 @@ customElements.define('mui-button', MuiButton);
 |-------|------|---------|-------------|
 | `baseClass` | `{ name: string; import: string }` | `{ name: 'LitElement', import: 'lit' }` | Base class for generated components. Change this to extend a custom base class. |
 | `tagPrefix` | `string` | `'el-'` | Prefix for custom element tags in templates (e.g., `'el-'` → `<el-button>`). |
-| `importExtension` | `string` | `'.js'` | File extension appended to relative imports in generated code. |
+| `importExtension` | `string` | `''` | File extension appended to relative imports in generated code. Set to `'.js'` for NodeNext/ESM. |
 
 ### `CleanupConfig`
 

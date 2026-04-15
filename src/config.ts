@@ -90,7 +90,7 @@ export function createDefaultConfig(): CompilerConfig {
     },
     output: {
       baseClass: { name: 'LitElement', import: 'lit' },
-      importExtension: '.js',
+      importExtension: '',
     },
     cleanup: {
       skipPrefixes: ['__'],

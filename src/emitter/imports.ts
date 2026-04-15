@@ -24,15 +24,32 @@ export class ImportCollector {
   private _sideEffectImports = new Set<string>();
   private _defaultImports = new Map<string, string>(); // module → default name
   private _preservedNames = new Set<string>();
+  private _importExtension: string;
+
+  constructor(importExtension: string = '') {
+    this._importExtension = importExtension;
+  }
 
   /**
    * Normalize module specifiers so that `'./interfaces'` and `'./interfaces.js'`
-   * resolve to the same key. Relative imports get `.js` appended if missing
-   * (NodeNext/ESM convention). Non-relative (bare) and `.css` imports are untouched.
+   * resolve to the same dedup key. Relative imports are stored without any file
+   * extension (stripped if present). The configured `importExtension` is applied
+   * at emit time. Non-relative (bare) and `.css` imports are untouched.
    */
   private _normalizeModule(module: string): string {
-    if (module.startsWith('.') && !module.endsWith('.js') && !module.endsWith('.css')) {
-      return module + '.js';
+    if (module.startsWith('.') && !module.endsWith('.css')) {
+      return module.replace(/\.js$/, '');
+    }
+    return module;
+  }
+
+  /**
+   * Apply the configured import extension to a module specifier for emission.
+   * Only relative, non-.css modules get the extension appended.
+   */
+  private _emitModule(module: string): string {
+    if (module.startsWith('.') && !module.endsWith('.css')) {
+      return module + this._importExtension;
     }
     return module;
   }
@@ -207,7 +224,7 @@ export class ImportCollector {
 
     // lit directives
     for (const [module, names] of sortedEntries(this._directiveImports)) {
-      lines.push(`import { ${sorted(names).join(', ')} } from '${module}';`);
+      lines.push(`import { ${sorted(names).join(', ')} } from '${this._emitModule(module)}';`);
     }
 
     // @lit/context
@@ -218,12 +235,12 @@ export class ImportCollector {
 
     // Named imports (internal utilities, etc.)
     for (const [module, names] of sortedEntries(this._namedImports)) {
-      lines.push(`import { ${sorted(names).join(', ')} } from '${module}';`);
+      lines.push(`import { ${sorted(names).join(', ')} } from '${this._emitModule(module)}';`);
     }
 
     // Default imports
     for (const [module, name] of sortedMapEntries(this._defaultImports)) {
-      lines.push(`import ${name} from '${module}';`);
+      lines.push(`import ${name} from '${this._emitModule(module)}';`);
     }
 
     // Type-only imports — skip names already covered by named imports from the same module
@@ -233,13 +250,13 @@ export class ImportCollector {
         ? sorted(names).filter(n => !namedFromSame.has(n))
         : sorted(names);
       if (filteredNames.length > 0) {
-        lines.push(`import type { ${filteredNames.join(', ')} } from '${module}';`);
+        lines.push(`import type { ${filteredNames.join(', ')} } from '${this._emitModule(module)}';`);
       }
     }
 
     // Side-effect imports
     for (const module of sorted(this._sideEffectImports)) {
-      lines.push(`import '${module}';`);
+      lines.push(`import '${this._emitModule(module)}';`);
     }
 
     return lines.join('\n');
@@ -251,7 +268,7 @@ export class ImportCollector {
 // ---------------------------------------------------------------------------
 
 export function collectImports(ir: ComponentIR, outputConfig?: OutputConfig): ImportCollector {
-  const collector = new ImportCollector();
+  const collector = new ImportCollector(outputConfig?.importExtension ?? '');
 
   // Always need html from lit
   collector.addLit('html');

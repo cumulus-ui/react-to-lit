@@ -55,7 +55,7 @@ describe('E2E: parse → emit', () => {
     });
 
     it('should import styles', () => {
-      expect(output).toContain("from './styles.js'");
+      expect(output).toContain("from './styles'");
     });
 
     it('should import prop types', () => {
