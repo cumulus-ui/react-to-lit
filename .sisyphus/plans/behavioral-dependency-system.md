@@ -1017,7 +1017,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ### Wave 4 — Convergence
 
-- [ ] 21. Regenerate batch with property system + shared infrastructure
+- [x] 21. Regenerate batch with property system + shared infrastructure
 
   **What to do**:
   - Run the full pipeline with all Wave 1 + Wave 3 changes

@@ -1,0 +1,179 @@
+{
+  "generatedAt": "2026-04-15T20:30:00.000Z",
+  "description": "Post-Wave 1 TS error measurement for 91 Cloudscape components — comparing to Task 1 baseline after optional props, reflect, and HTMLElement skip changes",
+  "methodology": {
+    "command": "npx tsx src/cli.ts -p @cloudscape-design/components -s vendor/cloudscape-source/src -o /tmp/r2l-all --preset cloudscape",
+    "outputDir": "/tmp/r2l-all",
+    "tscFlags": "--strict --noUnusedLocals --noUnusedParameters --experimentalDecorators --useDefineForClassFields false --moduleResolution bundler --lib ES2022,DOM,DOM.Iterable",
+    "litResolution": "node_modules symlink to project node_modules",
+    "identicalToBaseline": true
+  },
+  "summary": {
+    "totalComponents": 91,
+    "cleanComponents": 0,
+    "errorComponents": 91,
+    "totalErrors": 1817,
+    "uniqueErrorCodes": 33
+  },
+  "baselineComparison": {
+    "baselineErrors": 1969,
+    "currentErrors": 1817,
+    "delta": -152,
+    "percentReduction": "7.7%",
+    "headline": "Baseline 1969 errors → Current 1817 errors (7.7% reduction)",
+    "wave1TargetResult": {
+      "targetCode": "TS2564",
+      "baselineCount": 846,
+      "currentCount": 48,
+      "delta": -798,
+      "percentReduction": "94.3%",
+      "verdict": "Wave 1 optional/HTMLElement-skip changes achieved 94.3% reduction of TS2564 (definite assignment errors)"
+    },
+    "regressionsSummary": {
+      "totalRegressionErrors": 664,
+      "explanation": "Other code changes between Task 1 baseline and Task 21 introduced new errors, primarily TS2307 (module resolution) and TS4112 (override modifier). These regressions offset the TS2564 improvement.",
+      "topRegressions": [
+        { "code": "TS2307", "baseline": 9, "current": 448, "delta": 439, "description": "Cannot find module — generator now emits imports for ./styles, ./interfaces, ../internal/* that don't exist in output" },
+        { "code": "TS4112", "baseline": 0, "current": 72, "delta": 72, "description": "Override modifier on classes tsc doesn't see as extending a class (17 form-control components)" },
+        { "code": "TS2339", "baseline": 47, "current": 95, "delta": 48, "description": "Property doesn't exist — new dispatchEvent/childElementCount errors from HTMLElement skip" },
+        { "code": "TS1240", "baseline": 28, "current": 74, "delta": 46, "description": "Unable to resolve property decorator signature (24 components)" },
+        { "code": "TS2503", "baseline": 31, "current": 55, "delta": 24, "description": "Cannot find namespace (28 components)" },
+        { "code": "TS2322", "baseline": 28, "current": 52, "delta": 24, "description": "Type assignment errors increased" },
+        { "code": "TS2556", "baseline": 0, "current": 6, "delta": 6, "description": "Spread argument must have tuple type (NEW)" }
+      ]
+    },
+    "improvementsSummary": {
+      "totalImprovedErrors": 816,
+      "topImprovements": [
+        { "code": "TS2564", "baseline": 846, "current": 48, "delta": -798, "description": "Definite assignment errors — Wave 1 optional props fix" },
+        { "code": "TS2345", "baseline": 17, "current": 5, "delta": -12, "description": "Argument type mismatches reduced" },
+        { "code": "TS2833", "baseline": 3, "current": 0, "delta": -3, "description": "Namespace suggestions eliminated" },
+        { "code": "TS2304", "baseline": 259, "current": 257, "delta": -2, "description": "Cannot find name — marginal improvement" },
+        { "code": "TS2702", "baseline": 1, "current": 0, "delta": -1, "description": "Type-used-as-namespace eliminated" }
+      ]
+    }
+  },
+  "top3RemainingCategories": [
+    {
+      "rank": 1,
+      "code": "TS2307",
+      "count": 448,
+      "affectedComponents": 90,
+      "description": "Cannot find module or its corresponding type declarations",
+      "topUnresolvedModules": [
+        "./styles (98 occurrences)",
+        "./interfaces (77 occurrences)",
+        "../internal/context/form-field-context (34 occurrences)",
+        "../internal/mixins/form-control (17 occurrences)",
+        "../internal/events (15 occurrences)"
+      ],
+      "rootCause": "Generator emits imports for local modules (styles, interfaces, internal infrastructure) that don't exist in the generated output directory. These are references to source files not included in generation.",
+      "suggestedFix": "Either generate stub modules for these imports, strip unresolvable imports during codegen, or generate the referenced interface/style files"
+    },
+    {
+      "rank": 2,
+      "code": "TS6133",
+      "count": 442,
+      "affectedComponents": 75,
+      "description": "Declared but value never read (unused imports/variables)",
+      "exampleMessages": [
+        "'useDiscoveredAction' is declared but its value is never read.",
+        "'typeToIcon' is declared but its value is never read.",
+        "'_rootRef' is declared but its value is never read."
+      ],
+      "rootCause": "Generator emits imports and variable declarations for internal utilities that aren't referenced in the generated render/logic code",
+      "suggestedFix": "Tree-shake unused imports/declarations during codegen, or add dead-code elimination pass"
+    },
+    {
+      "rank": 3,
+      "code": "TS2304",
+      "count": 257,
+      "affectedComponents": 46,
+      "description": "Cannot find name (unresolved symbol references)",
+      "exampleMessages": [
+        "Cannot find name 'persistenceConfig'.",
+        "Cannot find name 'ScaleType'.",
+        "Cannot find name 'Series'.",
+        "Cannot find name 'OptionsFilteringType'."
+      ],
+      "rootCause": "Generated code references symbols (config objects, type aliases, enums) that come from internal modules not included in output",
+      "suggestedFix": "Resolve symbol origins during codegen and either inline definitions or add missing imports"
+    }
+  ],
+  "errorsByType": [
+    { "errorType": "TS2307", "count": 448, "baselineCount": 9, "delta": 439, "componentsAffected": 90 },
+    { "errorType": "TS6133", "count": 442, "baselineCount": 441, "delta": 1, "componentsAffected": 75 },
+    { "errorType": "TS2304", "count": 257, "baselineCount": 259, "delta": -2, "componentsAffected": 46 },
+    { "errorType": "TS7006", "count": 121, "baselineCount": 121, "delta": 0, "componentsAffected": 30 },
+    { "errorType": "TS2339", "count": 95, "baselineCount": 47, "delta": 48, "componentsAffected": 19 },
+    { "errorType": "TS1240", "count": 74, "baselineCount": 28, "delta": 46, "componentsAffected": 24 },
+    { "errorType": "TS4112", "count": 72, "baselineCount": 0, "delta": 72, "componentsAffected": 17 },
+    { "errorType": "TS2503", "count": 55, "baselineCount": 31, "delta": 24, "componentsAffected": 28 },
+    { "errorType": "TS2322", "count": 52, "baselineCount": 28, "delta": 24, "componentsAffected": 22 },
+    { "errorType": "TS2564", "count": 48, "baselineCount": 846, "delta": -798, "componentsAffected": 38 },
+    { "errorType": "TS2552", "count": 28, "baselineCount": 26, "delta": 2, "componentsAffected": 16 },
+    { "errorType": "TS2416", "count": 17, "baselineCount": 15, "delta": 2, "componentsAffected": 15 },
+    { "errorType": "TS2367", "count": 13, "baselineCount": 13, "delta": 0, "componentsAffected": 7 },
+    { "errorType": "TS7023", "count": 12, "baselineCount": 12, "delta": 0, "componentsAffected": 12 },
+    { "errorType": "TS6198", "count": 12, "baselineCount": 12, "delta": 0, "componentsAffected": 9 },
+    { "errorType": "TS6196", "count": 12, "baselineCount": 12, "delta": 0, "componentsAffected": 10 },
+    { "errorType": "TS2531", "count": 11, "baselineCount": 11, "delta": 0, "componentsAffected": 6 },
+    { "errorType": "TS18004", "count": 8, "baselineCount": 8, "delta": 0, "componentsAffected": 8 },
+    { "errorType": "TS7031", "count": 7, "baselineCount": 7, "delta": 0, "componentsAffected": 4 },
+    { "errorType": "TS2556", "count": 6, "baselineCount": 0, "delta": 6, "componentsAffected": 6 },
+    { "errorType": "TS2663", "count": 5, "baselineCount": 5, "delta": 0, "componentsAffected": 3 },
+    { "errorType": "TS2345", "count": 5, "baselineCount": 17, "delta": -12, "componentsAffected": 5 },
+    { "errorType": "TS2683", "count": 3, "baselineCount": 3, "delta": 0, "componentsAffected": 2 },
+    { "errorType": "TS7019", "count": 2, "baselineCount": 2, "delta": 0, "componentsAffected": 1 },
+    { "errorType": "TS7008", "count": 2, "baselineCount": 2, "delta": 0, "componentsAffected": 2 },
+    { "errorType": "TS2769", "count": 2, "baselineCount": 2, "delta": 0, "componentsAffected": 2 },
+    { "errorType": "TS18047", "count": 2, "baselineCount": 2, "delta": 0, "componentsAffected": 2 },
+    { "errorType": "TS7024", "count": 1, "baselineCount": 1, "delta": 0, "componentsAffected": 1 },
+    { "errorType": "TS7016", "count": 1, "baselineCount": 1, "delta": 0, "componentsAffected": 1 },
+    { "errorType": "TS6192", "count": 1, "baselineCount": 1, "delta": 0, "componentsAffected": 1 },
+    { "errorType": "TS2873", "count": 1, "baselineCount": 1, "delta": 0, "componentsAffected": 1 },
+    { "errorType": "TS1109", "count": 1, "baselineCount": 1, "delta": 0, "componentsAffected": 1 },
+    { "errorType": "TS1005", "count": 1, "baselineCount": 1, "delta": 0, "componentsAffected": 1 }
+  ],
+  "eliminatedCodes": [
+    { "code": "TS2833", "baselineCount": 3, "description": "Cannot find namespace (suggestion variant) — fully eliminated" },
+    { "code": "TS2702", "baselineCount": 1, "description": "Type used as namespace — fully eliminated" }
+  ],
+  "newCodes": [
+    { "code": "TS4112", "count": 72, "description": "Override modifier on class that tsc doesn't see as extending another class" },
+    { "code": "TS2556", "count": 6, "description": "Spread argument must have tuple type or be passed to rest parameter" }
+  ],
+  "perComponentErrors": {
+    "button-dropdown": 107, "select": 101, "date-picker": 101, "date-range-picker": 98,
+    "multiselect": 97, "dropdown": 70, "property-filter": 64, "prompt-input": 56,
+    "form-field": 44, "tag-editor": 38, "code-editor": 38, "autosuggest": 38,
+    "modal": 36, "mixed-line-bar-chart": 35, "pie-chart": 32, "button": 30,
+    "input": 29, "textarea": 28, "wizard": 27, "file-input": 27, "cards": 27,
+    "file-upload": 26, "link": 25, "calendar": 24, "annotation-context": 22,
+    "s3-resource-selector": 20, "error-boundary": 20, "alert": 20, "progress-bar": 19,
+    "checkbox": 19, "pagination": 18, "collection-preferences": 18, "tiles": 16,
+    "radio-group": 16, "attribute-editor": 16, "area-chart": 16, "steps": 15,
+    "navigable-group": 15, "date-input": 15, "tree-view": 14, "token": 14,
+    "toggle": 14, "tabs": 14, "breadcrumb-group": 14, "button-group": 13,
+    "key-value-pairs": 12, "popover": 11, "grid": 11, "app-layout-toolbar": 11,
+    "top-navigation": 10, "list": 10, "line-chart": 10, "expandable-section": 10,
+    "bar-chart": 10, "tooltip": 9, "table": 9, "status-indicator": 9,
+    "copy-to-clipboard": 9, "segmented-control": 8, "icon": 8, "side-navigation": 7,
+    "panel-layout": 7, "container": 7, "time-input": 6, "anchor-navigation": 6,
+    "tutorial-panel": 5, "toggle-button": 5, "text-filter": 5, "space-between": 5,
+    "live-region": 5, "form": 5, "file-token-group": 5, "drawer": 5,
+    "content-layout": 5, "token-group": 4, "icon-provider": 4, "hotspot": 4,
+    "help-panel": 4, "box": 4, "item-card": 3, "header": 3, "flashbar": 3,
+    "file-dropzone": 3, "text-content": 2, "split-panel": 2, "spinner": 2,
+    "slider": 2, "column-layout": 2, "app-layout": 2, "radio-button": 1, "badge": 1
+  },
+  "cleanComponentsList": [],
+  "notes": [
+    "radio-button regressed from 0 errors (baseline) to 1 error (TS2307 for ./styles import)",
+    "TS2564 remaining 48 errors are for genuinely required props (value, items, checked, columnDefinitions) that correctly need initializers",
+    "TS2307 explosion (9→448) is from generator now emitting imports for ./styles, ./interfaces, and ../internal/* modules not present in output",
+    "TS4112 (72 new) affects 17 form-control components — override modifier when tsc can't resolve class hierarchy due to missing imports",
+    "TS2339 increase (47→95) includes new 'dispatchEvent'/'childElementCount' errors — HTMLElement methods not recognized after skip",
+    "Wave 1 changes (tasks 2-20) successfully addressed the #1 error category but introduced side effects in import generation"
+  ]
+}
