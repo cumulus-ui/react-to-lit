@@ -1066,7 +1066,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES (one per fix)
   - Message: `fix(transform): resolve [category] — improves N components`
 
-- [ ] 25. Gate2 measurement and roadmap for remaining work
+- [x] 25. Gate2 measurement and roadmap for remaining work
 
   **What to do**:
   - Run final gate2 measurement
