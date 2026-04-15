@@ -1,0 +1,1018 @@
+{
+  "task": "task-3-htmlelement-props",
+  "description": "Quantify unreferenced HTMLElement prop declarations (override keyword) in generated output",
+  "summary": {
+    "components_analyzed": 91,
+    "components_with_override_props": 87,
+    "total_override_prop_declarations": 238,
+    "total_unreferenced": 202,
+    "total_referenced": 36,
+    "unreferenced_percentage": 84.9
+  },
+  "unreferenced_by_prop": {
+    "className": {
+      "count": 85,
+      "components": [
+        "alert",
+        "anchor-navigation",
+        "app-layout",
+        "app-layout-toolbar",
+        "area-chart",
+        "attribute-editor",
+        "autosuggest",
+        "badge",
+        "bar-chart",
+        "box",
+        "breadcrumb-group",
+        "button",
+        "button-dropdown",
+        "button-group",
+        "calendar",
+        "cards",
+        "checkbox",
+        "code-editor",
+        "collection-preferences",
+        "column-layout",
+        "container",
+        "content-layout",
+        "copy-to-clipboard",
+        "date-input",
+        "date-picker",
+        "date-range-picker",
+        "drawer",
+        "error-boundary",
+        "expandable-section",
+        "file-dropzone",
+        "file-input",
+        "file-token-group",
+        "file-upload",
+        "flashbar",
+        "form",
+        "form-field",
+        "grid",
+        "header",
+        "help-panel",
+        "hotspot",
+        "icon",
+        "icon-provider",
+        "input",
+        "item-card",
+        "key-value-pairs",
+        "line-chart",
+        "link",
+        "live-region",
+        "mixed-line-bar-chart",
+        "modal",
+        "multiselect",
+        "navigable-group",
+        "panel-layout",
+        "pie-chart",
+        "popover",
+        "progress-bar",
+        "prompt-input",
+        "property-filter",
+        "radio-group",
+        "s3-resource-selector",
+        "segmented-control",
+        "select",
+        "side-navigation",
+        "slider",
+        "space-between",
+        "spinner",
+        "split-panel",
+        "status-indicator",
+        "steps",
+        "table",
+        "tabs",
+        "tag-editor",
+        "text-content",
+        "text-filter",
+        "textarea",
+        "tiles",
+        "time-input",
+        "toggle",
+        "toggle-button",
+        "token",
+        "token-group",
+        "top-navigation",
+        "tree-view",
+        "tutorial-panel",
+        "wizard"
+      ]
+    },
+    "id": {
+      "count": 85,
+      "components": [
+        "alert",
+        "anchor-navigation",
+        "app-layout",
+        "app-layout-toolbar",
+        "area-chart",
+        "attribute-editor",
+        "autosuggest",
+        "badge",
+        "bar-chart",
+        "box",
+        "breadcrumb-group",
+        "button",
+        "button-dropdown",
+        "button-group",
+        "calendar",
+        "cards",
+        "checkbox",
+        "code-editor",
+        "collection-preferences",
+        "column-layout",
+        "container",
+        "content-layout",
+        "copy-to-clipboard",
+        "date-input",
+        "date-picker",
+        "date-range-picker",
+        "drawer",
+        "error-boundary",
+        "expandable-section",
+        "file-dropzone",
+        "file-input",
+        "file-token-group",
+        "file-upload",
+        "flashbar",
+        "form",
+        "form-field",
+        "grid",
+        "header",
+        "help-panel",
+        "hotspot",
+        "icon",
+        "icon-provider",
+        "input",
+        "item-card",
+        "key-value-pairs",
+        "line-chart",
+        "link",
+        "live-region",
+        "mixed-line-bar-chart",
+        "modal",
+        "multiselect",
+        "navigable-group",
+        "panel-layout",
+        "pie-chart",
+        "popover",
+        "progress-bar",
+        "prompt-input",
+        "property-filter",
+        "radio-group",
+        "s3-resource-selector",
+        "segmented-control",
+        "select",
+        "side-navigation",
+        "slider",
+        "space-between",
+        "spinner",
+        "split-panel",
+        "status-indicator",
+        "steps",
+        "table",
+        "tabs",
+        "tag-editor",
+        "text-content",
+        "text-filter",
+        "textarea",
+        "tiles",
+        "time-input",
+        "toggle",
+        "toggle-button",
+        "token",
+        "token-group",
+        "top-navigation",
+        "tree-view",
+        "tutorial-panel",
+        "wizard"
+      ]
+    },
+    "ariaLabel": {
+      "count": 16,
+      "components": [
+        "area-chart",
+        "autosuggest",
+        "bar-chart",
+        "breadcrumb-group",
+        "button",
+        "code-editor",
+        "date-input",
+        "line-chart",
+        "list",
+        "mixed-line-bar-chart",
+        "pie-chart",
+        "split-panel",
+        "tabs",
+        "time-input",
+        "toggle-button",
+        "token"
+      ]
+    },
+    "ariaRequired": {
+      "count": 7,
+      "components": [
+        "autosuggest",
+        "checkbox",
+        "date-input",
+        "date-picker",
+        "file-upload",
+        "prompt-input",
+        "time-input"
+      ]
+    },
+    "ariaDescription": {
+      "count": 6,
+      "components": [
+        "area-chart",
+        "bar-chart",
+        "line-chart",
+        "mixed-line-bar-chart",
+        "pie-chart",
+        "slider"
+      ]
+    },
+    "ariaExpanded": {
+      "count": 1,
+      "components": [
+        "button"
+      ]
+    },
+    "title": {
+      "count": 1,
+      "components": [
+        "collection-preferences"
+      ]
+    },
+    "tagName": {
+      "count": 1,
+      "components": [
+        "live-region"
+      ]
+    }
+  },
+  "referenced_by_prop": {
+    "ariaLabel": {
+      "count": 24,
+      "components": [
+        "button-dropdown",
+        "button-group",
+        "calendar",
+        "checkbox",
+        "date-picker",
+        "date-range-picker",
+        "dropdown",
+        "file-input",
+        "icon",
+        "input",
+        "key-value-pairs",
+        "link",
+        "multiselect",
+        "progress-bar",
+        "prompt-input",
+        "radio-group",
+        "s3-resource-selector",
+        "select",
+        "slider",
+        "steps",
+        "textarea",
+        "tiles",
+        "toggle",
+        "tree-view"
+      ]
+    },
+    "ariaRequired": {
+      "count": 7,
+      "components": [
+        "file-input",
+        "input",
+        "multiselect",
+        "radio-group",
+        "select",
+        "textarea",
+        "tiles"
+      ]
+    },
+    "spellcheck": {
+      "count": 3,
+      "components": [
+        "input",
+        "prompt-input",
+        "textarea"
+      ]
+    },
+    "inputMode": {
+      "count": 1,
+      "components": [
+        "input"
+      ]
+    },
+    "hidden": {
+      "count": 1,
+      "components": [
+        "live-region"
+      ]
+    }
+  },
+  "per_component": {
+    "alert": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "anchor-navigation": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "app-layout": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "app-layout-toolbar": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "area-chart": {
+      "unreferenced": [
+        "ariaLabel",
+        "ariaDescription",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "attribute-editor": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "autosuggest": {
+      "unreferenced": [
+        "className",
+        "id",
+        "ariaLabel",
+        "ariaRequired"
+      ],
+      "referenced": []
+    },
+    "badge": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "bar-chart": {
+      "unreferenced": [
+        "ariaLabel",
+        "ariaDescription",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "box": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "breadcrumb-group": {
+      "unreferenced": [
+        "ariaLabel",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "button": {
+      "unreferenced": [
+        "ariaExpanded",
+        "className",
+        "id",
+        "ariaLabel"
+      ],
+      "referenced": []
+    },
+    "button-dropdown": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "button-group": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "calendar": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "cards": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "checkbox": {
+      "unreferenced": [
+        "ariaRequired",
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "code-editor": {
+      "unreferenced": [
+        "ariaLabel",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "collection-preferences": {
+      "unreferenced": [
+        "title",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "column-layout": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "container": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "content-layout": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "copy-to-clipboard": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "date-input": {
+      "unreferenced": [
+        "ariaLabel",
+        "ariaRequired",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "date-picker": {
+      "unreferenced": [
+        "ariaRequired",
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "date-range-picker": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "drawer": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "dropdown": {
+      "unreferenced": [],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "error-boundary": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "expandable-section": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "file-dropzone": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "file-input": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel",
+        "ariaRequired"
+      ]
+    },
+    "file-token-group": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "file-upload": {
+      "unreferenced": [
+        "ariaRequired",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "flashbar": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "form": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "form-field": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "grid": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "header": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "help-panel": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "hotspot": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "icon": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "icon-provider": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "input": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "inputMode",
+        "ariaLabel",
+        "ariaRequired",
+        "spellcheck"
+      ]
+    },
+    "item-card": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "key-value-pairs": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "line-chart": {
+      "unreferenced": [
+        "ariaLabel",
+        "ariaDescription",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "link": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "list": {
+      "unreferenced": [
+        "ariaLabel"
+      ],
+      "referenced": []
+    },
+    "live-region": {
+      "unreferenced": [
+        "tagName",
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "hidden"
+      ]
+    },
+    "mixed-line-bar-chart": {
+      "unreferenced": [
+        "ariaLabel",
+        "ariaDescription",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "modal": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "multiselect": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaRequired",
+        "ariaLabel"
+      ]
+    },
+    "navigable-group": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "panel-layout": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "pie-chart": {
+      "unreferenced": [
+        "ariaLabel",
+        "ariaDescription",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "popover": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "progress-bar": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "prompt-input": {
+      "unreferenced": [
+        "ariaRequired",
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel",
+        "spellcheck"
+      ]
+    },
+    "property-filter": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "radio-group": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel",
+        "ariaRequired"
+      ]
+    },
+    "s3-resource-selector": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "segmented-control": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "select": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaRequired",
+        "ariaLabel"
+      ]
+    },
+    "side-navigation": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "slider": {
+      "unreferenced": [
+        "ariaDescription",
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "space-between": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "spinner": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "split-panel": {
+      "unreferenced": [
+        "ariaLabel",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "status-indicator": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "steps": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "table": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "tabs": {
+      "unreferenced": [
+        "ariaLabel",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "tag-editor": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "text-content": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "text-filter": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "textarea": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel",
+        "ariaRequired",
+        "spellcheck"
+      ]
+    },
+    "tiles": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel",
+        "ariaRequired"
+      ]
+    },
+    "time-input": {
+      "unreferenced": [
+        "ariaLabel",
+        "ariaRequired",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "toggle": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "toggle-button": {
+      "unreferenced": [
+        "className",
+        "id",
+        "ariaLabel"
+      ],
+      "referenced": []
+    },
+    "token": {
+      "unreferenced": [
+        "ariaLabel",
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "token-group": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "top-navigation": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "tree-view": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": [
+        "ariaLabel"
+      ]
+    },
+    "tutorial-panel": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    },
+    "wizard": {
+      "unreferenced": [
+        "className",
+        "id"
+      ],
+      "referenced": []
+    }
+  }
+}
