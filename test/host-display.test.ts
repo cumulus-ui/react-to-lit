@@ -38,8 +38,9 @@ describe('buildRenderManifest', () => {
     expect(entry.props.onChange).toBe('__NOOP_FN__');
   });
 
-  it('SplitPanel: detects throwing context hook with provider info', () => {
+  it('SplitPanel: context detected, not skipped (visual component with context)', () => {
     const entry = manifestFor('SplitPanel');
+    expect(entry.skip).toBeUndefined();
     expect(entry.context).toBeDefined();
     expect(entry.context!.providerName).toBe('SplitPanelContextProvider');
     expect(entry.context!.providerImport).toContain('split-panel-context');
@@ -51,8 +52,26 @@ describe('buildRenderManifest', () => {
     expect(entry.portal).toBe(true);
   });
 
+  it('Dropdown: portal detected, not skipped (visual component with portal)', () => {
+    const entry = manifestFor('Dropdown');
+    expect(entry.skip).toBeUndefined();
+    expect(entry.portal).toBe(true);
+  });
+
+  it('Popover: portal detected, not skipped (visual component with portal)', () => {
+    const entry = manifestFor('Popover');
+    expect(entry.skip).toBeUndefined();
+    expect(entry.portal).toBe(true);
+  });
+
   it('AnnotationContext: detected as provider-only (skip)', () => {
     const entry = manifestFor('AnnotationContext');
+    expect(entry.skip).toBe(true);
+    expect(entry.reason).toBe('provider-only');
+  });
+
+  it('IconProvider: detected as provider-only (skip)', () => {
+    const entry = manifestFor('IconProvider');
     expect(entry.skip).toBe(true);
     expect(entry.reason).toBe('provider-only');
   });
@@ -132,5 +151,62 @@ describe('buildRenderManifest with synthetic sources', () => {
     const manifest = buildRenderManifest([comp], analyzer, TMP_ROOT);
     expect(manifest.SomeProvider.skip).toBe(true);
     expect(manifest.SomeProvider.reason).toBe('provider-only');
+  });
+
+  it('cross-file: style import in internal.tsx prevents provider-only on index.tsx', () => {
+    const compDir = path.join(TMP_ROOT, 'styled-wrapper');
+    mkdirSync(compDir, { recursive: true });
+
+    writeFileSync(path.join(compDir, 'internal.tsx'), [
+      'import React from "react";',
+      'import styles from "./styles.css.js";',
+      'export function StyledInner() { return <div className={styles.root}>hi</div>; }',
+    ].join('\n'));
+
+    writeFileSync(path.join(compDir, 'index.tsx'), [
+      'import React from "react";',
+      'import { StyledInner } from "./internal";',
+      'export default function StyledWrapper() { return <StyledInner />; }',
+    ].join('\n'));
+
+    const comp: ManifestComponent = { name: 'StyledWrapper', dir: 'styled-wrapper' };
+    const manifest = buildRenderManifest([comp], analyzer, TMP_ROOT);
+    expect(manifest.StyledWrapper.skip).toBeUndefined();
+  });
+
+  it('portal or context overrides provider-only classification', () => {
+    const compDir = path.join(TMP_ROOT, 'portal-provider');
+    const ctxDir = path.join(TMP_ROOT, 'portal-ctx');
+    mkdirSync(compDir, { recursive: true });
+    mkdirSync(ctxDir, { recursive: true });
+
+    writeFileSync(path.join(ctxDir, 'ctx.ts'), [
+      'import { useContext } from "react";',
+      'import React from "react";',
+      'const Ctx = React.createContext<{ x: number } | null>(null);',
+      'export const PortalCtxProvider = Ctx.Provider;',
+      'export function usePortalContext() {',
+      '  const c = useContext(Ctx);',
+      '  if (!c) { throw new Error("missing"); }',
+      '  return c;',
+      '}',
+    ].join('\n'));
+
+    writeFileSync(path.join(compDir, 'index.tsx'), [
+      'import React from "react";',
+      'import { createPortal } from "react-dom";',
+      'import { usePortalContext } from "../portal-ctx/ctx";',
+      'const Wrapper = ({ children }: any) => <>{children}</>;',
+      'export default function PortalProvider() {',
+      '  const c = usePortalContext();',
+      '  return <Wrapper>{createPortal(<Wrapper />, document.body)}</Wrapper>;',
+      '}',
+    ].join('\n'));
+
+    const comp: ManifestComponent = { name: 'PortalProvider', dir: 'portal-provider' };
+    const manifest = buildRenderManifest([comp], analyzer, TMP_ROOT);
+    expect(manifest.PortalProvider.portal).toBe(true);
+    expect(manifest.PortalProvider.context).toBeDefined();
+    expect(manifest.PortalProvider.skip).toBeUndefined();
   });
 });

@@ -283,23 +283,34 @@ export function buildRenderManifest(
       continue;
     }
 
-    let providerOnlyChecked = false;
+    const parsedFiles: ts.SourceFile[] = [];
     for (const filePath of sourceFiles) {
       const sf = parseFile(filePath);
-      if (!sf) continue;
+      if (sf) parsedFiles.push(sf);
+    }
 
+    for (const sf of parsedFiles) {
       if (!entry.context) {
         const ctx = detectContext(sf, compDir, sourceRoot);
         if (ctx) entry.context = ctx;
       }
-
       if (!entry.portal && detectPortal(sf)) entry.portal = true;
+    }
 
-      if (!providerOnlyChecked && detectProviderOnly(sf)) {
-        entry.skip = true;
-        entry.reason = 'provider-only';
-        providerOnlyChecked = true;
+    const componentHasStyles = parsedFiles.some(sf => hasStyleImport(sf));
+    if (!componentHasStyles) {
+      for (const sf of parsedFiles) {
+        if (detectProviderOnly(sf)) {
+          entry.skip = true;
+          entry.reason = 'provider-only';
+          break;
+        }
       }
+    }
+
+    if (entry.skip && (entry.portal || entry.context)) {
+      delete entry.skip;
+      delete entry.reason;
     }
 
     manifest[comp.name] = entry;
