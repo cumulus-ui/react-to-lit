@@ -11,7 +11,7 @@
 import type { ComponentIR, TemplateNodeIR, AttributeIR } from '../ir/types.js';
 import { createDefaultConfig, type CleanupConfig } from '../config.js';
 import { walkTemplate } from '../template-walker.js';
-import { stripFunctionCalls, stripIfBlocks, unwrapFunctionCall } from '../text-utils.js';
+import { stripIfBlocks, unwrapFunctionCall } from '../text-utils.js';
 
 export interface CleanupPlugin {
   cleanBody?: (text: string) => string;
@@ -31,7 +31,7 @@ export interface CleanupPlugin {
  * - `__`-prefixed infrastructure variable removal
  * - `createPortal` unwrapping
  * - Dead-code simplification (`undefined ?? x` → `x`, etc.)
- * - Configurable prop/attribute/infra-function filtering
+ * - Configurable prop/attribute filtering
  *
  * Library-specific patterns are NOT applied here — use a
  * {@link CleanupPlugin} via the orchestrator for those.
@@ -39,7 +39,6 @@ export interface CleanupPlugin {
 export function applyCoreCleanup(ir: ComponentIR, skipProps: Set<string>, cleanupConfig?: CleanupConfig): ComponentIR {
   const removeAttrs = cleanupConfig?.removeAttributes ?? createDefaultConfig().cleanup.removeAttributes;
   const removeAttrPrefixes = cleanupConfig?.removeAttributePrefixes ?? createDefaultConfig().cleanup.removeAttributePrefixes;
-  const infraFunctions = cleanupConfig?.infraFunctions ?? createDefaultConfig().cleanup.infraFunctions;
 
   const props = ir.props.filter((p) => {
     if (p.name.startsWith('__')) return false;
@@ -64,15 +63,11 @@ export function applyCoreCleanup(ir: ComponentIR, skipProps: Set<string>, cleanu
       : e.deps,
   }));
 
-  // Clean helpers — remove infrastructure and clean source
-  const helpers = ir.helpers
-    .filter((h) => {
-      return !infraFunctions.includes(h.name);
-    })
-    .map((h) => ({
-      ...h,
-      source: cleanTemplateInterpolations(cleanCoreBody(h.source, skipProps)),
-    }));
+  // Clean helpers
+  const helpers = ir.helpers.map((h) => ({
+    ...h,
+    source: cleanTemplateInterpolations(cleanCoreBody(h.source, skipProps)),
+  }));
 
   // Clean template — remove configured attributes
   const template = cleanCoreTemplate(ir.template, removeAttrs, removeAttrPrefixes, skipProps);

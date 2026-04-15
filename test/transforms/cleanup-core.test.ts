@@ -301,7 +301,8 @@ describe('applyCoreCleanup', () => {
         ],
       });
       const result = applyCoreCleanup(ir, new Set(), createCloudscapeConfig().cleanup);
-      expect(result.helpers.map(h => h.name)).toEqual(['renderContent']);
+      // infraFunctions filter removed — helpers pass through (emitter handles unused elimination)
+      expect(result.helpers.map(h => h.name)).toEqual(['applyDisplayName', 'renderContent']);
     });
   });
 
@@ -316,7 +317,7 @@ describe('applyCoreCleanup', () => {
   });
 
   describe('core cleanup with custom config (no plugin)', () => {
-    it('uses custom skipProps, removeAttributes, infraFunctions', () => {
+    it('uses custom skipProps and removeAttributes (infraFunctions filter removed)', () => {
       const ir = minimalIR({
         props: [
           { name: 'myInternalProp', type: 'string', category: 'attribute' },

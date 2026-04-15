@@ -510,7 +510,7 @@ describe('removeCloudscapeInternals', () => {
       expect(result.template.attributes.map(a => a.name)).toEqual(['title']);
     });
 
-    it('custom infraFunctions — still uses module defaults', () => {
+    it('helpers pass through without infraFunctions filtering', () => {
       const ir = minimalIR({
         helpers: [
           { name: 'applyDisplayName', source: 'function applyDisplayName() {}' },
@@ -518,7 +518,7 @@ describe('removeCloudscapeInternals', () => {
         ],
       });
       const result = removeLibraryInternals(ir, new Set(), undefined, createCloudscapeConfig().cleanup);
-      expect(result.helpers.map(h => h.name)).toEqual(['renderContent']);
+      expect(result.helpers.map(h => h.name)).toEqual(['applyDisplayName', 'renderContent']);
     });
 
     it('custom removeAttributePrefixes — still uses module defaults', () => {
