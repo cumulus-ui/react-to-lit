@@ -87,20 +87,105 @@ function findCssFiles(pkgRoot: string): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// Context mock generation
+// ---------------------------------------------------------------------------
+
+function enrichContextMocks(manifest: RenderManifest, sourceDir: string): void {
+  for (const entry of Object.values(manifest)) {
+    if (!entry.context) continue;
+    if (Object.keys(entry.context.mockValue).length > 0) continue;
+
+    const mock = generateContextMock(sourceDir, entry.context.providerImport);
+    if (Object.keys(mock).length > 0) {
+      entry.context.mockValue = mock;
+    }
+  }
+}
+
+function generateContextMock(sourceDir: string, providerImport: string): Record<string, unknown> {
+  for (const ext of ['.ts', '.tsx']) {
+    const filePath = path.resolve(sourceDir, providerImport + ext);
+    let content: string;
+    try { content = readFileSync(filePath, 'utf-8'); } catch { continue; }
+    return parseMockFromInterfaces(content);
+  }
+  return {};
+}
+
+function parseMockFromInterfaces(source: string): Record<string, unknown> {
+  const mock: Record<string, unknown> = {};
+  const lines = source.split('\n');
+  let inInterface = false;
+  let braceDepth = 0;
+
+  for (const line of lines) {
+    if (/^\s*(?:export\s+)?interface\s+/.test(line)) {
+      inInterface = true;
+      braceDepth = 0;
+    }
+
+    if (!inInterface) continue;
+
+    for (const ch of line) {
+      if (ch === '{') braceDepth++;
+      if (ch === '}') braceDepth--;
+    }
+
+    if (braceDepth === 1) {
+      const m = line.match(/^\s*(\w+)(\?)?:\s*(.+?)(?:;|$)/);
+      if (m) {
+        const [, name, optional, rawType] = m;
+        const type = rawType.trim();
+        if (!(name in mock)) {
+          if (type === 'number') mock[name] = 0;
+          else if (type === 'boolean') mock[name] = false;
+          else if (type === 'string') mock[name] = '';
+          else if (type.includes('=>')) mock[name] = '__NOOP_FN__';
+          else if (/^'[^']+'/.test(type)) {
+            const literals = [...type.matchAll(/'([^']+)'/g)].map(l => l[1]);
+            if (literals.length > 0) mock[name] = literals[literals.length - 1];
+          } else {
+            mock[name] = optional ? null : {};
+          }
+        }
+      }
+    }
+
+    if (braceDepth <= 0 && inInterface) inInterface = false;
+  }
+
+  return mock;
+}
+
+// ---------------------------------------------------------------------------
 // Render script generation
 // ---------------------------------------------------------------------------
 
-function generateRenderScript(manifest: RenderManifest, packageName: string): string {
+function generateRenderScript(manifest: RenderManifest, packageName: string, pkgRoot: string): string {
   const lines: string[] = [];
   const imports: string[] = [];
   const allNames = Object.keys(manifest);
+  const renderableNames = allNames.filter(n => !manifest[n].skip);
 
   imports.push(`import React from 'react';`);
   imports.push(`import { createRoot } from 'react-dom/client';`);
   imports.push(`import { flushSync } from 'react-dom';`);
 
-  for (const name of allNames) {
+  for (const name of renderableNames) {
     imports.push(`import { ${name} } from '${packageName}';`);
+  }
+
+  // Deduplicated provider imports — use absolute paths to bypass package exports
+  const providerAliasMap = new Map<string, string>();
+  let ctxIdx = 0;
+  for (const entry of Object.values(manifest)) {
+    if (!entry.context) continue;
+    const key = entry.context.providerImport;
+    if (providerAliasMap.has(key)) continue;
+    const alias = `__CtxProvider${ctxIdx++}__`;
+    providerAliasMap.set(key, alias);
+    const absPath = path.join(pkgRoot, key);
+    imports.push(`import { ${entry.context.providerName} as ${alias} } from '${absPath}';`);
   }
 
   lines.push(imports.join('\n'));
@@ -119,14 +204,37 @@ function reviveProps(obj) {
   }
   return obj;
 }
+
+function safeMock(base) {
+  const handler = {
+    get(target, prop) {
+      if (typeof prop === 'symbol') return undefined;
+      const val = target[prop];
+      if (val !== undefined) return val;
+      const fn = function() {};
+      return new Proxy(fn, handler);
+    },
+    apply() { },
+  };
+  return new Proxy(typeof base === 'object' && base !== null ? base : {}, handler);
+}
 `);
 
   lines.push(`const MANIFEST = ${JSON.stringify(manifest, null, 2)};`);
   lines.push('');
 
   lines.push('const COMPONENTS = {');
-  for (const name of allNames) {
+  for (const name of renderableNames) {
     lines.push(`  ${JSON.stringify(name)}: ${name},`);
+  }
+  lines.push('};');
+  lines.push('');
+
+  lines.push('const PROVIDERS = {');
+  for (const [name, entry] of Object.entries(manifest)) {
+    if (!entry.context) continue;
+    const alias = providerAliasMap.get(entry.context.providerImport)!;
+    lines.push(`  ${JSON.stringify(name)}: ${alias},`);
   }
   lines.push('};');
   lines.push('');
@@ -136,6 +244,16 @@ async function main() {
   const results = {};
 
   for (const [name, entry] of Object.entries(MANIFEST)) {
+    if (entry.skip && entry.reason === 'provider-only') {
+      results[name] = 'contents';
+      continue;
+    }
+
+    if (entry.skip) {
+      results[name] = null;
+      continue;
+    }
+
     const Comp = COMPONENTS[name];
     if (!Comp) {
       results[name] = null;
@@ -155,7 +273,14 @@ async function main() {
       });
 
       const props = reviveProps(entry.props || {});
-      const element = React.createElement(Comp, props);
+      let element = React.createElement(Comp, props);
+
+      if (entry.context && PROVIDERS[name]) {
+        const mockValue = safeMock(reviveProps(entry.context.mockValue || {}));
+        element = React.createElement(PROVIDERS[name], { value: mockValue }, element);
+      }
+
+      const bodyCountBefore = document.body.childElementCount;
 
       flushSync(() => { root.render(element); });
       await new Promise(r => setTimeout(r, 0));
@@ -169,9 +294,19 @@ async function main() {
 
       let target;
       if (entry.portal) {
-        const bodyChildren = document.body.children;
-        target = bodyChildren[bodyChildren.length - 1];
-        if (target && target.id === 'root') target = null;
+        const bodyCountAfter = document.body.childElementCount;
+        if (bodyCountAfter > bodyCountBefore) {
+          for (let i = bodyCountBefore; i < bodyCountAfter; i++) {
+            const el = document.body.children[i];
+            if (el && el.id !== 'root' && !el.id.startsWith('render-target-')) {
+              target = el;
+              break;
+            }
+          }
+        }
+        if (!target) {
+          target = wrapper.firstElementChild;
+        }
       } else {
         target = wrapper.firstElementChild;
       }
@@ -184,6 +319,13 @@ async function main() {
 
       root.unmount();
       wrapper.remove();
+
+      if (entry.portal) {
+        const children = Array.from(document.body.children);
+        for (const child of children) {
+          if (child.id !== 'root') child.remove();
+        }
+      }
     } catch (e) {
       results[name] = null;
     }
@@ -220,8 +362,10 @@ async function main(): Promise<void> {
   const manifest = buildRenderManifest(components, analyzer, sourceDir);
   console.error(`Manifest: ${Object.keys(manifest).length} entries.`);
 
+  enrichContextMocks(manifest, sourceDir);
+
   console.error('Generating render script...');
-  const renderScript = generateRenderScript(manifest, packageName);
+  const renderScript = generateRenderScript(manifest, packageName, pkgRoot);
   const projectRoot = path.resolve(import.meta.dirname, '..');
   const genScriptPath = path.join(projectRoot, 'scripts', '_generated-render.js');
   writeFileSync(genScriptPath, renderScript);
