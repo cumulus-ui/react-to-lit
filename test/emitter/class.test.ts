@@ -51,20 +51,19 @@ describe('emitComponent output config', () => {
 
   it('class name is just ir.name with custom base class', () => {
     const ir = minimalIR({ name: 'Button' });
-    const output = emitComponent(ir, { output: { tagPrefix: 'el-', importExtension: '.js', baseClass: { name: 'CsBaseElement', import: '../internal/base-element.js' } } });
+    const output = emitComponent(ir, { output: { importExtension: '.js', baseClass: { name: 'CsBaseElement', import: '../internal/base-element.js' } } });
     expect(output).toContain('export class Button extends CsBaseElement');
   });
 
   it('class name is just ir.name for Badge', () => {
     const ir = minimalIR({ name: 'Badge' });
-    const output = emitComponent(ir, { output: { tagPrefix: 'el-', importExtension: '.js', baseClass: { name: 'CsBaseElement', import: '../internal/base-element.js' } } });
+    const output = emitComponent(ir, { output: { importExtension: '.js', baseClass: { name: 'CsBaseElement', import: '../internal/base-element.js' } } });
     expect(output).toContain('export class Badge extends CsBaseElement');
   });
 
   it('custom base class name and import path', () => {
     const ir = minimalIR({ name: 'Alert' });
     const config: OutputConfig = {
-      tagPrefix: 'el-',
       importExtension: '.js',
       baseClass: { name: 'MyBaseElement', import: '../base/my-element.js' },
     };
@@ -81,7 +80,6 @@ describe('emitComponent output config', () => {
       baseClass: { name: 'SharedBase', importPath: '../shared/base.js' },
     });
     const config: OutputConfig = {
-      tagPrefix: 'el-',
       importExtension: '.js',
       baseClass: { name: 'ShouldNotAppear', import: '../should-not.js' },
     };
@@ -97,7 +95,6 @@ describe('emitComponent output config', () => {
       mixins: ['FormControlMixin'],
     });
     const config: OutputConfig = {
-      tagPrefix: 'el-',
       importExtension: '.js',
       baseClass: { name: 'MyBase', import: '../base.js' },
     };
@@ -109,7 +106,6 @@ describe('emitComponent output config', () => {
   it('plain class name with default config', () => {
     const ir = minimalIR({ name: 'Card' });
     const config: OutputConfig = {
-      tagPrefix: 'el-',
       importExtension: '.js',
       baseClass: { name: 'LitElement', import: 'lit' },
     };
@@ -134,7 +130,6 @@ describe('collectImports output config', () => {
   it('uses custom base element import with config', () => {
     const ir = minimalIR();
     const config: OutputConfig = {
-      tagPrefix: 'el-',
       importExtension: '.js',
       baseClass: { name: 'MyBase', import: '@my-lib/base.js' },
     };
@@ -151,7 +146,6 @@ describe('collectImports output config', () => {
       baseClass: { name: 'SharedBase', importPath: '../shared/base.js' },
     });
     const config: OutputConfig = {
-      tagPrefix: 'el-',
       importExtension: '.js',
       baseClass: { name: 'ShouldNotAppear', import: '../should-not.js' },
     };
