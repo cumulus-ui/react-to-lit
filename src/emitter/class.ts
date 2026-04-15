@@ -251,6 +251,7 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   // --- Assemble final output ---
   const bodyStr = sections.join('\n');
   collector.filterUnused(bodyStr);
+  collector.promoteToTypeImports(bodyStr);
   const importsStr = collector.emit();
 
   const raw = `${importsStr}\n\n${bodyStr}\n`;

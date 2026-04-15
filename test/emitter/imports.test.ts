@@ -169,14 +169,25 @@ describe('ImportCollector.filterUnused', () => {
     expect(c.emit()).toContain('import myConfig from');
   });
 
-  it('never removes lit core imports', () => {
+  it('removes unused lit core imports', () => {
     const c = new ImportCollector();
     c.addLit('html');
     c.addLit('css');
     c.addLit('nothing');
     c.filterUnused('no lit references');
-    expect(c.emit()).toContain('css');
+    expect(c.emit()).not.toContain('css');
+    expect(c.emit()).not.toContain('html');
+    expect(c.emit()).not.toContain('nothing');
+  });
+
+  it('keeps used lit core imports', () => {
+    const c = new ImportCollector();
+    c.addLit('html');
+    c.addLit('css');
+    c.addLit('nothing');
+    c.filterUnused('return html`<div>${nothing}</div>`; static styles = css``;');
     expect(c.emit()).toContain('html');
+    expect(c.emit()).toContain('css');
     expect(c.emit()).toContain('nothing');
   });
 
@@ -189,10 +200,17 @@ describe('ImportCollector.filterUnused', () => {
     expect(c.emit()).toContain('state');
   });
 
-  it('never removes directive imports', () => {
+  it('removes unused directive imports', () => {
     const c = new ImportCollector();
     c.addDirective('lit/directives/class-map.js', 'classMap');
-    c.filterUnused('body without classMap');
+    c.filterUnused('body without it');
+    expect(c.emit()).not.toContain('classMap');
+  });
+
+  it('keeps used directive imports', () => {
+    const c = new ImportCollector();
+    c.addDirective('lit/directives/class-map.js', 'classMap');
+    c.filterUnused('class=${classMap({ active: true })}');
     expect(c.emit()).toContain('classMap');
   });
 

@@ -8,6 +8,7 @@ import type { ComponentIR } from '../ir/types.js';
 import type { OutputConfig } from '../config.js';
 import { someInTemplate } from '../template-walker.js';
 import { collectIRText } from '../ir/transform-helpers.js';
+import { Project, SyntaxKind, Node, ts } from 'ts-morph';
 
 // ---------------------------------------------------------------------------
 // Import collector
@@ -68,11 +69,12 @@ export class ImportCollector {
   }
 
   /**
-   * Remove named/default imports whose identifiers don't appear in the
-   * emitted body string.  Lit core, decorators, directives, context,
-   * type-only, side-effect, and preserve-flagged imports are never touched.
+   * Remove named/default/lit/directive imports whose identifiers don't appear
+   * in the emitted body string.  Decorators, context, type-only, side-effect,
+   * and preserve-flagged imports are never touched.
    */
   filterUnused(bodyString: string): void {
+    // Named imports
     for (const [module, names] of this._namedImports) {
       for (const name of names) {
         if (this._preservedNames.has(name)) continue;
@@ -85,11 +87,94 @@ export class ImportCollector {
       }
     }
 
+    // Default imports
     for (const [module, name] of this._defaultImports) {
       if (this._preservedNames.has(name)) continue;
       if (!new RegExp('\\b' + name + '\\b').test(bodyString)) {
         this._defaultImports.delete(module);
       }
+    }
+
+    // Lit core imports (html, css, nothing, LitElement, etc.)
+    for (const name of this._litImports) {
+      if (!new RegExp('\\b' + name + '\\b').test(bodyString)) {
+        this._litImports.delete(name);
+      }
+    }
+
+    // Directive imports (classMap, ifDefined, etc.)
+    for (const [module, names] of this._directiveImports) {
+      for (const name of names) {
+        if (!new RegExp('\\b' + name + '\\b').test(bodyString)) {
+          names.delete(name);
+        }
+      }
+      if (names.size === 0) {
+        this._directiveImports.delete(module);
+      }
+    }
+  }
+
+  /**
+   * Promote named imports to type-only when the identifier has no runtime
+   * usage in the body — only appears in type annotations, not as a value.
+   *
+   * Uses ts-morph to parse the body and TypeScript's `ts.isPartOfTypeNode()`
+   * to check each identifier occurrence. Zero false positives.
+   */
+  promoteToTypeImports(bodyString: string): void {
+    const namesToCheck = new Map<string, string>(); // name → module
+    for (const [module, names] of this._namedImports) {
+      for (const name of names) {
+        if (this._preservedNames.has(name)) continue;
+        namesToCheck.set(name, module);
+      }
+    }
+    if (namesToCheck.size === 0) return;
+
+    // Synthetic declarations so the body parses without unresolved identifiers
+    const declarations = [...namesToCheck.keys()]
+      .map(n => `declare const ${n}: any;`)
+      .join('\n');
+    const syntheticSource = `${declarations}\n${bodyString}`;
+
+    const project = _getSharedProject();
+    const fileName = `__promote_check_${_fileCounter++}.ts`;
+    const sourceFile = project.createSourceFile(fileName, syntheticSource);
+
+    try {
+      const declLength = declarations.length + 1; // offset past synthetic declarations
+
+      for (const [name, module] of namesToCheck) {
+        let allTypeOnly = true;
+        let hasUsage = false;
+
+        sourceFile.forEachDescendant((node) => {
+          if (!allTypeOnly) return;
+          if (!Node.isIdentifier(node)) return;
+          if (node.getText() !== name) return;
+          if (node.getStart() < declLength) return;
+          if (node.getFirstAncestorByKind(SyntaxKind.ImportDeclaration)) return;
+
+          hasUsage = true;
+
+          // ts.isPartOfTypeNode: walks up the AST, returns true if inside a type annotation
+          if (!ts.isPartOfTypeNode(node.compilerNode)) {
+            allTypeOnly = false;
+          }
+        });
+
+        if (hasUsage && allTypeOnly) {
+          const names = this._namedImports.get(module);
+          if (names) {
+            names.delete(name);
+            this._addToMap(this._typeImports, module, name);
+            if (names.size === 0) this._namedImports.delete(module);
+          }
+        }
+      }
+    } finally {
+      project.removeSourceFile(sourceFile);
     }
   }
 
@@ -282,7 +367,11 @@ export function collectImports(ir: ComponentIR, outputConfig?: OutputConfig): Im
     if (imp.namedImports) {
       for (const name of imp.namedImports) {
         if (imp.preserve || allCode.includes(name)) {
-          collector.addNamed(imp.moduleSpecifier, name);
+          if (imp.moduleSpecifier.includes('/interfaces')) {
+            collector.addType(imp.moduleSpecifier, name);
+          } else {
+            collector.addNamed(imp.moduleSpecifier, name);
+          }
           if (imp.preserve) collector.markPreserved(name);
         }
       }
@@ -298,6 +387,20 @@ export function collectImports(ir: ComponentIR, outputConfig?: OutputConfig): Im
 
 function hasConditionalRendering(node: import('../ir/types.js').TemplateNodeIR): boolean {
   return someInTemplate(node, (n) => !!n.condition);
+}
+
+// ---------------------------------------------------------------------------
+// Shared ts-morph project for promoteToTypeImports (reused across calls)
+// ---------------------------------------------------------------------------
+
+let _sharedProject: InstanceType<typeof Project> | undefined;
+let _fileCounter = 0;
+
+function _getSharedProject(): InstanceType<typeof Project> {
+  if (!_sharedProject) {
+    _sharedProject = new Project({ useInMemoryFileSystem: true });
+  }
+  return _sharedProject;
 }
 
 // ---------------------------------------------------------------------------
