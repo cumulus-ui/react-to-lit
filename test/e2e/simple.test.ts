@@ -58,8 +58,8 @@ describe('E2E: parse → emit', () => {
       expect(output).toContain("from './styles'");
     });
 
-    it('should import prop types', () => {
-      expect(output).toContain('BadgeProps');
+    it('should not import unused prop types after HTMLElement prop filtering', () => {
+      expect(output).not.toContain('BadgeProps');
     });
 
     it('should not contain React imports', () => {

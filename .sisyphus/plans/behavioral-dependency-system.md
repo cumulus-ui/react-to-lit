@@ -408,7 +408,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat(analyzer): detect optional props from TS type system`
 
-- [ ] 6. Emit `?` for optional props without defaults
+- [x] 6. Emit `?` for optional props without defaults
 
   **What to do**:
   - In `emitProperties` (`src/emitter/properties.ts`), when emitting a property declaration:
@@ -464,7 +464,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat(emitter): emit optional markers for props without defaults`
 
-- [ ] 7. Skip unreferenced HTMLElement props in emitter
+- [x] 7. Skip unreferenced HTMLElement props in emitter
 
   **What to do**:
   - In `emitComponent` (`src/emitter/class.ts`), before emitting properties:
@@ -524,7 +524,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat(emitter): skip unreferenced HTMLElement props (derived from DOM lib)`
 
-- [ ] 8. Add `reflect: true` for attribute-type @property() declarations
+- [x] 8. Add `reflect: true` for attribute-type @property() declarations
 
   **What to do**:
   - In `emitProperties` (`src/emitter/properties.ts`), when building the `@property()` decorator options:

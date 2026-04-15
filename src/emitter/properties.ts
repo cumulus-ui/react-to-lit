@@ -69,12 +69,23 @@ export function emitProperties(props: PropIR[]): { code: string; deferred: Defer
       decoratorParts.push(`attribute: '${prop.attribute}'`);
     }
 
+    // reflect: sync property values back to the HTML attribute so CSS
+    // attribute selectors like [variant="primary"] work.  Only for
+    // primitive types — Array/Object serialisation is too expensive.
+    if (prop.attribute !== false && prop.litType !== 'Array' && prop.litType !== 'Object') {
+      decoratorParts.push('reflect: true');
+    }
+
     const decorator = decoratorParts.length > 0
       ? `@property({ ${decoratorParts.join(', ')} })`
       : '@property()';
 
     const override = needsOverride(prop) ? 'override ' : '';
     const typeAnnotation = prop.type ? `: ${prop.type}` : '';
+
+    // Optional marker: emit `?` when the prop is optional and has no default
+    // value, so TypeScript doesn't require a definite assignment (TS2564).
+    const optionalMarker = prop.optional && !prop.default ? '?' : '';
 
     if (prop.default && refsThis(prop.default)) {
       if (prop.deprecated) lines.push('  /** @deprecated */');
@@ -85,7 +96,7 @@ export function emitProperties(props: PropIR[]): { code: string; deferred: Defer
       const defaultValue = prop.default ? ` = ${prop.default}` : '';
       if (prop.deprecated) lines.push('  /** @deprecated */');
       lines.push(`  ${decorator}`);
-      lines.push(`  ${override}${prop.name}${typeAnnotation}${defaultValue};`);
+      lines.push(`  ${override}${prop.name}${optionalMarker}${typeAnnotation}${defaultValue};`);
     }
     lines.push('');
   }

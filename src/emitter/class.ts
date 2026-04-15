@@ -8,6 +8,7 @@ import type { ComponentIR } from '../ir/types.js';
 import type { OutputConfig } from '../config.js';
 import { Project, Node, ts } from 'ts-morph';
 import { containsHtmlTemplate } from '../text-utils.js';
+import { getHtmlElementProps } from '../standards.js';
 import { collectIRText } from '../ir/transform-helpers.js';
 import { collectImports } from './imports.js';
 import { emitProperties, emitState, emitControllers, emitContexts, emitComputed, emitRefs, emitSkippedHookVars } from './properties.js';
@@ -125,8 +126,19 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
     return new RegExp('\\b' + getterName + '\\b').test(allCode);
   });
 
+  // Filter out HTMLElement-inherited props that are never referenced in
+  // the component code.  Props like className and id exist on HTMLElement
+  // and are inherited from React's overlay types but the component never
+  // actually uses them — emitting them adds noise.
+  const htmlElementProps = getHtmlElementProps();
+  const activeProps = filteredProps.filter(prop => {
+    if (!htmlElementProps.has(prop.name)) return true;
+    if (prop.category === 'slot' || prop.category === 'event') return true;
+    return new RegExp('\\bthis\\.' + prop.name + '\\b').test(allCode);
+  });
+
   const allDeferred: DeferredInit[] = [];
-  const propsResult = emitProperties(filteredProps);
+  const propsResult = emitProperties(activeProps);
   if (propsResult.code.trim()) {
     sections.push(propsResult.code);
   }

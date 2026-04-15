@@ -376,3 +376,71 @@ describe('emitComponent hostDisplay', () => {
     expect(output).toContain('display: contents');
   });
 });
+
+// ---------------------------------------------------------------------------
+// emitComponent — unreferenced HTMLElement prop filtering
+// ---------------------------------------------------------------------------
+
+describe('emitComponent unreferenced HTMLElement prop filtering', () => {
+  it('filters out HTMLElement props not referenced in component code', () => {
+    const ir = minimalIR({
+      props: [
+        { name: 'className', type: 'string', category: 'attribute', litType: 'String' },
+        { name: 'id', type: 'string', category: 'attribute', litType: 'String' },
+        { name: 'title', type: 'string', category: 'attribute', litType: 'String' },
+        { name: 'variant', type: 'string', category: 'attribute', litType: 'String' },
+      ],
+      template: {
+        kind: 'element',
+        tag: 'div',
+        attributes: [{ name: 'title', value: { expression: 'this.title' }, kind: 'attribute' }],
+        children: [],
+      },
+    });
+    const output = emitComponent(ir);
+    // className and id are on HTMLElement but not referenced → filtered
+    expect(output).not.toContain('className');
+    expect(output).not.toMatch(/\bid\b.*@property|@property[^]*\bid\b/);
+    // title IS referenced via this.title in template → kept
+    expect(output).toContain('title');
+    // variant is NOT an HTMLElement prop → always kept
+    expect(output).toContain('variant');
+  });
+
+  it('keeps HTMLElement prop when referenced in handler body', () => {
+    const ir = minimalIR({
+      props: [
+        { name: 'hidden', type: 'boolean', category: 'attribute', litType: 'Boolean' },
+      ],
+      handlers: [{ name: 'handleToggle', params: '', body: 'if (this.hidden) { return; }' }],
+      template: { kind: 'element', tag: 'div', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('hidden');
+  });
+
+  it('keeps HTMLElement prop when referenced in effect body', () => {
+    const ir = minimalIR({
+      props: [
+        { name: 'tabIndex', type: 'number', category: 'property', attribute: false },
+      ],
+      effects: [{ body: 'console.log(this.tabIndex)', deps: [] }],
+      template: { kind: 'element', tag: 'div', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('tabIndex');
+  });
+
+  it('does not filter non-HTMLElement props even if unreferenced', () => {
+    const ir = minimalIR({
+      props: [
+        { name: 'variant', type: 'string', category: 'attribute', litType: 'String' },
+        { name: 'size', type: 'string', category: 'attribute', litType: 'String' },
+      ],
+      template: { kind: 'element', tag: 'div', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('variant');
+    expect(output).toContain('size');
+  });
+});

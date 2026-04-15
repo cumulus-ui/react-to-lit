@@ -107,6 +107,33 @@ describe('emitProperties', () => {
     expect(getterIdx).toBeGreaterThan(deprecatedIdx);
   });
 
+  it('emits ? for optional prop without default', () => {
+    const props: PropIR[] = [
+      { name: 'color', type: 'string', category: 'attribute', optional: true },
+    ];
+    const { code } = emitProperties(props);
+    expect(code).toContain('color?: string;');
+    expect(code).not.toContain('color: string;');
+  });
+
+  it('does not emit ? for optional prop with default', () => {
+    const props: PropIR[] = [
+      { name: 'color', type: 'string', category: 'attribute', optional: true, default: "'grey'" },
+    ];
+    const { code } = emitProperties(props);
+    expect(code).toContain("color: string = 'grey';");
+    expect(code).not.toContain('color?');
+  });
+
+  it('does not emit ? for non-optional prop', () => {
+    const props: PropIR[] = [
+      { name: 'variant', type: 'string', category: 'attribute', default: "'default'" },
+    ];
+    const { code } = emitProperties(props);
+    expect(code).toContain("variant: string = 'default';");
+    expect(code).not.toContain('variant?');
+  });
+
   it('does not emit @deprecated for non-deprecated props', () => {
     const props: PropIR[] = [
       { name: 'variant', type: 'string', category: 'attribute' },
@@ -115,5 +142,56 @@ describe('emitProperties', () => {
     ];
     const { code } = emitProperties(props);
     expect(code).not.toContain('/** @deprecated */');
+  });
+
+  it('emits reflect: true for String attribute props', () => {
+    const props: PropIR[] = [
+      { name: 'variant', type: 'string', category: 'attribute', litType: 'String' },
+    ];
+    const { code } = emitProperties(props);
+    expect(code).toContain('reflect: true');
+    expect(code).toContain('@property({ type: String, reflect: true })');
+  });
+
+  it('emits reflect: true for Boolean attribute props', () => {
+    const props: PropIR[] = [
+      { name: 'disabled', type: 'boolean', category: 'attribute', litType: 'Boolean' },
+    ];
+    const { code } = emitProperties(props);
+    expect(code).toContain('@property({ type: Boolean, reflect: true })');
+  });
+
+  it('emits reflect: true for Number attribute props', () => {
+    const props: PropIR[] = [
+      { name: 'count', type: 'number', category: 'attribute', litType: 'Number' },
+    ];
+    const { code } = emitProperties(props);
+    expect(code).toContain('@property({ type: Number, reflect: true })');
+  });
+
+  it('does not emit reflect for Object property-only props', () => {
+    const props: PropIR[] = [
+      { name: 'config', type: 'Config', category: 'property', attribute: false, litType: 'Object' },
+    ];
+    const { code } = emitProperties(props);
+    expect(code).toContain('@property({ type: Object, attribute: false })');
+    expect(code).not.toContain('reflect');
+  });
+
+  it('does not emit reflect for Array props', () => {
+    const props: PropIR[] = [
+      { name: 'items', type: 'string[]', category: 'property', attribute: false, litType: 'Array' },
+    ];
+    const { code } = emitProperties(props);
+    expect(code).toContain('@property({ type: Array, attribute: false })');
+    expect(code).not.toContain('reflect');
+  });
+
+  it('emits reflect with custom attribute name', () => {
+    const props: PropIR[] = [
+      { name: 'ariaLabel', type: 'string', category: 'attribute', attribute: 'aria-label', litType: 'String' },
+    ];
+    const { code } = emitProperties(props);
+    expect(code).toContain("@property({ type: String, attribute: 'aria-label', reflect: true })");
   });
 });
