@@ -828,7 +828,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ### Wave 3 — Shared Infrastructure Generation
 
-- [ ] 15. Shared controller emitter: behavioral hooks → Lit controllers
+- [x] 15. Shared controller emitter: behavioral hooks → Lit controllers
 
   **What to do**:
   - Create `src/emitter/controllers.ts` — generates Lit reactive controller source from behavioral hooks
@@ -866,7 +866,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat(emitter): generate Lit controllers from behavioral hooks`
 
-- [ ] 16. Shared utility emitter: behavioral utilities → utility modules
+- [x] 16. Shared utility emitter: behavioral utilities → utility modules
 
   **What to do**:
   - For each shared module classified as behavioral + utility (not hook, not component):
@@ -893,7 +893,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat(emitter): generate shared utility modules from behavioral utilities`
 
-- [ ] 17. Shared component emitter: behavioral sub-components → Lit components
+- [x] 17. Shared component emitter: behavioral sub-components → Lit components
 
   **What to do**:
   - For shared sub-components identified in Task 13 (e.g., Icon, LiveRegion):
@@ -919,7 +919,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat: order component generation by dependency graph`
 
-- [ ] 18. Context emitter: @lit/context definitions for behavioral contexts
+- [x] 18. Context emitter: @lit/context definitions for behavioral contexts
 
   **What to do**:
   - For each context classified as behavioral in Task 14:
