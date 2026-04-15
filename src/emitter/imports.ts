@@ -82,8 +82,8 @@ export class ImportCollector {
   }
 
   /**
-   * Remove named/default/lit/directive imports whose identifiers don't appear
-   * in the emitted body string.  Decorators, context, type-only, side-effect,
+   * Remove named/default/lit/directive/type imports whose identifiers don't
+   * appear in the emitted body string.  Decorators, context, side-effect,
    * and preserve-flagged imports are never touched.
    */
   filterUnused(bodyString: string): void {
@@ -125,6 +125,16 @@ export class ImportCollector {
       if (names.size === 0) {
         this._directiveImports.delete(module);
       }
+    }
+
+    // Type imports
+    for (const [module, names] of this._typeImports) {
+      for (const name of names) {
+        if (!new RegExp('\\b' + name + '\\b').test(bodyString)) {
+          names.delete(name);
+        }
+      }
+      if (names.size === 0) this._typeImports.delete(module);
     }
   }
 

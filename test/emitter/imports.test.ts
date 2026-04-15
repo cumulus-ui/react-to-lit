@@ -221,11 +221,18 @@ describe('ImportCollector.filterUnused', () => {
     expect(c.emit()).toContain('consume');
   });
 
-  it('never removes type-only imports', () => {
+  it('removes unused type-only imports', () => {
     const c = new ImportCollector();
     c.addType('./interfaces.js', 'ButtonProps');
     c.filterUnused('no type references');
-    expect(c.emit()).toContain('ButtonProps');
+    expect(c.emit()).not.toContain('ButtonProps');
+  });
+
+  it('keeps used type-only imports', () => {
+    const c = new ImportCollector();
+    c.addType('./interfaces.js', 'SpinnerProps');
+    c.filterUnused('size: SpinnerProps.Size');
+    expect(c.emit()).toContain('SpinnerProps');
   });
 
   it('never removes side-effect imports', () => {
