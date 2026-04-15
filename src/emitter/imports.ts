@@ -25,6 +25,18 @@ export class ImportCollector {
   private _defaultImports = new Map<string, string>(); // module → default name
   private _preservedNames = new Set<string>();
 
+  /**
+   * Normalize module specifiers so that `'./interfaces'` and `'./interfaces.js'`
+   * resolve to the same key. Relative imports get `.js` appended if missing
+   * (NodeNext/ESM convention). Non-relative (bare) and `.css` imports are untouched.
+   */
+  private _normalizeModule(module: string): string {
+    if (module.startsWith('.') && !module.endsWith('.js') && !module.endsWith('.css')) {
+      return module + '.js';
+    }
+    return module;
+  }
+
   /** Add a name to a Map<string, Set<string>>, creating the Set on first use. */
   private _addToMap(map: Map<string, Set<string>>, key: string, name: string): void {
     let set = map.get(key);
@@ -41,7 +53,7 @@ export class ImportCollector {
   }
 
   addDirective(module: string, name: string): void {
-    this._addToMap(this._directiveImports, module, name);
+    this._addToMap(this._directiveImports, this._normalizeModule(module), name);
   }
 
   addContextImport(name: string): void {
@@ -49,19 +61,19 @@ export class ImportCollector {
   }
 
   addNamed(module: string, name: string): void {
-    this._addToMap(this._namedImports, module, name);
+    this._addToMap(this._namedImports, this._normalizeModule(module), name);
   }
 
   addType(module: string, name: string): void {
-    this._addToMap(this._typeImports, module, name);
+    this._addToMap(this._typeImports, this._normalizeModule(module), name);
   }
 
   addSideEffect(module: string): void {
-    this._sideEffectImports.add(module);
+    this._sideEffectImports.add(this._normalizeModule(module));
   }
 
   addDefault(module: string, name: string): void {
-    this._defaultImports.set(module, name);
+    this._defaultImports.set(this._normalizeModule(module), name);
   }
 
   markPreserved(name: string): void {
@@ -216,10 +228,7 @@ export class ImportCollector {
 
     // Type-only imports — skip names already covered by named imports from the same module
     for (const [module, names] of sortedEntries(this._typeImports)) {
-      // Find the normalized module key for named imports (./interfaces vs ./interfaces.js)
-      const namedFromSame = this._namedImports.get(module)
-        ?? this._namedImports.get(module.replace(/\.js$/, ''))
-        ?? this._namedImports.get(module + '.js');
+      const namedFromSame = this._namedImports.get(module);
       const filteredNames = namedFromSame
         ? sorted(names).filter(n => !namedFromSame.has(n))
         : sorted(names);
