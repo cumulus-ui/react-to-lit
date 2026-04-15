@@ -116,6 +116,7 @@ async function processComponents(
       for (const prop of ir.props) {
         const classified = classifiedProps.get(prop.name);
         if (classified?.deprecated) prop.deprecated = true;
+        if (classified?.optional) prop.optional = true;
       }
 
       // Extend removeAttributes with passthrough/system-tagged prop names so template bindings are stripped

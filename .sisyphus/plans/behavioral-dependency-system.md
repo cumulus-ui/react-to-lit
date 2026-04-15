@@ -321,7 +321,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ### Wave 1 — Property System
 
-- [ ] 4. Add `optional?: boolean` to PropIR and ClassifiedProp
+- [x] 4. Add `optional?: boolean` to PropIR and ClassifiedProp
 
   **What to do**:
   - Add `optional?: boolean` field to `PropIR` interface in `src/ir/types.ts`
@@ -363,7 +363,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat(ir): add optional field to PropIR and ClassifiedProp`
 
-- [ ] 5. Detect optionality from TypeScript type system
+- [x] 5. Detect optionality from TypeScript type system
 
   **What to do**:
   - In `PackageAnalyzer.classifyProp`, detect optional props using `memberSym.flags & ts.SymbolFlags.Optional` (same pattern already used in `generateDummyProps` line 206-208)

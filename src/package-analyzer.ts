@@ -8,6 +8,7 @@ export type PropClassification = 'prop' | 'event' | 'slot' | 'passthrough';
 export interface ClassifiedProp {
   classification: PropClassification;
   deprecated: boolean;
+  optional: boolean;
   jsDocTags: string[];
 }
 
@@ -54,12 +55,19 @@ export class PackageAnalyzer {
     const tags = memberSym.getJsDocTags();
     const deprecated = tags.some(t => t.name === 'deprecated');
     const jsDocTags = tags.map(t => t.name);
+
+    let optional = !!(memberSym.flags & ts.SymbolFlags.Optional);
+    if (!optional) {
+      const decl = memberSym.getDeclarations()?.[0];
+      if (decl && ts.isPropertySignature(decl) && decl.questionToken) optional = true;
+    }
+
     const type = this.checker.getTypeOfSymbol(memberSym);
     const stripped = this.stripNullUndefined(type);
-    if (this.isEventHandler(stripped)) return { classification: 'event', deprecated, jsDocTags };
-    if (this.isReactType(stripped)) return { classification: 'slot', deprecated, jsDocTags };
-    if (this.isPassthrough(stripped)) return { classification: 'passthrough', deprecated, jsDocTags };
-    return { classification: 'prop', deprecated, jsDocTags };
+    if (this.isEventHandler(stripped)) return { classification: 'event', deprecated, optional, jsDocTags };
+    if (this.isReactType(stripped)) return { classification: 'slot', deprecated, optional, jsDocTags };
+    if (this.isPassthrough(stripped)) return { classification: 'passthrough', deprecated, optional, jsDocTags };
+    return { classification: 'prop', deprecated, optional, jsDocTags };
   }
 
   classifyAllProps(propsType: ts.Type): Map<string, ClassifiedProp> {

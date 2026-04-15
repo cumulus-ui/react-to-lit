@@ -132,6 +132,9 @@ export interface PropIR {
 
   /** Whether this prop is marked @deprecated in the public API type. */
   deprecated?: boolean;
+
+  /** Whether this prop is optional (has `?` modifier) in the public API type. */
+  optional?: boolean;
 }
 
 // ---------------------------------------------------------------------------
