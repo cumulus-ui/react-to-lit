@@ -199,4 +199,57 @@ export class PackageAnalyzer {
     if (filtered.length === 1) return filtered[0];
     return type;
   }
+
+  generateDummyProps(propsType: ts.Type): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const prop of propsType.getProperties()) {
+      if (prop.flags & ts.SymbolFlags.Optional) continue;
+      const decl = prop.getDeclarations()?.[0];
+      if (decl && ts.isPropertySignature(decl) && decl.questionToken) continue;
+      const type = this.stripNullUndefined(this.checker.getTypeOfSymbol(prop));
+      result[prop.name] = this.generateDummyValue(type, 0);
+    }
+    return result;
+  }
+
+  private generateDummyValue(type: ts.Type, depth: number): unknown {
+    if (depth > 2) return undefined;
+
+    const stripped = this.stripNullUndefined(type);
+
+    if (stripped.flags & ts.TypeFlags.String) return '';
+    if (stripped.flags & ts.TypeFlags.Number) return 0;
+    if (stripped.flags & ts.TypeFlags.Boolean || stripped.flags & ts.TypeFlags.BooleanLiteral) return false;
+    if (stripped.isStringLiteral()) return stripped.value;
+    if (stripped.isNumberLiteral()) return stripped.value;
+
+    if (stripped.isUnion()) {
+      for (const member of stripped.types) {
+        if (!(member.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined))) {
+          return this.generateDummyValue(member, depth);
+        }
+      }
+      return undefined;
+    }
+
+    if (this.checker.isArrayType(stripped) || this.checker.isTupleType(stripped)) return [];
+    const sym = stripped.getSymbol?.();
+    if (sym && (sym.name === 'Array' || sym.name === 'ReadonlyArray')) return [];
+
+    if (stripped.getCallSignatures().length > 0) return '__NOOP_FN__';
+
+    const properties = stripped.getProperties();
+    if (properties.length > 0) {
+      const obj: Record<string, unknown> = {};
+      for (const member of properties) {
+        const memberDecl = member.getDeclarations()?.[0];
+        if (memberDecl && ts.isPropertySignature(memberDecl) && memberDecl.questionToken) continue;
+        const memberType = this.stripNullUndefined(this.checker.getTypeOfSymbol(member));
+        obj[member.name] = this.generateDummyValue(memberType, depth + 1);
+      }
+      return obj;
+    }
+
+    return undefined;
+  }
 }
