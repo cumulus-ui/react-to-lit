@@ -837,4 +837,76 @@ describe('rewriteIdentifiers', () => {
       expect(result.props[1].default).not.toMatch(/{\s*this\.name/);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Preamble variable shadowing rename
+  // ---------------------------------------------------------------------------
+
+  describe('preamble variable shadowing rename', () => {
+    it('renames preamble var that shadows a prop in both preamble and template', () => {
+      const ir = minimalIR({
+        props: [prop('className')],
+        bodyPreamble: ['const className = { root: true }'],
+        localVariables: new Set(['className']),
+        template: element('div', [
+          { name: 'class', value: { expression: 'classMap(className)' }, kind: 'property' as const },
+        ]),
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.bodyPreamble[0]).toContain('const _className');
+      const attr = result.template.attributes[0];
+      expect(typeof attr.value === 'object' && attr.value.expression).toContain('classMap(_className)');
+      expect(typeof attr.value === 'object' && attr.value.expression).not.toContain('this.className');
+    });
+
+    it('does not rename preamble var that does NOT shadow a prop', () => {
+      const ir = minimalIR({
+        props: [prop('label')],
+        bodyPreamble: ['const foo = bar'],
+        localVariables: new Set(['foo']),
+        template: element('div', [], [expression('foo')]),
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.bodyPreamble[0]).toBe('const foo = bar');
+    });
+
+    it('renames preamble var that shadows a prop (disabled example)', () => {
+      const ir = minimalIR({
+        props: [prop('disabled')],
+        bodyPreamble: ['const disabled = true'],
+        localVariables: new Set(['disabled']),
+        template: element('div', [
+          { name: 'disabled', value: { expression: 'disabled' }, kind: 'boolean' as const },
+        ]),
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.bodyPreamble[0]).toContain('const _disabled');
+      const attr = result.template.attributes[0];
+      expect(typeof attr.value === 'object' && attr.value.expression).toBe('_disabled');
+    });
+
+    it('does not rename destructured variable declarations', () => {
+      const ir = minimalIR({
+        props: [prop('value')],
+        bodyPreamble: ['const { value } = compute()'],
+        localVariables: new Set(['value']),
+        template: element('div', [], [expression('value')]),
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.bodyPreamble[0]).toBe('const { value } = compute()');
+    });
+
+    it('also renames in helper sources', () => {
+      const ir = minimalIR({
+        props: [prop('className')],
+        bodyPreamble: ['const className = { root: true }'],
+        localVariables: new Set(['className']),
+        helpers: [{ name: 'renderContent', source: 'function renderContent() { return html`<div class=${classMap(className)}></div>`; }' }],
+        template: element('div'),
+      });
+      const result = rewriteIdentifiers(ir);
+      expect(result.helpers[0].source).toContain('_className');
+      expect(result.helpers[0].source).not.toContain('this.className');
+    });
+  });
 });

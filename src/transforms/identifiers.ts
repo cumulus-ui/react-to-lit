@@ -166,11 +166,69 @@ function getProject(): Project {
 }
 
 // ---------------------------------------------------------------------------
+// Preamble variable shadowing fix
+// ---------------------------------------------------------------------------
+
+/**
+ * Rename simple preamble variable declarations (`const foo = ...`) that
+ * collide with memberMap keys so astRewrite doesn't rewrite template
+ * references to `this.foo`. Skips destructuring patterns.
+ */
+function renameShadowingPreambleVars(
+  ir: ComponentIR,
+  memberMap: Map<string, MemberMapping>,
+): ComponentIR {
+  const varDeclPattern = /^(?:const|let|var)\s+(\w+)\s*=/;
+  const renames = new Map<string, string>();
+
+  for (const stmt of ir.bodyPreamble) {
+    const m = stmt.match(varDeclPattern);
+    if (!m) continue;
+    const varName = m[1];
+    if (!memberMap.has(varName)) continue;
+
+    let newName = `_${varName}`;
+    if (memberMap.has(newName) || ir.localVariables.has(newName)) {
+      newName = `_local_${varName}`;
+    }
+    renames.set(varName, newName);
+  }
+
+  if (renames.size === 0) return ir;
+
+  let bodyPreamble = [...ir.bodyPreamble];
+  let template = ir.template;
+  let helpers = [...ir.helpers];
+  const localVariables = new Set(ir.localVariables);
+
+  for (const [varName, newName] of renames) {
+    const regex = new RegExp('\\b' + escapeRegex(varName) + '\\b', 'g');
+
+    bodyPreamble = bodyPreamble.map(s => s.replace(regex, newName));
+
+    template = walkTemplate(template, {
+      attributeExpression: (expr) => expr.replace(regex, newName),
+      expression: (expr) => expr.replace(regex, newName),
+      conditionExpression: (expr) => expr.replace(regex, newName),
+      loopIterable: (expr) => expr.replace(regex, newName),
+    });
+
+    helpers = helpers.map(h => ({ ...h, source: h.source.replace(regex, newName) }));
+
+    localVariables.delete(varName);
+    localVariables.add(newName);
+  }
+
+  return { ...ir, bodyPreamble, template, helpers, localVariables };
+}
+
+// ---------------------------------------------------------------------------
 // Main transform
 // ---------------------------------------------------------------------------
 
 export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   const memberMap = buildMemberMap(ir);
+  ir = renameShadowingPreambleVars(ir, memberMap);
 
   // Track PascalCase component names whose JSX was converted to html``
   const convertedComponents = new Set<string>();
