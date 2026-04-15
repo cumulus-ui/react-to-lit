@@ -38,8 +38,6 @@ export interface InputConfig {
 export interface OutputConfig {
   /** Base class for generated components. */
   baseClass: { name: string; import: string };
-  /** File extension for imports (e.g., '.js'). */
-  importExtension: string;
 }
 
 /** Rules for stripping React/infrastructure artefacts from the output. */
@@ -90,7 +88,6 @@ export function createDefaultConfig(): CompilerConfig {
     },
     output: {
       baseClass: { name: 'LitElement', import: 'lit' },
-      importExtension: '',
     },
     cleanup: {
       skipPrefixes: ['__'],

@@ -51,25 +51,24 @@ describe('emitComponent output config', () => {
 
   it('class name is just ir.name with custom base class', () => {
     const ir = minimalIR({ name: 'Button' });
-    const output = emitComponent(ir, { output: { importExtension: '.js', baseClass: { name: 'CsBaseElement', import: '../internal/base-element.js' } } });
+    const output = emitComponent(ir, { output: { baseClass: { name: 'CsBaseElement', import: '../internal/base-element.js' } } });
     expect(output).toContain('export class Button extends CsBaseElement');
   });
 
   it('class name is just ir.name for Badge', () => {
     const ir = minimalIR({ name: 'Badge' });
-    const output = emitComponent(ir, { output: { importExtension: '.js', baseClass: { name: 'CsBaseElement', import: '../internal/base-element.js' } } });
+    const output = emitComponent(ir, { output: { baseClass: { name: 'CsBaseElement', import: '../internal/base-element.js' } } });
     expect(output).toContain('export class Badge extends CsBaseElement');
   });
 
   it('custom base class name and import path', () => {
     const ir = minimalIR({ name: 'Alert' });
     const config: OutputConfig = {
-      importExtension: '.js',
       baseClass: { name: 'MyBaseElement', import: '../base/my-element.js' },
     };
     const output = emitComponent(ir, { output: config });
     expect(output).toContain('extends MyBaseElement');
-    expect(output).toContain("from '../base/my-element.js'");
+    expect(output).toContain("from '../base/my-element'");
     expect(output).not.toContain('LitElement');
     expect(output).not.toContain('../internal/base-element.js');
   });
@@ -80,12 +79,11 @@ describe('emitComponent output config', () => {
       baseClass: { name: 'SharedBase', importPath: '../shared/base.js' },
     });
     const config: OutputConfig = {
-      importExtension: '.js',
       baseClass: { name: 'ShouldNotAppear', import: '../should-not.js' },
     };
     const output = emitComponent(ir, { output: config });
     expect(output).toContain('extends SharedBase');
-    expect(output).toContain("from '../shared/base.js'");
+    expect(output).toContain("from '../shared/base'");
     expect(output).not.toContain('ShouldNotAppear');
   });
 
@@ -95,7 +93,6 @@ describe('emitComponent output config', () => {
       mixins: ['FormControlMixin'],
     });
     const config: OutputConfig = {
-      importExtension: '.js',
       baseClass: { name: 'MyBase', import: '../base.js' },
     };
     const output = emitComponent(ir, { output: config });
@@ -106,7 +103,6 @@ describe('emitComponent output config', () => {
   it('plain class name with default config', () => {
     const ir = minimalIR({ name: 'Card' });
     const config: OutputConfig = {
-      importExtension: '.js',
       baseClass: { name: 'LitElement', import: 'lit' },
     };
     const output = emitComponent(ir, { output: config });
@@ -130,7 +126,6 @@ describe('collectImports output config', () => {
   it('uses custom base element import with config', () => {
     const ir = minimalIR();
     const config: OutputConfig = {
-      importExtension: '.js',
       baseClass: { name: 'MyBase', import: '@my-lib/base.js' },
     };
     const collector = collectImports(ir, config);
@@ -146,13 +141,12 @@ describe('collectImports output config', () => {
       baseClass: { name: 'SharedBase', importPath: '../shared/base.js' },
     });
     const config: OutputConfig = {
-      importExtension: '.js',
       baseClass: { name: 'ShouldNotAppear', import: '../should-not.js' },
     };
     const collector = collectImports(ir, config);
     const output = collector.emit();
     expect(output).toContain('SharedBase');
-    expect(output).toContain('../shared/base.js');
+    expect(output).toContain('../shared/base');
     expect(output).not.toContain('ShouldNotAppear');
   });
 });
