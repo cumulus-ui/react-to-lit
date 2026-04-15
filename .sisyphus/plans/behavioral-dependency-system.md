@@ -582,7 +582,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat(emitter): add reflect: true for attribute-type properties`
 
-- [ ] 9. Property system integration test
+- [x] 9. Property system integration test
 
   **What to do**:
   - Write an integration test that runs the FULL pipeline (parse → transform → emit) on a test component with:
