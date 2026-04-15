@@ -27,6 +27,7 @@ program
   .option('--dry-run', 'Print output to stdout instead of writing files')
   .option('--verbose', 'Log parsing decisions')
   .option('--preset <name>', 'Use a built-in preset (e.g. "cloudscape")')
+  .option('--host-display <file>', 'Path to host display JSON map (from extract-host-display script)')
   .action(async (opts) => {
     const config = await loadConfig(undefined, opts.preset);
     const sourceRoot = path.resolve(opts.source);
@@ -81,7 +82,12 @@ program
       process.exit(1);
     }
 
-    await processComponents(toProcess, outputRoot, opts, config);
+    let hostDisplayMap: Record<string, string | null> = {};
+    if (opts.hostDisplay) {
+      hostDisplayMap = JSON.parse(fs.readFileSync(path.resolve(opts.hostDisplay), 'utf-8'));
+    }
+
+    await processComponents(toProcess, outputRoot, opts, config, hostDisplayMap);
   });
 
 program.parse();
@@ -95,6 +101,7 @@ async function processComponents(
   outputRoot: string,
   opts: { dryRun?: boolean; verbose?: boolean },
   config: CompilerConfig,
+  hostDisplayMap: Record<string, string | null> = {},
 ): Promise<void> {
   let succeeded = 0;
   let failed = 0;
@@ -122,6 +129,10 @@ async function processComponents(
           }
         : config;
       const transformed = transformAll(ir, { knownComponents, config: componentConfig, skipProps: passthroughProps });
+
+      const display = hostDisplayMap[name];
+      if (display) transformed.hostDisplay = display;
+
       const output = emitComponent(transformed);
 
       if (opts.dryRun) {
