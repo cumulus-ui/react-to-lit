@@ -1,0 +1,21 @@
+{
+  "active_plan": "/Users/piwit/GIT/@cumulus-ui/react-to-lit/.sisyphus/plans/fix-classmap-shadowing.md",
+  "started_at": "2026-04-15T08:18:40.931Z",
+  "session_ids": [
+    "ses_2747b5c49ffeZN418aDptsrWPz",
+    "ses_26fc67b3dffeSyWNoD01U20PxQ"
+  ],
+  "plan_name": "fix-classmap-shadowing",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Rename preamble variables that shadow prop names",
+      "session_id": "ses_26fc67b3dffeSyWNoD01U20PxQ",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-15T08:27:19.910Z"
+    }
+  }
+}
