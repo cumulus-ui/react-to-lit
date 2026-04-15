@@ -368,48 +368,23 @@ describe('emitComponent unused slot getter filtering', () => {
 });
 
 // ---------------------------------------------------------------------------
-// emitComponent — host display derivation from template root tag
+// emitComponent — hostDisplay
 // ---------------------------------------------------------------------------
 
-describe('emitComponent host display derivation', () => {
-  it('div root → display: block', () => {
-    const ir = minimalIR({
-      template: { kind: 'element', tag: 'div', attributes: [], children: [] },
-    });
-    const output = emitComponent(ir);
-    expect(output).toContain('display: block;');
+describe('emitComponent hostDisplay', () => {
+  it('defaults to display: block when hostDisplay is not set', () => {
+    const output = emitComponent(minimalIR());
+    expect(output).toContain('display: block');
   });
 
-  it('span root → display: inline-block', () => {
-    const ir = minimalIR({
-      template: { kind: 'element', tag: 'span', attributes: [], children: [] },
-    });
-    const output = emitComponent(ir);
-    expect(output).toContain('display: inline-block;');
+  it('uses hostDisplay value when provided', () => {
+    const output = emitComponent(minimalIR({ hostDisplay: 'inline-block' }));
+    expect(output).toContain('display: inline-block');
+    expect(output).not.toContain('display: block');
   });
 
-  it('slot root → display: contents', () => {
-    const ir = minimalIR({
-      template: { kind: 'slot', tag: 'slot', attributes: [], children: [] },
-    });
-    const output = emitComponent(ir);
-    expect(output).toContain('display: contents;');
-  });
-
-  it('explicit hostDisplay override wins over tag', () => {
-    const ir = minimalIR({
-      hostDisplay: 'flex',
-      template: { kind: 'element', tag: 'div', attributes: [], children: [] },
-    });
-    const output = emitComponent(ir);
-    expect(output).toContain('display: flex;');
-  });
-
-  it('no template tag → fallback to display: block', () => {
-    const ir = minimalIR({
-      template: { kind: 'fragment', attributes: [], children: [] },
-    });
-    const output = emitComponent(ir);
-    expect(output).toContain('display: block;');
+  it('supports display: contents', () => {
+    const output = emitComponent(minimalIR({ hostDisplay: 'contents' }));
+    expect(output).toContain('display: contents');
   });
 });

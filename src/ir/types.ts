@@ -16,9 +16,6 @@ export interface ComponentIR {
   /** Custom element tag name, e.g. "el-badge" */
   tagName: string;
 
-  /** Override for :host display value. If unset, derived from template root tag. */
-  hostDisplay?: string;
-
   /** Generic type parameters from the React component, e.g. ["T"] for AreaChart<T> */
   typeParams?: string[];
 
@@ -90,6 +87,9 @@ export interface ComponentIR {
 
   /** Whether the original component used React.forwardRef */
   forwardRef: boolean;
+
+  /** Host display value for the generated Lit component (e.g. 'inline-block', 'flex'). */
+  hostDisplay?: string;
 }
 
 // ---------------------------------------------------------------------------
