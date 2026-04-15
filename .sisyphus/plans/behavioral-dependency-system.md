@@ -672,7 +672,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat: build cross-library import dependency graph`
 
-- [ ] 11. Classify shared imports as behavioral vs framework
+- [x] 11. Classify shared imports as behavioral vs framework
 
   **What to do**:
   - Create `src/pattern-classifier.ts` — takes the dependency graph from Task 10 and classifies each shared module
@@ -726,7 +726,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat: classify shared patterns as behavioral vs framework`
 
-- [ ] 12. Detect shared hooks and their Lit-native shape
+- [x] 12. Detect shared hooks and their Lit-native shape
 
   **What to do**:
   - From the dependency graph + classifier, for each behavioral hook:
@@ -754,7 +754,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat: map behavioral hooks to Lit-native shapes`
 
-- [ ] 13. Detect shared sub-components and embedding patterns
+- [x] 13. Detect shared sub-components and embedding patterns
 
   **What to do**:
   - From the dependency graph, identify components imported and used by other components (not just their own index.tsx wrapper)
@@ -778,7 +778,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat: detect shared sub-component embedding patterns`
 
-- [ ] 14. Context classification: all contexts → behavioral/framework/strip
+- [x] 14. Context classification: all contexts → behavioral/framework/strip
 
   **What to do**:
   - From the dependency graph, find all `React.createContext` calls in the source
