@@ -953,7 +953,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat(emitter): generate @lit/context definitions for behavioral contexts`
 
-- [ ] 19. Wire shared infrastructure imports into per-component output
+- [x] 19. Wire shared infrastructure imports into per-component output
 
   **What to do**:
   - Modify the per-component emitter to import from generated shared infrastructure:
@@ -987,7 +987,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `feat(emitter): wire shared infrastructure imports into component output`
 
-- [ ] 20. Shared infrastructure tests
+- [x] 20. Shared infrastructure tests
 
   **What to do**:
   - Unit tests for dependency graph builder (Task 10)

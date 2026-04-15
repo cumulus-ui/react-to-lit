@@ -10,3 +10,5 @@ export { emitProperties, emitState, emitControllers, emitContexts, emitComputed,
 export { emitLifecycle } from './lifecycle.js';
 export { emitHandlers, emitPublicMethods } from './handlers.js';
 export { emitRenderMethod } from './template.js';
+export { emitController, deriveControllerName } from './controllers.js';
+export { emitUtility } from './utilities.js';
