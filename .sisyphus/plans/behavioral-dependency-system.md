@@ -625,7 +625,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
 
 ### Wave 2 — Dependency Analysis
 
-- [ ] 10. Build cross-library import graph from React source
+- [x] 10. Build cross-library import graph from React source
 
   **What to do**:
   - Create `src/dependency-graph.ts` — a module that takes a React source directory and produces a dependency graph
