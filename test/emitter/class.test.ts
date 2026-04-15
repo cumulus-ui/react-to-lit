@@ -366,3 +366,50 @@ describe('emitComponent unused slot getter filtering', () => {
     expect(output).not.toContain('private get _hasChildren');
   });
 });
+
+// ---------------------------------------------------------------------------
+// emitComponent — host display derivation from template root tag
+// ---------------------------------------------------------------------------
+
+describe('emitComponent host display derivation', () => {
+  it('div root → display: block', () => {
+    const ir = minimalIR({
+      template: { kind: 'element', tag: 'div', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('display: block;');
+  });
+
+  it('span root → display: inline-block', () => {
+    const ir = minimalIR({
+      template: { kind: 'element', tag: 'span', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('display: inline-block;');
+  });
+
+  it('slot root → display: contents', () => {
+    const ir = minimalIR({
+      template: { kind: 'slot', tag: 'slot', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('display: contents;');
+  });
+
+  it('explicit hostDisplay override wins over tag', () => {
+    const ir = minimalIR({
+      hostDisplay: 'flex',
+      template: { kind: 'element', tag: 'div', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('display: flex;');
+  });
+
+  it('no template tag → fallback to display: block', () => {
+    const ir = minimalIR({
+      template: { kind: 'fragment', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('display: block;');
+  });
+});

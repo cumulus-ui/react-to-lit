@@ -50,6 +50,15 @@ export interface EmitOptions {
   output?: OutputConfig;
 }
 
+const INLINE_TAGS = new Set(['span', 'a', 'abbr', 'cite', 'code', 'em', 'strong', 'time', 'label']);
+
+function tagToDisplay(tag?: string): string {
+  if (!tag) return 'block';
+  if (INLINE_TAGS.has(tag)) return 'inline-block';
+  if (tag === 'slot') return 'contents';
+  return 'block';
+}
+
 /**
  * Emit a full Lit component TypeScript file from a ComponentIR.
  */
@@ -61,7 +70,8 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   // (collected during emission, emitted at the end)
 
   // --- Host styles ---
-  sections.push(`const hostStyles = css\`:host { display: block; }\`;`);
+  const hostDisplay = ir.hostDisplay ?? tagToDisplay(ir.template?.tag);
+  sections.push(`const hostStyles = css\`:host { display: ${hostDisplay}; }\`;`);
   sections.push('');
 
   // --- File-level constants ---

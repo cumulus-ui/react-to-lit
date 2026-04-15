@@ -16,6 +16,9 @@ export interface ComponentIR {
   /** Custom element tag name, e.g. "el-badge" */
   tagName: string;
 
+  /** Override for :host display value. If unset, derived from template root tag. */
+  hostDisplay?: string;
+
   /** Generic type parameters from the React component, e.g. ["T"] for AreaChart<T> */
   typeParams?: string[];
 
