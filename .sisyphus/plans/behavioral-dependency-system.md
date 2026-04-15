@@ -1042,7 +1042,7 @@ Wave FINAL (After ALL tasks — 4 parallel reviews, then user okay):
   **Commit**: YES
   - Message: `chore: regenerate batch — N/91 clean (up from baseline)`
 
-- [ ] 22-24. Fix top 3 failure categories from batch results
+- [x] 22-24. Fix top 3 failure categories from batch results
 
   **What to do** (for each):
   - From Task 21's categorized failures, pick the failure category affecting the most components

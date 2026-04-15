@@ -166,6 +166,25 @@ describe('emitComponent skipped hook var filtering', () => {
     expect(output).not.toContain('private _unused: any;');
   });
 
+  it('strips hook var stubs that pass IR filter but are unreferenced in output', () => {
+    // Scenario: hook var name appears in IR text (e.g., in a prop name) so the
+    // IR-level filter keeps it, but the final emitted output never references it.
+    const ir = minimalIR({
+      skippedHookVars: ['navOpen'],
+      // The name 'navOpen' appears in IR text via this prop, so IR filter keeps it
+      props: [
+        { name: 'navOpen', type: 'boolean', category: 'attribute', litType: 'Boolean' },
+      ],
+      template: { kind: 'element', tag: 'div', attributes: [], children: [] },
+    });
+    const output = emitComponent(ir);
+    // The hook var stub `private _navOpen: any;` should be stripped because
+    // `_navOpen` (with underscore) is never referenced in the final output.
+    expect(output).not.toContain('private _navOpen: any;');
+    // The prop `navOpen` (without underscore) should still be there
+    expect(output).toContain('navOpen');
+  });
+
   it('emits nothing when all hook vars are unused', () => {
     const ir = minimalIR({
       skippedHookVars: ['alpha', 'beta'],
@@ -442,5 +461,70 @@ describe('emitComponent unreferenced HTMLElement prop filtering', () => {
     const output = emitComponent(ir);
     expect(output).toContain('variant');
     expect(output).toContain('size');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// emitComponent — unused private member stripping
+// ---------------------------------------------------------------------------
+
+describe('emitComponent unused private member stripping', () => {
+  it('strips unused private fields', () => {
+    const ir = minimalIR({
+      skippedHookVars: ['usedHook', 'unusedHook'],
+      handlers: [{ name: 'doStuff', params: '', body: 'return this._usedHook;' }],
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('private _usedHook: any;');
+    expect(output).not.toContain('private _unusedHook: any;');
+  });
+
+  it('strips unused @query refs', () => {
+    const ir = minimalIR({
+      refs: [
+        { name: 'usedRef', isDom: true, type: 'HTMLDivElement', initialValue: 'null' },
+        { name: 'unusedRef', isDom: true, type: 'HTMLElement', initialValue: 'null' },
+      ],
+      handlers: [{ name: 'doStuff', params: '', body: 'this._usedRef.focus();' }],
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('_usedRef');
+    expect(output).not.toContain('_unusedRef');
+  });
+
+  it('strips unused private handler lambdas', () => {
+    const ir = minimalIR({
+      handlers: [
+        { name: 'usedHandler', params: '', body: '{}' },
+        { name: 'unusedHandler', params: '', body: '{}' },
+      ],
+      template: {
+        kind: 'expression',
+        attributes: [],
+        children: [],
+        expression: 'html`<button @click=\${this._usedHandler}></button>`',
+      },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('private _usedHandler');
+    expect(output).not.toContain('private _unusedHandler');
+  });
+
+  it('strips unused top-level consts not referenced in class', () => {
+    const ir = minimalIR({
+      fileConstants: [
+        'const usedConst = 42;',
+        'const unusedConst = 99;',
+      ],
+      template: {
+        kind: 'expression',
+        attributes: [],
+        children: [],
+        expression: 'html`${usedConst}`',
+      },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('const usedConst = 42;');
+    expect(output).not.toContain('const unusedConst = 99;');
   });
 });

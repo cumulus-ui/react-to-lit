@@ -10,7 +10,8 @@
     "ses_26e3ddf58ffej9kgR0TcCTjWrP",
     "ses_26e3e1c06ffe0ouKgKA2bndOBO",
     "ses_26e2e803fffemVIbCq8LshnEFE",
-    "ses_26d3768baffesukHkuNueM0n1a"
+    "ses_26d3768baffesukHkuNueM0n1a",
+    "ses_26d2c0164ffeIcR2La6Hlf5MK4"
   ],
   "plan_name": "behavioral-dependency-system",
   "agent": "atlas",
@@ -95,6 +96,15 @@
       "agent": "Sisyphus-Junior",
       "category": "deep",
       "updated_at": "2026-04-15T20:26:02.382Z"
+    },
+    "todo:25": {
+      "task_key": "todo:25",
+      "task_label": "25",
+      "task_title": "Gate2 measurement and roadmap for remaining work",
+      "session_id": "ses_26d2c0164ffeIcR2La6Hlf5MK4",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-15T20:55:28.561Z"
     }
   }
 }

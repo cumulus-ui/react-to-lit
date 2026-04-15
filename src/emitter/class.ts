@@ -261,7 +261,14 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   sections.push('}');
 
   // --- Assemble final output ---
-  const bodyStr = sections.join('\n');
+  let bodyStr = sections.join('\n');
+
+  // Strip unused private class members and top-level declarations.
+  // This runs before import filtering so that removing a member
+  // also allows its import to be detected as unused.
+  bodyStr = stripUnusedPrivateMembers(bodyStr);
+  bodyStr = stripUnusedTopLevelDeclarations(bodyStr);
+
   collector.filterUnused(bodyStr);
   collector.promoteToTypeImports(bodyStr);
   const importsStr = collector.emit();
@@ -271,6 +278,202 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   // Final text-based cleanup for any remaining React patterns
   // Clean up excessive blank lines
   return raw.replace(/\n{3,}/g, '\n\n');
+}
+
+// ---------------------------------------------------------------------------
+// Dead code elimination — unused private members and top-level declarations
+// ---------------------------------------------------------------------------
+
+/**
+ * Remove private class members (fields, methods, getters) whose names are
+ * not referenced anywhere else in the class body.  Handles single-line and
+ * multi-line declarations (arrow functions, method bodies with braces).
+ *
+ * Patterns matched:
+ *  - `@query(...) private _name...;`
+ *  - `@state()\n  private _name...;`
+ *  - `private _name: type;`
+ *  - `private _name = value;`
+ *  - `private _name = () => { ... };`
+ *  - `private get name() { ... }`
+ */
+function stripUnusedPrivateMembers(body: string): string {
+  const lines = body.split('\n');
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+
+    // Handle decorator + private on SAME line: `@query(...) private _name...;`
+    const inlineDecoratorMatch = trimmed.match(
+      /^@(?:query|state|consume|provide)\b.*\bprivate\s+(?:get\s+)?(_?\w+)/,
+    );
+    if (inlineDecoratorMatch) {
+      const memberName = inlineDecoratorMatch[1];
+      const declEnd = findDeclarationEnd(lines, i);
+      const restOfBody = buildRestOfBody(lines, i, declEnd);
+
+      if (isMemberReferenced(memberName, restOfBody)) {
+        for (let j = i; j <= declEnd; j++) result.push(lines[j]);
+      }
+      i = declEnd + 1;
+      continue;
+    }
+
+    // Handle decorator on separate line, private on next line
+    let decoratorStart = -1;
+    if (/^@(?:query|state|consume|provide)\b/.test(trimmed)) {
+      decoratorStart = i;
+      let peek = i + 1;
+      while (peek < lines.length && lines[peek].trim() === '') peek++;
+      if (peek < lines.length && /^\s*private\s+/.test(lines[peek])) {
+        i = peek;
+      } else {
+        result.push(line);
+        i++;
+        continue;
+      }
+    }
+
+    const privMatch = lines[i].trimStart().match(
+      /^private\s+(?:get\s+)?(_?\w+)/,
+    );
+
+    if (!privMatch) {
+      if (decoratorStart >= 0) {
+        result.push(lines[decoratorStart]);
+        i = decoratorStart + 1;
+      } else {
+        result.push(line);
+        i++;
+      }
+      continue;
+    }
+
+    const memberName = privMatch[1];
+    const declStart = decoratorStart >= 0 ? decoratorStart : i;
+    const declEnd = findDeclarationEnd(lines, i);
+    const restOfBody = buildRestOfBody(lines, declStart, declEnd);
+
+    if (isMemberReferenced(memberName, restOfBody)) {
+      for (let j = declStart; j <= declEnd; j++) result.push(lines[j]);
+    }
+
+    i = declEnd + 1;
+  }
+
+  return result.join('\n');
+}
+
+function buildRestOfBody(lines: string[], declStart: number, declEnd: number): string {
+  const before = lines.slice(0, declStart).join('\n');
+  const after = lines.slice(declEnd + 1).join('\n');
+  return before + '\n' + after;
+}
+
+/**
+ * Check if a member name is referenced in the body text.
+ * For underscore-prefixed names: plain word-boundary match (no string false positives).
+ * For non-underscore names (slot getters like `trigger`): require `this.name` access
+ * to avoid false positives from string literals containing the word.
+ */
+function isMemberReferenced(name: string, body: string): boolean {
+  if (name.startsWith('_')) {
+    return new RegExp('\\b' + name + '\\b').test(body);
+  }
+  // Non-underscore private members (e.g., slot getters) — only count `this.name` access
+  return new RegExp('this\\.' + name + '\\b').test(body);
+}
+
+/**
+ * Find the last line index of a declaration starting at `startLine`.
+ * Handles multi-line arrow functions and method bodies by tracking
+ * brace depth.
+ */
+function findDeclarationEnd(lines: string[], startLine: number): number {
+  const firstLine = lines[startLine];
+
+  // Single-line declaration ending with `;`
+  if (/;\s*$/.test(firstLine) && !firstLine.includes('{')) {
+    return startLine;
+  }
+
+  // Track brace depth for multi-line bodies
+  let braceDepth = 0;
+  let foundOpen = false;
+  for (let i = startLine; i < lines.length; i++) {
+    for (const ch of lines[i]) {
+      if (ch === '{') { braceDepth++; foundOpen = true; }
+      if (ch === '}') braceDepth--;
+    }
+    // If we've seen at least one brace and are back to zero, or
+    // we hit a semicolon at brace depth 0 — declaration is complete
+    if (foundOpen && braceDepth <= 0) return i;
+    if (!foundOpen && /;\s*$/.test(lines[i])) return i;
+  }
+
+  return startLine; // fallback: treat as single line
+}
+
+/**
+ * Remove top-level `const`, `let`, or `function` declarations that are
+ * not referenced in the class body (the `export class ... { }` section).
+ */
+function stripUnusedTopLevelDeclarations(body: string): string {
+  const lines = body.split('\n');
+  const result: string[] = [];
+
+  // Find the class body range
+  const classStartIdx = lines.findIndex(l => /^export class\s/.test(l));
+  const classBody = classStartIdx >= 0 ? lines.slice(classStartIdx).join('\n') : '';
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+
+    // Only process lines BEFORE the class (top-level scope) and skip hostStyles
+    if (i >= classStartIdx || trimmed.startsWith('export ')) {
+      result.push(line);
+      i++;
+      continue;
+    }
+
+    // Match top-level const/let/var or function declarations
+    const constMatch = trimmed.match(/^(?:const|let|var)\s+(\w+)\s*[=:]/);
+    const funcMatch = !constMatch ? trimmed.match(/^function\s+(\w+)\s*[(<]/) : null;
+
+    if (!constMatch && !funcMatch) {
+      result.push(line);
+      i++;
+      continue;
+    }
+
+    const varName = (constMatch || funcMatch)![1];
+
+    // Skip hostStyles — always needed
+    if (varName === 'hostStyles' || varName === 'Base') {
+      result.push(line);
+      i++;
+      continue;
+    }
+
+    // Determine declaration extent
+    const declEnd = findDeclarationEnd(lines, i);
+
+    // Check if the name is referenced in the class body
+    const namePattern = new RegExp('\\b' + varName + '\\b');
+    if (namePattern.test(classBody)) {
+      for (let j = i; j <= declEnd; j++) result.push(lines[j]);
+    }
+    // else: strip the declaration
+
+    i = declEnd + 1;
+  }
+
+  return result.join('\n');
 }
 
 // ---------------------------------------------------------------------------
