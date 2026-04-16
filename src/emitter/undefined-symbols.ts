@@ -169,7 +169,7 @@ export function stubUndefinedSymbols(code: string): string {
   const valueStubs: string[] = [];
   if (undefinedValues.size > 0) {
     for (const name of [...undefinedValues].sort()) {
-      valueStubs.push(`const ${name}: any = undefined;`);
+      valueStubs.push(`const ${name}: any = {};`);
     }
   }
 

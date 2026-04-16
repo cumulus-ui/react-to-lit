@@ -33,7 +33,7 @@ describe('stubUndefinedSymbols', () => {
     ].join('\n');
 
     const result = stubUndefinedSymbols(code);
-    expect(result).toContain('const analyticsAction: any = undefined;');
+    expect(result).toContain('const analyticsAction: any = {};');
     // Value stub should be inside render(), not at module scope
     const stubIdx = result.indexOf('const analyticsAction');
     const renderIdx = result.indexOf('override render()');
