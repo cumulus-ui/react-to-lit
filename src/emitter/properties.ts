@@ -5,7 +5,7 @@
  */
 import type { PropIR, StateIR, ControllerIR, ContextIR, ComputedIR, RefIR } from '../ir/types.js';
 import { getHtmlElementProps } from '../standards.js';
-import { camelToKebab } from '../naming.js';
+import { camelToKebab, capitalize } from '../naming.js';
 
 // ---------------------------------------------------------------------------
 // Native DOM properties — queried from TypeScript's DOM lib, not hardcoded.
@@ -49,7 +49,7 @@ export function emitProperties(props: PropIR[]): { code: string; deferred: Defer
       } else {
         // Named slot: check for elements assigned to this slot
         lines.push(`  /** True when the '${prop.name}' slot has content. */`);
-        lines.push(`  private get ${prop.name}() { return !!this.querySelector?.('[slot="${prop.name}"]'); }`);
+        lines.push(`  private _has${capitalize(prop.name)}Slot() { return !!this.querySelector?.('[slot="${prop.name}"]'); }`);
       }
       lines.push('');
       continue;

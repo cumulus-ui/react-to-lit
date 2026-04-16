@@ -22,7 +22,7 @@ import type {
 } from '../ir/types.js';
 import { getGlobalNames } from '../standards.js';
 import { walkTemplate } from '../template-walker.js';
-import { escapeRegex } from '../naming.js';
+import { escapeRegex, capitalize } from '../naming.js';
 import { findMatchingParen } from '../text-utils.js';
 
 // ---------------------------------------------------------------------------
@@ -36,6 +36,8 @@ interface MemberMapping {
   isSetter?: boolean;
   /** The setter's field name */
   setterField?: string;
+  /** Whether this member is a method that needs () call syntax */
+  isMethod?: boolean;
 }
 
 function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
@@ -54,6 +56,10 @@ function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
     if (p.category === 'slot' && p.name === 'children') {
       // 'children' conflicts with HTMLElement.children — use _hasChildren getter
       map.set('children', { member: '_hasChildren' });
+      continue;
+    }
+    if (p.category === 'slot') {
+      map.set(p.name, { member: `_has${capitalize(p.name)}Slot`, isMethod: true });
       continue;
     }
     map.set(p.name, { member: p.name });
@@ -577,9 +583,10 @@ function rewriteWithMorph(
       start: startInOriginal,
       end: startInOriginal + name.length,
       // Shorthand { foo } → { foo: this._foo }; normal foo → this._foo
+      // Method members (slot checks) append () for call syntax
       replacement: isShorthand
-        ? `${name}: this.${mapping.member}`
-        : `this.${mapping.member}`,
+        ? `${name}: this.${mapping.member}${mapping.isMethod ? '()' : ''}`
+        : `this.${mapping.member}${mapping.isMethod ? '()' : ''}`,
     });
   });
 

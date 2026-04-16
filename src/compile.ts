@@ -15,6 +15,7 @@ import { discoverComponents } from './config.js';
 import { PackageAnalyzer } from './package-analyzer.js';
 import { loadConfig } from './config-loader.js';
 import type { CompilerConfig } from './config.js';
+import type { CleanupPlugin } from './transforms/cleanup-core.js';
 import type { HookRegistry } from './hooks/registry.js';
 import type { ClassifiedProp } from './package-analyzer.js';
 import type { Plugin } from './plugins/index.js';
@@ -62,7 +63,7 @@ export interface CompileResult {
 
 export async function compile(options: CompileOptions): Promise<CompileResult> {
   const output = options.output ?? './dist';
-  const config = await loadConfig(undefined, options.preset);
+  const { config, cleanupPlugin } = await loadConfig(undefined, options.preset);
   const sourceRoot = path.resolve(options.source);
   const outputRoot = path.resolve(output);
 
@@ -125,7 +126,7 @@ export async function compile(options: CompileOptions): Promise<CompileResult> {
     }
   }
 
-  const result = processComponents(toProcess, outputRoot, options, config, hostDisplayMap, options.plugins);
+  const result = processComponents(toProcess, outputRoot, options, config, hostDisplayMap, options.plugins, cleanupPlugin);
 
   // Utility emission phase: scan emitted components for unresolved relative
   // imports, trace them to vendor source, transform, and write alongside.
@@ -161,6 +162,7 @@ function processComponents(
   config: CompilerConfig,
   hostDisplayMap: Record<string, string | null> = {},
   plugins: Plugin[] = [],
+  cleanupPlugin?: CleanupPlugin,
 ): CompileResult {
   let succeeded = 0;
   let failed = 0;
@@ -188,7 +190,7 @@ function processComponents(
             },
           }
         : config;
-      const transformed = transformAll(ir, { knownComponents, config: componentConfig, skipProps: passthroughProps });
+      const transformed = transformAll(ir, { knownComponents, config: componentConfig, skipProps: passthroughProps, cleanupPlugin });
 
       const display = hostDisplayMap[name];
       if (display) transformed.hostDisplay = display;

@@ -124,17 +124,18 @@ describe('createCloudscapeConfig', () => {
 
 describe('loadConfig', () => {
   it('returns defaults when no config or preset is provided', async () => {
-    const config = await loadConfig();
+    const { config } = await loadConfig();
     const defaults = createDefaultConfig();
 
     expect(config).toEqual(defaults);
   });
 
   it('loads the cloudscape preset by name', async () => {
-    const config = await loadConfig(undefined, 'cloudscape');
+    const { config, cleanupPlugin } = await loadConfig(undefined, 'cloudscape');
     const preset = createCloudscapeConfig();
 
     expect(config).toEqual(preset);
+    expect(cleanupPlugin).toBeDefined();
   });
 
   it('throws on unknown preset name', async () => {
@@ -155,12 +156,12 @@ describe('CLI --config and --preset flags', () => {
     // integration works end-to-end by calling loadConfig directly.
     // The flag wiring is tested by the fact that cli.ts compiles without
     // error and the loadConfig function is exercised above.
-    const config = await loadConfig(undefined, 'cloudscape');
+    const { config } = await loadConfig(undefined, 'cloudscape');
     expect(config.input.declarationsPackage).toBe('@cloudscape-design/components');
   });
 
   it('Commander program accepts --preset flag', async () => {
-    const config = await loadConfig(undefined, 'cloudscape');
+    const { config } = await loadConfig(undefined, 'cloudscape');
     expect(config.cleanup.skipPrefixes.length).toBeGreaterThan(0);
   });
 });

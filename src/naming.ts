@@ -11,6 +11,14 @@ import { getBooleanAttributes } from './standards.js';
 // ---------------------------------------------------------------------------
 
 /**
+ * Capitalize the first letter of a string.
+ * `description` → `Description`
+ */
+export function capitalize(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
  * Convert camelCase to kebab-case.
  * `readOnly` → `read-only`, `ariaLabel` → `aria-label`
  */

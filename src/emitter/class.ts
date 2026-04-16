@@ -10,6 +10,7 @@ import { Project, Node, ts } from 'ts-morph';
 import { containsHtmlTemplate } from '../text-utils.js';
 import { getHtmlElementProps } from '../standards.js';
 import { collectIRText } from '../ir/transform-helpers.js';
+import { capitalize } from '../naming.js';
 import { collectImports } from './imports.js';
 import { emitProperties, emitState, emitControllers, emitContexts, emitComputed, emitRefs, emitSkippedHookVars } from './properties.js';
 import type { DeferredInit } from './properties.js';
@@ -127,11 +128,11 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   // Collect all IR text once — used for filtering unused slot getters and hook vars.
   const allCode = collectIRText(ir);
 
-  // Filter out slot props whose getter is never referenced in the IR.
+  // Filter out slot props whose getter/method is never referenced in the IR.
   const filteredProps = ir.props.filter(prop => {
     if (prop.category !== 'slot') return true;
-    const getterName = prop.name === 'children' ? '_hasChildren' : prop.name;
-    return new RegExp('\\b' + getterName + '\\b').test(allCode);
+    const memberName = prop.name === 'children' ? '_hasChildren' : `_has${capitalize(prop.name)}Slot`;
+    return new RegExp('\\b' + memberName + '\\b').test(allCode);
   });
 
   // Filter out HTMLElement-inherited props that are never referenced in

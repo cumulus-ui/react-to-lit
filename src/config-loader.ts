@@ -10,12 +10,18 @@
 import path from 'node:path';
 import type { CompilerConfig } from './config.js';
 import { createDefaultConfig } from './config.js';
-import { createCloudscapeConfig } from './presets/cloudscape.js';
+import type { CleanupPlugin } from './transforms/cleanup-core.js';
+import { createCloudscapeConfig, cloudscapeCleanupPlugin } from './presets/cloudscape.js';
 
 /** Known built-in presets. */
-const PRESETS: Record<string, () => CompilerConfig> = {
-  cloudscape: createCloudscapeConfig,
+const PRESETS: Record<string, { config: () => CompilerConfig; cleanupPlugin?: CleanupPlugin }> = {
+  cloudscape: { config: createCloudscapeConfig, cleanupPlugin: cloudscapeCleanupPlugin },
 };
+
+export interface LoadedConfig {
+  config: CompilerConfig;
+  cleanupPlugin?: CleanupPlugin;
+}
 
 /**
  * Load a compiler configuration.
@@ -23,12 +29,12 @@ const PRESETS: Record<string, () => CompilerConfig> = {
  * @param configPath  Path to a user config file (JS/TS module exporting a
  *                    `CompilerConfig` or a factory function returning one).
  * @param preset      Name of a built-in preset (e.g. `'cloudscape'`).
- * @returns           Resolved `CompilerConfig`.
+ * @returns           Resolved `CompilerConfig` with optional cleanup plugin.
  */
 export async function loadConfig(
   configPath?: string,
   preset?: string,
-): Promise<CompilerConfig> {
+): Promise<LoadedConfig> {
   // 1. Explicit config file takes priority
   if (configPath) {
     const resolved = path.resolve(configPath);
@@ -37,24 +43,24 @@ export async function loadConfig(
     // Support both `export default config` and `export default () => config`
     const exported = mod['default'] ?? mod['config'];
     if (typeof exported === 'function') {
-      return mergeWithDefaults(exported() as Partial<CompilerConfig>);
+      return { config: mergeWithDefaults(exported() as Partial<CompilerConfig>) };
     }
-    return mergeWithDefaults(exported as Partial<CompilerConfig>);
+    return { config: mergeWithDefaults(exported as Partial<CompilerConfig>) };
   }
 
   // 2. Named preset
   if (preset) {
-    const factory = PRESETS[preset];
-    if (!factory) {
+    const entry = PRESETS[preset];
+    if (!entry) {
       throw new Error(
         `Unknown preset '${preset}'. Available presets: ${Object.keys(PRESETS).join(', ')}`,
       );
     }
-    return factory();
+    return { config: entry.config(), cleanupPlugin: entry.cleanupPlugin };
   }
 
   // 3. Defaults
-  return createDefaultConfig();
+  return { config: createDefaultConfig() };
 }
 
 /**

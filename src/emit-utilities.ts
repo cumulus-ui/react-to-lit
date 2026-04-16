@@ -329,6 +329,9 @@ export function transformUtility(
   // 3. Strip 'use client' directive
   result = result.replace(/^['"]use client['"];?\s*\n?/m, '');
 
+  // 4. Strip test utility style references (imports already stripped as .css.js)
+  result = result.replace(/\btestUtilStyles(?:\[['"\w-]+\]|\.\w+)/g, "''");
+
   return result;
 }
 

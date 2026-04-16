@@ -333,7 +333,7 @@ describe('emitComponent unused slot getter filtering', () => {
     expect(output).toContain('private get _hasChildren');
   });
 
-  it('keeps named slot getter when referenced in template', () => {
+  it('keeps named slot method when referenced in template', () => {
     const ir = minimalIR({
       props: [
         { name: 'header', type: 'ReactNode', category: 'slot' },
@@ -342,14 +342,14 @@ describe('emitComponent unused slot getter filtering', () => {
         kind: 'expression',
         attributes: [],
         children: [],
-        expression: 'html`${this.header ? html`<div>${this.header}</div>` : nothing}`',
+        expression: 'html`${this._hasHeaderSlot() ? html`<div>${this._hasHeaderSlot()}</div>` : nothing}`',
       },
     });
     const output = emitComponent(ir);
-    expect(output).toContain('private get header');
+    expect(output).toContain('private _hasHeaderSlot()');
   });
 
-  it('removes named slot getter when not referenced', () => {
+  it('removes named slot method when not referenced', () => {
     const ir = minimalIR({
       props: [
         { name: 'header', type: 'ReactNode', category: 'slot' },
@@ -357,7 +357,7 @@ describe('emitComponent unused slot getter filtering', () => {
       template: { kind: 'element', tag: 'div', attributes: [], children: [] },
     });
     const output = emitComponent(ir);
-    expect(output).not.toContain('private get header');
+    expect(output).not.toContain('private _hasHeaderSlot');
   });
 
   it('preserves non-slot props regardless of reference', () => {

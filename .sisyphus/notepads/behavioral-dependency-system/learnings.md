@@ -43,3 +43,56 @@
 **Key insight:** The Wave 1 property system changes were surgically effective on their target (TS2564), but other codegen changes introduced a new dominant problem (TS2307 module resolution). The import generation pipeline needs attention — it's emitting references to files that don't exist in the output directory.
 
 **radio-button regressed:** Was the only clean component in baseline (0 errors), now has 1 error (TS2307 for `./styles` import). Zero clean components remain.
+
+## SSR Smoke Test Learnings (2026-04-16)
+
+### SSR Baseline: 58/92 pass (63%)
+
+**Setup:**
+- @lit-labs/ssr v3.3.1 installed in react-to-lit
+- DOM shim must be imported BEFORE any Lit imports: `import '@lit-labs/ssr/lib/install-global-dom-shim.js'`
+- `unsafeStatic` from `lit/static-html.js` enables dynamic tag names in SSR templates
+- vitest.config.ts resolve aliases map @cloudscape-design/* etc to ../components/node_modules/
+
+**Error Categories:**
+- IMPORT_FAIL (7): Missing styles.js or internal sub-components (chart components, navigable-group, radio-button)
+- RENDER_FAIL (27): TypeError (property on undefined), ReferenceError (undefined vars), RangeError (stack overflow in link)
+  - Common patterns: `this._i18n is not a function` (5 components), `Cannot read properties of undefined` (9 components), `ReferenceError: X is not defined` (5 components)
+
+**Key Observations:**
+- Multiple Lit versions warning appears (components load their own Lit + test imports Lit)
+- Simple presentational components pass; complex ones with i18n, context, or iterable props fail
+- `cs-link` has infinite recursion (Maximum call stack size exceeded)
+
+## Slot Getter → Method Migration
+
+### What changed
+- Named slot getters (`private get description()`) → methods (`private _hasDescriptionSlot()`)
+- Children slot (`_hasChildren`) left as getter per design
+- Identifier rewriter now has `isMethod` flag on MemberMapping for `()` call syntax
+- class.ts filter updated to use `_has${capitalize(name)}Slot` for reference checking
+
+### Key insight: 4 files needed coordinated changes
+1. `properties.ts` — emission of the method declaration
+2. `identifiers.ts` — member mapping + call syntax rewriting  
+3. `class.ts` — unused member filter (regex name check)
+4. `naming.d.ts` — export declaration for new `capitalize` utility
+
+### SSR impact
+- Zero `private get ... querySelector` in output after regeneration
+- 56 slot methods across 21 components generated correctly
+- SSR pass count didn't improve (57/92 vs 58/92) because slot getter crashes co-occurred with other issues in the same components
+- Slider regression (-1) is pre-existing syntax error, unrelated
+
+### Test strategy
+- class.test.ts: test IR must use post-identifier-rewrite format (e.g., `this._hasHeaderSlot()`)
+- properties.test.ts: no changes needed (tests `children` slot which stayed as getter)
+
+## testUtilStyles stripping
+
+- The `cloudscapeCleanupPlugin` was defined in `presets/cloudscape.ts` with `TEST_UTIL_STYLES_RE` but was NEVER wired into the `compile.ts` pipeline
+- `compile.ts` passed `config` to `transformAll` but not `cleanupPlugin` — so only core cleanup ran, not the Cloudscape-specific cleanup
+- This affected ALL Cloudscape-specific cleanup patterns (testUtilStyles, analyticsSelectors, baseProps.className, warnOnce, etc.)
+- Fix: `config-loader.ts` now returns `LoadedConfig { config, cleanupPlugin? }`, and `compile.ts` passes the plugin through to `transformAll`
+- Utility files (emitted by `emit-utilities.ts`) go through a different code path — `transformUtility()` does simple text transforms, not IR-level cleanup. Added testUtilStyles regex stripping there separately
+- The `emitUtilities` function skips files that already exist in the output — so to re-generate a utility file, you must delete it first

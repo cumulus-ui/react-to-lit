@@ -1,8 +1,8 @@
 {
-  "timestamp": "2026-04-16T15:10:20.055Z",
+  "timestamp": "2026-04-16T15:27:02.958Z",
   "total": 92,
-  "pass": 58,
-  "importFail": 7,
+  "pass": 57,
+  "importFail": 8,
   "renderFail": 27,
   "results": [
     {
@@ -407,7 +407,9 @@
     {
       "name": "slider",
       "tag": "cs-slider",
-      "status": "PASS"
+      "status": "IMPORT_FAIL",
+      "error": "Transform failed with 1 error:\n\n\u001b[31m[PARSE_ERROR] Error:\u001b[0m Unexpected token\n     \u001b[38;5;246m╭\u001b[0m\u001b[38;5;246m─\u001b[0m\u001b[38;5;246m[\u001b[0m ../components/src/slider/index.ts:129:48 \u001b[38;5;246m]\u001b[0m\n     \u001b[38",
+      "errorType": "Error"
     },
     {
       "name": "space-between",

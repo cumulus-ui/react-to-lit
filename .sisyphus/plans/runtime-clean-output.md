@@ -146,7 +146,7 @@ Wave FINAL:
 
   **Commit**: `test(ssr): add SSR smoke test — baseline N/91 pass`
 
-- [ ] 2. Fix slot getters → _hasXSlot() methods
+- [x] 2. Fix slot getters → _hasXSlot() methods
 
   **What to do**:
   - In `src/emitter/properties.ts`, change slot content getters from:
@@ -170,7 +170,7 @@ Wave FINAL:
 
   **Commit**: `fix(emitter): slot content checks use methods not getters — SSR-safe`
 
-- [ ] 3. Strip testUtilStyles chains
+- [x] 3. Strip testUtilStyles chains
 
   **What to do**:
   - In the Cloudscape preset or cleanup transform, strip:
