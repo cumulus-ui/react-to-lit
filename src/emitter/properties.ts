@@ -49,7 +49,7 @@ export function emitProperties(props: PropIR[]): { code: string; deferred: Defer
       } else {
         // Named slot: check for elements assigned to this slot
         lines.push(`  /** True when the '${prop.name}' slot has content. */`);
-        lines.push(`  private get ${prop.name}() { return !!this.querySelector('[slot="${prop.name}"]'); }`);
+        lines.push(`  private get ${prop.name}() { return !!this.querySelector?.('[slot="${prop.name}"]'); }`);
       }
       lines.push('');
       continue;
