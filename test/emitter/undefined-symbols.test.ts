@@ -34,10 +34,10 @@ describe('stubUndefinedSymbols', () => {
 
     const result = stubUndefinedSymbols(code);
     expect(result).toContain('const analyticsAction: any = undefined;');
-    // Stub should be after imports, before class
+    // Value stub should be inside render(), not at module scope
     const stubIdx = result.indexOf('const analyticsAction');
-    const classIdx = result.indexOf('export class');
-    expect(stubIdx).toBeLessThan(classIdx);
+    const renderIdx = result.indexOf('override render()');
+    expect(stubIdx).toBeGreaterThan(renderIdx);
   });
 
   it('stubs an undefined type reference (uppercase, in type annotation)', () => {

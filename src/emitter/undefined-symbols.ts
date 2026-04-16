@@ -156,16 +156,31 @@ export function stubUndefinedSymbols(code: string): string {
     return code;
   }
 
-  const stubs: string[] = [];
-  stubs.push('// Stubs for stripped framework references (auto-generated)');
-  for (const name of [...undefinedTypes].sort()) {
-    stubs.push(`type ${name} = any;`);
-  }
-  for (const name of [...undefinedValues].sort()) {
-    stubs.push(`const ${name}: any = undefined;`);
+  // Type stubs go at module scope (erased at compile time, esbuild doesn't care)
+  const typeStubs: string[] = [];
+  if (undefinedTypes.size > 0) {
+    typeStubs.push('// Type stubs for stripped framework references (auto-generated)');
+    for (const name of [...undefinedTypes].sort()) {
+      typeStubs.push(`type ${name} = any;`);
+    }
   }
 
-  return injectStubs(code, stubs);
+  // Value stubs go inside render() so esbuild can't tree-shake them
+  const valueStubs: string[] = [];
+  if (undefinedValues.size > 0) {
+    for (const name of [...undefinedValues].sort()) {
+      valueStubs.push(`const ${name}: any = undefined;`);
+    }
+  }
+
+  let result = code;
+  if (typeStubs.length > 0) {
+    result = injectTypeStubs(result, typeStubs);
+  }
+  if (valueStubs.length > 0) {
+    result = injectValueStubsInRender(result, valueStubs);
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -396,7 +411,7 @@ function stripTemplateLiteralContent(code: string): string {
 // Stub injection
 // ---------------------------------------------------------------------------
 
-function injectStubs(code: string, stubs: string[]): string {
+function injectTypeStubs(code: string, stubs: string[]): string {
   if (stubs.length === 0) return code;
 
   const stubBlock = stubs.join('\n');
@@ -416,4 +431,19 @@ function injectStubs(code: string, stubs: string[]): string {
   const before = lines.slice(0, lastImportLine + 1).join('\n');
   const after = lines.slice(lastImportLine + 1).join('\n');
   return before + '\n\n' + stubBlock + '\n' + after;
+}
+
+function injectValueStubsInRender(code: string, stubs: string[]): string {
+  if (stubs.length === 0) return code;
+
+  const renderMatch = code.match(/^([ \t]*)(override\s+)?render\s*\(\s*\)\s*\{/m);
+  if (!renderMatch) {
+    return injectTypeStubs(code, stubs);
+  }
+
+  const insertPos = renderMatch.index! + renderMatch[0].length;
+  const indent = renderMatch[1] + '  ';
+  const stubBlock = stubs.map(s => indent + s).join('\n');
+
+  return code.slice(0, insertPos) + '\n' + stubBlock + code.slice(insertPos);
 }
