@@ -103,6 +103,10 @@ export {
 } from './text-utils.js';
 export type { FindMatchingParenOptions } from './text-utils.js';
 
+// Compile API
+export { compile } from './compile.js';
+export type { CompileOptions, CompileResult } from './compile.js';
+
 // Config
 export { createDefaultConfig, createCloudscapeConfig, discoverComponents } from './config.js';
 export type { CompilerConfig, InputConfig, OutputConfig, CleanupConfig, ComponentsConfig, EventsConfig, PackageComponent } from './config.js';
