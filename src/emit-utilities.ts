@@ -79,7 +79,7 @@ const REACT_TYPE_REPLACEMENTS: Array<[RegExp, string]> = [
  * trace each to the vendor source, transform, and write to the output.
  */
 export function emitUtilities(options: EmitUtilitiesOptions): EmitUtilitiesResult {
-  const { sourceRoot, outputRoot, maxDepth = 2, verbose = false } = options;
+  const { sourceRoot, outputRoot, maxDepth = 5, verbose = false } = options;
   const emittedSet = new Set<string>(); // absolute output paths already emitted
   const skippedFiles: string[] = [];
 
