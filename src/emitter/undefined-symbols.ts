@@ -140,6 +140,19 @@ const CLASS_MEMBER_RE = /(?:@\w+[^)]*\)\s*)?(?:static\s+)?(?:override\s+)?(?:pri
 const IDENT_RE = /\b([A-Za-z_$][A-Za-z0-9_$]*)\b/g;
 
 // ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
+
+export type StubMode = 'stub' | 'diagnostic' | 'error';
+
+export interface StubOptions {
+  /** How to handle undefined symbols (default: 'stub') */
+  mode?: StubMode;
+  /** Component name for diagnostic/error messages */
+  componentName?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
 
@@ -155,7 +168,9 @@ export function detectUndefinedValueSymbols(code: string): string[] {
   return result;
 }
 
-export function stubUndefinedSymbols(code: string): string {
+export function stubUndefinedSymbols(code: string, options?: StubOptions): string {
+  const mode = options?.mode ?? 'stub';
+  const componentName = options?.componentName ?? '<unknown>';
   const defined = collectDefinedSymbols(code);
   const { valueRefs, typeRefs } = collectReferencedSymbols(code);
 
@@ -181,6 +196,27 @@ export function stubUndefinedSymbols(code: string): string {
 
   if (undefinedValues.size === 0 && undefinedTypes.size === 0) {
     return code;
+  }
+
+  // In error mode, throw with all undefined symbols listed
+  if (mode === 'error') {
+    const allSymbols = [
+      ...[...undefinedValues].map(n => `${n} (value)`),
+      ...[...undefinedTypes].map(n => `${n} (type)`),
+    ];
+    throw new Error(
+      `[stub-error] ${componentName}: ${allSymbols.length} undefined symbol(s): ${allSymbols.join(', ')}`
+    );
+  }
+
+  // In diagnostic mode, log each stub
+  if (mode === 'diagnostic') {
+    for (const name of [...undefinedValues].sort()) {
+      console.warn(`[stub] ${componentName}: ${name} (value)`);
+    }
+    for (const name of [...undefinedTypes].sort()) {
+      console.warn(`[stub] ${componentName}: ${name} (type)`);
+    }
   }
 
   // Type stubs go at module scope (erased at compile time, esbuild doesn't care)

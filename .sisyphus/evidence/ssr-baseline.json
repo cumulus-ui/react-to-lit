@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-04-16T15:27:02.958Z",
+  "timestamp": "2026-04-16T17:26:36.223Z",
   "total": 92,
-  "pass": 57,
+  "pass": 56,
   "importFail": 8,
-  "renderFail": 27,
+  "renderFail": 28,
   "results": [
     {
       "name": "alert",
@@ -505,7 +505,9 @@
     {
       "name": "tooltip",
       "tag": "cs-tooltip",
-      "status": "PASS"
+      "status": "RENDER_FAIL",
+      "error": "referrerId is not defined",
+      "errorType": "ReferenceError"
     },
     {
       "name": "top-navigation",

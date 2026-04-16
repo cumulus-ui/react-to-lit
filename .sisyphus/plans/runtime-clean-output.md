@@ -251,7 +251,7 @@ Wave FINAL:
 
 ### Wave 3 — Cleanup
 
-- [ ] 6. Convert undefined-symbols.ts to diagnostic mode
+- [x] 6. Convert undefined-symbols.ts to diagnostic mode
 
   **What to do**:
   - Change `stubUndefinedSymbols()` to report what it WOULD stub instead of stubbing
@@ -270,7 +270,7 @@ Wave FINAL:
 
   **Commit**: `feat(emitter): undefined-symbols diagnostic mode — surfaces remaining gaps`
 
-- [ ] 7. Final SSR verification + stub count audit
+- [x] 7. Final SSR verification + stub count audit
 
   **What to do**:
   - Regenerate all 91 components with full pipeline

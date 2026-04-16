@@ -19,6 +19,7 @@ import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
 import { stubUndefinedSymbols, detectUndefinedValueSymbols } from './undefined-symbols.js';
+import type { StubMode } from './undefined-symbols.js';
 import { eliminateDeadCode, collectStrippedSymbols } from './dead-code-elimination.js';
 
 // ---------------------------------------------------------------------------
@@ -59,6 +60,8 @@ export interface EmitOptions {
   format?: boolean;
   /** Optional output configuration for class naming and imports */
   output?: OutputConfig;
+  /** How to handle undefined symbols: 'stub' (default), 'diagnostic', or 'error' */
+  stubMode?: StubMode;
 }
 
 /**
@@ -302,7 +305,10 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
   const afterDCE2 = eliminateDeadCode(afterDCE, undefinedSyms, true);
 
   // Stub undefined symbols (stripped framework references like analytics)
-  const withStubs = stubUndefinedSymbols(afterDCE2);
+  const withStubs = stubUndefinedSymbols(afterDCE2, {
+    mode: _options.stubMode,
+    componentName: ir.name,
+  });
 
   // Final text-based cleanup for any remaining React patterns
   // Clean up excessive blank lines

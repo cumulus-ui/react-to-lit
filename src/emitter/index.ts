@@ -13,3 +13,4 @@ export { emitRenderMethod } from './template.js';
 export { emitController, deriveControllerName } from './controllers.js';
 export { emitUtility } from './utilities.js';
 export { stubUndefinedSymbols } from './undefined-symbols.js';
+export type { StubMode, StubOptions } from './undefined-symbols.js';

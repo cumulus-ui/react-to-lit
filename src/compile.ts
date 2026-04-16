@@ -19,6 +19,7 @@ import type { CleanupPlugin } from './transforms/cleanup-core.js';
 import type { HookRegistry } from './hooks/registry.js';
 import type { ClassifiedProp } from './package-analyzer.js';
 import type { Plugin } from './plugins/index.js';
+import type { StubMode } from './emitter/undefined-symbols.js';
 import { emitUtilities, emitToolkitShim } from './emit-utilities.js';
 
 // ---------------------------------------------------------------------------
@@ -46,6 +47,8 @@ export interface CompileOptions {
   plugins?: Plugin[];
   /** Emit utility modules alongside component files (default: true) */
   emitUtilities?: boolean;
+  /** How to handle undefined symbols: 'stub' (default), 'diagnostic', or 'error' */
+  stubMode?: StubMode;
 }
 
 export interface CompileResult {
@@ -158,7 +161,7 @@ export async function compile(options: CompileOptions): Promise<CompileResult> {
 function processComponents(
   components: Array<{ name: string; dir: string; keepProps: Set<string>; classifiedProps: Map<string, ClassifiedProp>; passthroughProps: Set<string>; knownComponents: Set<string>; reactFrameworkAttributes: string[]; hookMappings: HookRegistry }>,
   outputRoot: string,
-  opts: { dryRun?: boolean; verbose?: boolean },
+  opts: { dryRun?: boolean; verbose?: boolean; stubMode?: StubMode },
   config: CompilerConfig,
   hostDisplayMap: Record<string, string | null> = {},
   plugins: Plugin[] = [],
@@ -195,7 +198,7 @@ function processComponents(
       const display = hostDisplayMap[name];
       if (display) transformed.hostDisplay = display;
 
-      let output = emitComponent(transformed, { output: config.output });
+      let output = emitComponent(transformed, { output: config.output, stubMode: opts.stubMode });
 
       for (const plugin of plugins) {
         if (output.includes(plugin.package) || plugin.imports.some(i => output.includes(i))) {

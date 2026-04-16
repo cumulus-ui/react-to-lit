@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { stubUndefinedSymbols } from '../../src/emitter/undefined-symbols.js';
 
 describe('stubUndefinedSymbols', () => {
@@ -185,5 +185,44 @@ describe('stubUndefinedSymbols', () => {
 
     const result = stubUndefinedSymbols(code);
     expect(result).not.toContain('const variant: any');
+  });
+
+  describe('mode=diagnostic', () => {
+    it('still injects stubs but logs warnings', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const code = [
+        "import { html, css, LitElement } from 'lit';",
+        '',
+        'export class Button extends LitElement {',
+        '  override render() {',
+        '    const meta = analyticsAction;',
+        '    return html`<button></button>`;',
+        '  }',
+        '}',
+      ].join('\n');
+
+      const result = stubUndefinedSymbols(code, { mode: 'diagnostic', componentName: 'Button' });
+      expect(result).toContain('const analyticsAction: any = {};');
+      expect(warnSpy).toHaveBeenCalledWith('[stub] Button: analyticsAction (value)');
+      warnSpy.mockRestore();
+    });
+  });
+
+  describe('mode=error', () => {
+    it('throws instead of stubbing', () => {
+      const code = [
+        "import { html, css, LitElement } from 'lit';",
+        '',
+        'export class Button extends LitElement {',
+        '  override render() {',
+        '    const meta = analyticsAction;',
+        '    return html`<button></button>`;',
+        '  }',
+        '}',
+      ].join('\n');
+
+      expect(() => stubUndefinedSymbols(code, { mode: 'error', componentName: 'Button' }))
+        .toThrow('[stub-error] Button: 1 undefined symbol(s): analyticsAction (value)');
+    });
   });
 });
