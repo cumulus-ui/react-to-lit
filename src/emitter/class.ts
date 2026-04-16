@@ -18,7 +18,8 @@ import { findMatchingParen } from '../text-utils.js';
 import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
-import { stubUndefinedSymbols } from './undefined-symbols.js';
+import { stubUndefinedSymbols, detectUndefinedValueSymbols } from './undefined-symbols.js';
+import { eliminateDeadCode, collectStrippedSymbols } from './dead-code-elimination.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -290,8 +291,18 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
 
   const raw = `${importsStr}\n\n${bodyStr}\n`;
 
+  // Dead-code elimination: remove code that transitively depends on
+  // stripped framework symbols (analytics, funnel tracking, etc.)
+  const deadSymbols = collectStrippedSymbols(raw);
+  const afterDCE = eliminateDeadCode(raw, deadSymbols);
+
+  // Second DCE pass: eliminate references to remaining undefined symbols
+  // Conservative mode: only remove template attrs and object shorthand, not declarations
+  const undefinedSyms = detectUndefinedValueSymbols(afterDCE);
+  const afterDCE2 = eliminateDeadCode(afterDCE, undefinedSyms, true);
+
   // Stub undefined symbols (stripped framework references like analytics)
-  const withStubs = stubUndefinedSymbols(raw);
+  const withStubs = stubUndefinedSymbols(afterDCE2);
 
   // Final text-based cleanup for any remaining React patterns
   // Clean up excessive blank lines

@@ -195,7 +195,7 @@ Wave FINAL:
 
 ### Wave 2 — Core Dead-Code Elimination
 
-- [ ] 4. Post-emission dead-code elimination pass
+- [x] 4. Post-emission dead-code elimination pass
 
   **What to do**:
   - Create `src/emitter/dead-code-elimination.ts`
@@ -226,7 +226,7 @@ Wave FINAL:
 
   **Commit**: `feat(emitter): scope-aware dead-code elimination from stripped imports`
 
-- [ ] 5. Wire into emitter + verify stub reduction
+- [x] 5. Wire into emitter + verify stub reduction
 
   **What to do**:
   - Integrate dead-code elimination into the emitter pipeline (in class.ts, between strip passes and stubUndefinedSymbols)

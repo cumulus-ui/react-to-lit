@@ -43,8 +43,21 @@ const KNOWN_GLOBALS = new Set([
   'Worker', 'MessageChannel', 'MessagePort', 'BroadcastChannel',
   'ReadableStream', 'WritableStream', 'TransformStream',
   'DOMParser', 'XMLSerializer',
+  'KeyboardEvent', 'FocusEvent', 'MouseEvent', 'DragEvent',
+  'ClipboardEvent', 'InputEvent', 'TouchEvent', 'PointerEvent',
+  'WheelEvent', 'AnimationEvent', 'TransitionEvent', 'CompositionEvent',
+  'SVGElement', 'SVGSVGElement', 'DataTransfer', 'Selection',
+  'DOMRect', 'DOMRectReadOnly', 'DOMTokenList',
   'requestIdleCallback', 'cancelIdleCallback',
   'reportError', 'customElements',
+  // Lit lifecycle methods (appear in override declarations)
+  'willUpdate', 'firstUpdated', 'connectedCallback', 'disconnectedCallback',
+  'updated', 'attributeChangedCallback', 'performUpdate', 'scheduleUpdate',
+  'requestUpdate', 'updateComplete', 'createRenderRoot', 'adoptedCallback',
+  // Lit @property() decorator option keys (appear in object literals)
+  'reflect', 'attribute', 'converter', 'noAccessor', 'hasChanged',
+  // EventInit property keys (appear in { bubbles: true, composed: true })
+  'bubbles', 'composed', 'cancelable', 'detail',
   // HTML tag and CSS names that appear in template literals
   'div', 'span', 'button', 'input', 'label', 'form', 'select', 'option',
   'textarea', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th',
@@ -70,6 +83,8 @@ const KNOWN_GLOBALS = new Set([
   'asyncAppend', 'directive', 'Directive',
   'consume', 'provide', 'createContext', 'ContextConsumer', 'ContextProvider',
   'PropertyValues',
+  // Lit class properties
+  'styles', 'shadowRootOptions', 'elementProperties', 'properties',
   // TypeScript built-in utility types
   'Partial', 'Required', 'Readonly', 'Record', 'Pick', 'Omit',
   'Exclude', 'Extract', 'NonNullable', 'Parameters', 'ReturnType',
@@ -120,13 +135,25 @@ const ARRAY_DESTRUCTURE_RE = /\b(?:const|let|var)\s+\[([^\]]+)\]\s*=/g;
  *   `private _handler = () => { ... }`
  *   `private get _something() { ... }`
  */
-const CLASS_MEMBER_RE = /(?:@\w+[^)]*\)\s*)?(?:private\s+)?(?:get\s+)?(_?\w+)\s*(?:[=:!?]|(?:\([^)]*\)\s*\{))/g;
+const CLASS_MEMBER_RE = /(?:@\w+[^)]*\)\s*)?(?:static\s+)?(?:override\s+)?(?:private\s+)?(?:get\s+)?(_?\w+)\s*(?:[=:!?]|(?:\([^)]*\)\s*\{))/g;
 
 const IDENT_RE = /\b([A-Za-z_$][A-Za-z0-9_$]*)\b/g;
 
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
+
+export function detectUndefinedValueSymbols(code: string): string[] {
+  const defined = collectDefinedSymbols(code);
+  const { valueRefs } = collectReferencedSymbols(code);
+  const result: string[] = [];
+  for (const ref of valueRefs) {
+    if (!defined.has(ref) && !KNOWN_GLOBALS.has(ref)) {
+      result.push(ref);
+    }
+  }
+  return result;
+}
 
 export function stubUndefinedSymbols(code: string): string {
   const defined = collectDefinedSymbols(code);
@@ -235,27 +262,81 @@ function collectDefinedSymbols(code: string): Set<string> {
   for (const match of code.matchAll(ENUM_DECL_RE)) defined.add(match[1]);
 
   // Class members (properties, methods, getters declared inside the class)
-  // The class body extends from `export class ... {` to its matching `}`.
-  const classStart = code.indexOf('export class ');
-  if (classStart !== -1) {
-    const braceStart = code.indexOf('{', classStart);
-    if (braceStart !== -1) {
-      let depth = 1;
-      let pos = braceStart + 1;
-      while (pos < code.length && depth > 0) {
-        if (code[pos] === '{') depth++;
-        else if (code[pos] === '}') depth--;
-        pos++;
-      }
-      const classBody = code.slice(braceStart + 1, pos - 1);
-      for (const match of classBody.matchAll(CLASS_MEMBER_RE)) {
-        defined.add(match[1]);
-      }
-    }
+  // Applied to full code — the regex is specific enough (private/override/decorator)
+  // to avoid false matches outside the class. Brace-based class body extraction
+  // fails on template literals containing `}`.
+  for (const match of code.matchAll(CLASS_MEMBER_RE)) {
+    defined.add(match[1]);
+  }
+
+  // Function/arrow params, for-loop variables, catch variables
+  for (const p of collectFunctionParams(code)) {
+    defined.add(p);
+  }
+
+  // Interface/type body member names (property keys, not runtime values)
+  for (const match of code.matchAll(/(?:^|\n)\s*(?:readonly\s+)?(\w+)\s*[?:](?!.*=>)/gm)) {
+    const name = match[1];
+    if (name && /^[a-z]/.test(name)) defined.add(name);
   }
 
   defined.delete('');
   return defined;
+}
+
+function collectFunctionParams(code: string): Set<string> {
+  const params = new Set<string>();
+
+  // Arrow function params: (a, b) => or (a: Type, b) =>
+  const arrowRE = /\(([^)]*)\)\s*(?::\s*\w+\s*)?=>/g;
+  for (const match of code.matchAll(arrowRE)) {
+    extractParamNames(match[1], params);
+  }
+
+  // Regular/method params: function foo(a, b) { or methodName(a: T) {
+  const funcParamRE = /(?:function\s+\w+|(?:private\s+)?_?\w+)\s*\(([^)]*)\)\s*(?::\s*[^{]+?)?\s*\{/g;
+  for (const match of code.matchAll(funcParamRE)) {
+    extractParamNames(match[1], params);
+  }
+
+  // for-of / for-in variables: for (const x of ...) or for (const x in ...)
+  const forRE = /for\s*\(\s*(?:const|let|var)\s+(\w+)\s+(?:of|in)\b/g;
+  for (const match of code.matchAll(forRE)) {
+    params.add(match[1]);
+  }
+
+  // for-loop index variables: for (let i = 0; ...)
+  const forIdxRE = /for\s*\(\s*(?:let|var)\s+(\w+)\s*=/g;
+  for (const match of code.matchAll(forIdxRE)) {
+    params.add(match[1]);
+  }
+
+  // catch clause: catch (e)
+  const catchRE = /catch\s*\(\s*(\w+)\s*\)/g;
+  for (const match of code.matchAll(catchRE)) {
+    params.add(match[1]);
+  }
+
+  return params;
+}
+
+function extractParamNames(paramStr: string, out: Set<string>): void {
+  for (const part of paramStr.split(',')) {
+    const trimmed = part.trim().replace(/^\.\.\./, '');
+    if (!trimmed) continue;
+    // Handle destructured params: { a, b } or [a, b]
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      const inner = trimmed.slice(1).replace(/[}\]].*/, '');
+      for (const sub of inner.split(',')) {
+        const name = sub.trim().replace(/:.*/, '').trim().match(/^(\w+)/);
+        if (name) out.add(name[1]);
+      }
+      continue;
+    }
+    // Simple param: name or name: Type or name = default
+    const nameMatch = trimmed.match(/^(\w+)/);
+    if (nameMatch) out.add(nameMatch[1]);
+  }
 }
 
 /**
