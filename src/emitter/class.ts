@@ -17,6 +17,7 @@ import { findMatchingParen } from '../text-utils.js';
 import { emitLifecycle } from './lifecycle.js';
 import { emitHandlers, emitPublicMethods } from './handlers.js';
 import { emitRenderMethod } from './template.js';
+import { stubUndefinedSymbols } from './undefined-symbols.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -288,9 +289,12 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
 
   const raw = `${importsStr}\n\n${bodyStr}\n`;
 
+  // Stub undefined symbols (stripped framework references like analytics)
+  const withStubs = stubUndefinedSymbols(raw);
+
   // Final text-based cleanup for any remaining React patterns
   // Clean up excessive blank lines
-  return raw.replace(/\n{3,}/g, '\n\n');
+  return withStubs.replace(/\n{3,}/g, '\n\n');
 }
 
 // ---------------------------------------------------------------------------

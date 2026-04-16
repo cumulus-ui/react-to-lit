@@ -12,3 +12,4 @@ export { emitHandlers, emitPublicMethods } from './handlers.js';
 export { emitRenderMethod } from './template.js';
 export { emitController, deriveControllerName } from './controllers.js';
 export { emitUtility } from './utilities.js';
+export { stubUndefinedSymbols } from './undefined-symbols.js';
