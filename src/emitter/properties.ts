@@ -47,7 +47,10 @@ export function emitProperties(props: PropIR[]): { code: string; deferred: Defer
         lines.push(`  /** True when the default slot has content. */`);
         lines.push(`  private get _hasChildren() { return this.childElementCount > 0; }`);
       } else {
-        // Named slot: check for elements assigned to this slot
+        // Named slot: emit property for string attribute support AND slot detection method
+        lines.push(`  @property({ type: String, reflect: true })`);
+        lines.push(`  ${prop.name}?: string;`);
+        lines.push('');
         lines.push(`  /** True when the '${prop.name}' slot has content. */`);
         lines.push(`  private _has${capitalize(prop.name)}Slot() { return !!this.querySelector?.('[slot="${prop.name}"]'); }`);
       }

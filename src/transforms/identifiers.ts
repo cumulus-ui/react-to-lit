@@ -48,21 +48,26 @@ function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
   // expression text where the event transform doesn't reach.
   // Slot props are included: while they render as <slot>, their names may appear
   // in conditional checks (e.g., `children && html\`...\``) that need this. prefix.
+  const propMemberMap = new Map<string, MemberMapping>();
   for (const p of ir.props) {
     if (p.category === 'event') {
       map.set(p.name, { member: p.name });
+      propMemberMap.set(p.name, { member: p.name });
       continue;
     }
     if (p.category === 'slot' && p.name === 'children') {
       // 'children' conflicts with HTMLElement.children — use _hasChildren getter
       map.set('children', { member: '_hasChildren' });
+      propMemberMap.set('children', { member: '_hasChildren' });
       continue;
     }
     if (p.category === 'slot') {
       map.set(p.name, { member: `_has${capitalize(p.name)}Slot`, isMethod: true });
+      propMemberMap.set(p.name, { member: `_has${capitalize(p.name)}Slot`, isMethod: true });
       continue;
     }
     map.set(p.name, { member: p.name });
+    propMemberMap.set(p.name, { member: p.name });
   }
 
   // State → this._stateName
@@ -133,11 +138,12 @@ function buildMemberMap(ir: ComponentIR): Map<string, MemberMapping> {
   }
 
   // Destructured prop aliases → this.propName (e.g., externalSeries → this.series)
+  // Use propMemberMap (not map) to resolve the original prop's member name,
+  // since computed values may have overwritten the prop entry in map.
   if (ir.propAliases) {
     for (const [alias, propName] of ir.propAliases) {
       if (!map.has(alias)) {
-        // Map alias to the same member as the original prop
-        const propMapping = map.get(propName);
+        const propMapping = propMemberMap.get(propName) ?? map.get(propName);
         if (propMapping) {
           map.set(alias, { member: propMapping.member });
         }
@@ -301,10 +307,21 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   }));
 
   // Transform computed values
-  const computedValues = ir.computedValues.map((c) => ({
-    ...c,
-    expression: astRewrite(c.expression),
-  }));
+  // When a computed value shadows a prop name (e.g., `const target = targetOverride ?? ...`
+  // where `target` is also a prop), temporarily restore the prop mapping so the expression
+  // references `this.target` (the prop) instead of `this._target` (the getter itself).
+  const computedValues = ir.computedValues.map((c) => {
+    const propMatch = ir.props.find(p => p.name === c.name && p.category !== 'slot' && p.category !== 'event');
+    if (propMatch) {
+      const saved = memberMap.get(c.name);
+      memberMap.set(c.name, { member: c.name });
+      const result = { ...c, expression: astRewrite(c.expression) };
+      if (saved) memberMap.set(c.name, saved);
+      else memberMap.delete(c.name);
+      return result;
+    }
+    return { ...c, expression: astRewrite(c.expression) };
+  });
 
   // Transform template expressions
   const template = rewriteTemplateNode(ir.template, astRewrite, convertedComponents);
