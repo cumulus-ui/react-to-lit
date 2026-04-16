@@ -312,15 +312,22 @@ export function rewriteIdentifiers(ir: ComponentIR): ComponentIR {
   // references `this.target` (the prop) instead of `this._target` (the getter itself).
   const computedValues = ir.computedValues.map((c) => {
     const propMatch = ir.props.find(p => p.name === c.name && p.category !== 'slot' && p.category !== 'event');
+    let expression: string;
     if (propMatch) {
       const saved = memberMap.get(c.name);
       memberMap.set(c.name, { member: c.name });
-      const result = { ...c, expression: astRewrite(c.expression) };
+      expression = astRewrite(c.expression);
       if (saved) memberMap.set(c.name, saved);
       else memberMap.delete(c.name);
-      return result;
+    } else {
+      expression = astRewrite(c.expression);
     }
-    return { ...c, expression: astRewrite(c.expression) };
+
+    // Fix recursive getter self-references: `this._X` inside `get _X()` → `this.X`
+    const selfRefPattern = new RegExp(`this\\._${c.name}(?![a-zA-Z0-9_])`, 'g');
+    expression = expression.replace(selfRefPattern, `this.${c.name}`);
+
+    return { ...c, expression };
   });
 
   // Transform template expressions

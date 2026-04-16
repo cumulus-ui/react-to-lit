@@ -33,7 +33,22 @@ export function parseJSXFromBody(
     return parseExpression(body, sourceFile);
   }
 
-  // Find the return statement(s)
+  // Try conditional early return pattern: if (cond) { return <A>; } ... return <B>;
+  const conditional = findConditionalReturns(body, sourceFile);
+  if (conditional) {
+    const consequent = parseExpression(conditional.consequentExpr, sourceFile);
+    const alternate = parseExpression(conditional.alternateExpr, sourceFile);
+    return {
+      ...consequent,
+      condition: {
+        expression: conditional.condition,
+        kind: 'ternary',
+        alternate,
+      },
+    };
+  }
+
+  // Fall back to single return
   const returnStmt = findReturnStatement(body);
   if (!returnStmt?.expression) {
     return { kind: 'fragment', attributes: [], children: [] };
@@ -404,8 +419,29 @@ function tryParseMapCall(
   const body = ts.isBlock(callback.body)
     ? (() => {
         const block = callback.body as ts.Block;
+
+        // Try conditional early return pattern inside map callback
+        const conditional = findConditionalReturns(block, sourceFile);
+        if (conditional) {
+          const stmts: string[] = [];
+          for (const stmt of block.statements) {
+            if (ts.isReturnStatement(stmt) || ts.isIfStatement(stmt)) break;
+            stmts.push(getNodeText(stmt, sourceFile));
+          }
+          if (stmts.length > 0) preamble = stmts;
+          const consequent = parseExpression(conditional.consequentExpr, sourceFile);
+          const alternate = parseExpression(conditional.alternateExpr, sourceFile);
+          return {
+            ...consequent,
+            condition: {
+              expression: conditional.condition,
+              kind: 'ternary' as const,
+              alternate,
+            },
+          } as TemplateNodeIR;
+        }
+
         const ret = findReturnStatement(block);
-        // Collect variable declarations before the return as loop-body preamble
         const stmts: string[] = [];
         for (const stmt of block.statements) {
           if (ts.isReturnStatement(stmt)) break;
@@ -452,7 +488,6 @@ function isHtmlTag(tag: string): boolean {
 }
 
 function findReturnStatement(block: ts.Block): ts.ReturnStatement | undefined {
-  // Find the last return statement (there might be early returns)
   let lastReturn: ts.ReturnStatement | undefined;
   for (const stmt of block.statements) {
     if (ts.isReturnStatement(stmt)) {
@@ -460,6 +495,56 @@ function findReturnStatement(block: ts.Block): ts.ReturnStatement | undefined {
     }
   }
   return lastReturn;
+}
+
+/**
+ * Detect `if (cond) { return <A>; } ... return <B>;` and fold to ternary.
+ * Only handles the 2-branch case (one if-return + one final return).
+ */
+function findConditionalReturns(block: ts.Block, sourceFile: ts.SourceFile): {
+  condition: string;
+  consequentExpr: ts.Expression;
+  alternateExpr: ts.Expression;
+} | null {
+  let ifWithReturn: { condition: ts.Expression; returnExpr: ts.Expression } | undefined;
+  let finalReturn: ts.ReturnStatement | undefined;
+  let ifReturnCount = 0;
+
+  for (const stmt of block.statements) {
+    if (ts.isIfStatement(stmt)) {
+      const ret = getReturnFromBlock(stmt.thenStatement);
+      if (ret) {
+        ifReturnCount++;
+        if (ifReturnCount > 1) return null;
+        if (stmt.elseStatement) return null;
+        ifWithReturn = { condition: stmt.expression, returnExpr: ret };
+      }
+    } else if (ts.isReturnStatement(stmt) && stmt.expression) {
+      finalReturn = stmt;
+    }
+  }
+
+  if (!ifWithReturn || !finalReturn?.expression) return null;
+
+  return {
+    condition: getNodeText(ifWithReturn.condition, sourceFile),
+    consequentExpr: ifWithReturn.returnExpr,
+    alternateExpr: finalReturn.expression,
+  };
+}
+
+function getReturnFromBlock(stmt: ts.Statement): ts.Expression | undefined {
+  if (ts.isReturnStatement(stmt) && stmt.expression) {
+    return stmt.expression;
+  }
+  if (ts.isBlock(stmt)) {
+    for (const s of stmt.statements) {
+      if (ts.isReturnStatement(s) && s.expression) {
+        return s.expression;
+      }
+    }
+  }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
