@@ -22,6 +22,13 @@ import { emitRenderMethod } from './template.js';
 // Helpers
 // ---------------------------------------------------------------------------
 
+function toKebabCase(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
+    .toLowerCase();
+}
+
 /**
  * Strip classMap() wrapper from preamble variable declarations.
  * `const className = classMap({ 'a': true })` → `const className = { 'a': true }`
@@ -259,6 +266,12 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
 
   // --- Close class ---
   sections.push('}');
+
+  // --- Custom element registration ---
+  const tagPrefix = _options.output?.tagPrefix ?? 'x';
+  const tagName = `${tagPrefix}-${toKebabCase(className)}`;
+  sections.push('');
+  sections.push(`customElements.define('${tagName}', ${className});`);
 
   // --- Assemble final output ---
   let bodyStr = sections.join('\n');

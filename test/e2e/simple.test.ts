@@ -55,7 +55,7 @@ describe('E2E: parse → emit', () => {
     });
 
     it('should import styles', () => {
-      expect(output).toContain("from './styles'");
+      expect(output).toContain("from './styles.js'");
     });
 
     it('should not import unused prop types after HTMLElement prop filtering', () => {

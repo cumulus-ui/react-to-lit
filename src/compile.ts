@@ -162,7 +162,7 @@ function processComponents(
       const display = hostDisplayMap[name];
       if (display) transformed.hostDisplay = display;
 
-      const output = emitComponent(transformed);
+      const output = emitComponent(transformed, { output: config.output });
 
       if (opts.dryRun) {
         console.log(`\n=== ${name} ===`);

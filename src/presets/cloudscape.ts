@@ -105,6 +105,7 @@ export function createCloudscapeConfig(): CompilerConfig {
     },
     output: {
       baseClass: { name: 'LitElement', import: 'lit' },
+      tagPrefix: 'cu',
     },
     cleanup: {
       skipPrefixes: ['__'],

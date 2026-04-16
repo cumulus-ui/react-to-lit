@@ -38,6 +38,8 @@ export interface InputConfig {
 export interface OutputConfig {
   /** Base class for generated components. */
   baseClass: { name: string; import: string };
+  /** Prefix for custom element tag names (e.g., 'cu' → 'cu-badge'). Custom elements require a hyphen, so a prefix is needed. Defaults to 'x'. */
+  tagPrefix?: string;
 }
 
 /** Rules for stripping React/infrastructure artefacts from the output. */

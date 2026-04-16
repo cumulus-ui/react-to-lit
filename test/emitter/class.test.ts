@@ -68,7 +68,7 @@ describe('emitComponent output config', () => {
     };
     const output = emitComponent(ir, { output: config });
     expect(output).toContain('extends MyBaseElement');
-    expect(output).toContain("from '../base/my-element'");
+    expect(output).toContain("from '../base/my-element.js'");
     expect(output).not.toContain('LitElement');
     expect(output).not.toContain('../internal/base-element.js');
   });
@@ -83,7 +83,7 @@ describe('emitComponent output config', () => {
     };
     const output = emitComponent(ir, { output: config });
     expect(output).toContain('extends SharedBase');
-    expect(output).toContain("from '../shared/base'");
+    expect(output).toContain("from '../shared/base.js'");
     expect(output).not.toContain('ShouldNotAppear');
   });
 
@@ -146,7 +146,7 @@ describe('collectImports output config', () => {
     const collector = collectImports(ir, config);
     const output = collector.emit();
     expect(output).toContain('SharedBase');
-    expect(output).toContain('../shared/base');
+    expect(output).toContain('../shared/base.js');
     expect(output).not.toContain('ShouldNotAppear');
   });
 });

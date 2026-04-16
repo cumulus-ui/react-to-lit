@@ -201,6 +201,16 @@ export class ImportCollector {
     }
   }
 
+  /**
+   * Ensure relative module specifiers have a `.js` extension for ESM compatibility.
+   * Bare specifiers (e.g., 'lit') and `.css` imports are returned unchanged.
+   */
+  private _ensureJsExtension(module: string): string {
+    if (!module.startsWith('.')) return module;
+    if (module.endsWith('.js') || module.endsWith('.css')) return module;
+    return module + '.js';
+  }
+
   emit(): string {
     const lines: string[] = [];
 
@@ -218,7 +228,7 @@ export class ImportCollector {
 
     // lit directives
     for (const [module, names] of sortedEntries(this._directiveImports)) {
-      lines.push(`import { ${sorted(names).join(', ')} } from '${module}';`);
+      lines.push(`import { ${sorted(names).join(', ')} } from '${this._ensureJsExtension(module)}';`);
     }
 
     // @lit/context
@@ -229,12 +239,12 @@ export class ImportCollector {
 
     // Named imports (internal utilities, etc.)
     for (const [module, names] of sortedEntries(this._namedImports)) {
-      lines.push(`import { ${sorted(names).join(', ')} } from '${module}';`);
+      lines.push(`import { ${sorted(names).join(', ')} } from '${this._ensureJsExtension(module)}';`);
     }
 
     // Default imports
     for (const [module, name] of sortedMapEntries(this._defaultImports)) {
-      lines.push(`import ${name} from '${module}';`);
+      lines.push(`import ${name} from '${this._ensureJsExtension(module)}';`);
     }
 
     // Type-only imports — skip names already covered by named imports from the same module
@@ -244,13 +254,13 @@ export class ImportCollector {
         ? sorted(names).filter(n => !namedFromSame.has(n))
         : sorted(names);
       if (filteredNames.length > 0) {
-        lines.push(`import type { ${filteredNames.join(', ')} } from '${module}';`);
+        lines.push(`import type { ${filteredNames.join(', ')} } from '${this._ensureJsExtension(module)}';`);
       }
     }
 
     // Side-effect imports
     for (const module of sorted(this._sideEffectImports)) {
-      lines.push(`import '${module}';`);
+      lines.push(`import '${this._ensureJsExtension(module)}';`);
     }
 
     return lines.join('\n');
