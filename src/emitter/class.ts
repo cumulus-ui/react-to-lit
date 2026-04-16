@@ -254,6 +254,30 @@ export function emitComponent(ir: ComponentIR, _options: EmitOptions = {}): stri
     return new RegExp('\\b' + varName + '\\b').test(renderRefCorpus);
   });
 
+  // Transitive closure: if kept variable A references variable B from
+  // safePreamble, B must also be kept (otherwise → ReferenceError).
+  const kept = new Set(usedPreamble.map(stmt => {
+    const m = stmt.trimStart().match(/^(?:const|let|var)\s+(\w+)\s*=/);
+    return m ? m[1] : null;
+  }).filter(Boolean) as string[]);
+
+  for (let round = 0; round < 10; round++) {
+    const before = kept.size;
+    for (const stmt of safePreamble) {
+      const m = stmt.trimStart().match(/^(?:const|let|var)\s+(\w+)\s*=/);
+      if (!m || kept.has(m[1])) continue;
+      // Check if any already-kept statement references this variable
+      for (const keptStmt of usedPreamble) {
+        if (new RegExp('\\b' + m[1] + '\\b').test(keptStmt)) {
+          kept.add(m[1]);
+          usedPreamble.push(stmt);
+          break;
+        }
+      }
+    }
+    if (kept.size === before) break; // converged
+  }
+
   if (usedPreamble.length > 0) {
     // Strip classMap() wrapper from preamble variables — the template emitter
     // will add classMap() when rendering the class attribute. Keeping classMap()

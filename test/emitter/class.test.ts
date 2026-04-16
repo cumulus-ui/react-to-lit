@@ -303,6 +303,24 @@ describe('emitComponent body preamble filtering', () => {
     expect(output).toContain('const items = getItems()');
     expect(output).not.toContain('const item = getItem()');
   });
+
+  it('transitively keeps preamble variables referenced by other kept variables', () => {
+    const ir = minimalIR({
+      bodyPreamble: [
+        'const a = b + 1;',
+        'const b = this.x;',
+      ],
+      template: {
+        kind: 'expression',
+        attributes: [],
+        children: [],
+        expression: 'html`<span>${a}</span>`',
+      },
+    });
+    const output = emitComponent(ir);
+    expect(output).toContain('const a = b + 1;');
+    expect(output).toContain('const b = this.x;');
+  });
 });
 
 // ---------------------------------------------------------------------------
