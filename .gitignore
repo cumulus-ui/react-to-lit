@@ -1,4 +1,6 @@
 node_modules/
 dist/
 *.tsbuildinfo
+*.d.ts
+*.d.ts.map
 .gate2-output/
