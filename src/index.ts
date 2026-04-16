@@ -110,3 +110,7 @@ export type { CompileOptions, CompileResult } from './compile.js';
 // Config
 export { createDefaultConfig, createCloudscapeConfig, discoverComponents } from './config.js';
 export type { CompilerConfig, InputConfig, OutputConfig, CleanupConfig, ComponentsConfig, EventsConfig, PackageComponent } from './config.js';
+
+// Plugins
+export type { Plugin } from './plugins/index.js';
+export { cssTransition } from './plugins/css-transition.js';

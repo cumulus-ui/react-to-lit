@@ -17,6 +17,8 @@ import { loadConfig } from './config-loader.js';
 import type { CompilerConfig } from './config.js';
 import type { HookRegistry } from './hooks/registry.js';
 import type { ClassifiedProp } from './package-analyzer.js';
+import type { Plugin } from './plugins/index.js';
+import { emitUtilities, emitToolkitShim } from './emit-utilities.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -39,6 +41,10 @@ export interface CompileOptions {
   verbose?: boolean;
   /** Path to host display JSON map (optional -- auto-detected if not provided) */
   hostDisplay?: string;
+  /** Post-emission plugins that transform generated component code */
+  plugins?: Plugin[];
+  /** Emit utility modules alongside component files (default: true) */
+  emitUtilities?: boolean;
 }
 
 export interface CompileResult {
@@ -46,6 +52,8 @@ export interface CompileResult {
   failed: number;
   total: number;
   failures: Array<{ name: string; error: string }>;
+  /** Number of utility files emitted alongside components */
+  utilitiesEmitted?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,7 +125,29 @@ export async function compile(options: CompileOptions): Promise<CompileResult> {
     }
   }
 
-  return processComponents(toProcess, outputRoot, options, config, hostDisplayMap);
+  const result = processComponents(toProcess, outputRoot, options, config, hostDisplayMap, options.plugins);
+
+  // Utility emission phase: scan emitted components for unresolved relative
+  // imports, trace them to vendor source, transform, and write alongside.
+  const shouldEmitUtilities = (options.emitUtilities ?? true) && !options.dryRun;
+  if (shouldEmitUtilities && result.succeeded > 0) {
+    const shimSourcePath = path.resolve(import.meta.dirname, 'shims', 'component-toolkit.ts');
+    emitToolkitShim(outputRoot, fs.existsSync(shimSourcePath) ? shimSourcePath : undefined);
+
+    const utilResult = emitUtilities({
+      sourceRoot,
+      outputRoot,
+      maxDepth: 2,
+      verbose: options.verbose,
+    });
+    result.utilitiesEmitted = utilResult.emitted;
+
+    if (options.verbose && utilResult.emitted > 0) {
+      console.log(`\n✓ Emitted ${utilResult.emitted} utility module(s)`);
+    }
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +160,7 @@ function processComponents(
   opts: { dryRun?: boolean; verbose?: boolean },
   config: CompilerConfig,
   hostDisplayMap: Record<string, string | null> = {},
+  plugins: Plugin[] = [],
 ): CompileResult {
   let succeeded = 0;
   let failed = 0;
@@ -162,7 +193,13 @@ function processComponents(
       const display = hostDisplayMap[name];
       if (display) transformed.hostDisplay = display;
 
-      const output = emitComponent(transformed, { output: config.output });
+      let output = emitComponent(transformed, { output: config.output });
+
+      for (const plugin of plugins) {
+        if (output.includes(plugin.package) || plugin.imports.some(i => output.includes(i))) {
+          output = plugin.transform(output, name);
+        }
+      }
 
       if (opts.dryRun) {
         console.log(`\n=== ${name} ===`);
