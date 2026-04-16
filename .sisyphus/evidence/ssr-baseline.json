@@ -1,0 +1,537 @@
+{
+  "timestamp": "2026-04-16T15:10:20.055Z",
+  "total": 92,
+  "pass": 58,
+  "importFail": 7,
+  "renderFail": 27,
+  "results": [
+    {
+      "name": "alert",
+      "tag": "cs-alert",
+      "status": "RENDER_FAIL",
+      "error": "persistenceConfig is not defined",
+      "errorType": "ReferenceError"
+    },
+    {
+      "name": "anchor-navigation",
+      "tag": "cs-anchor-navigation",
+      "status": "PASS"
+    },
+    {
+      "name": "annotation-context",
+      "tag": "cs-annotation-context",
+      "status": "PASS"
+    },
+    {
+      "name": "app-layout",
+      "tag": "cs-app-layout",
+      "status": "PASS"
+    },
+    {
+      "name": "app-layout-toolbar",
+      "tag": "cs-app-layout-toolbar",
+      "status": "RENDER_FAIL",
+      "error": "AppLayoutToolbar component is not supported in the Classic theme. Please switch to the Refresh theme. For more details, refer to the documentation.",
+      "errorType": "Error"
+    },
+    {
+      "name": "area-chart",
+      "tag": "cs-area-chart",
+      "status": "IMPORT_FAIL",
+      "error": "Cannot find module '../internal/components/chart-status-container.js' imported from /Users/piwit/GIT/@cumulus-ui/components/src/area-chart/index.ts",
+      "errorType": "Error"
+    },
+    {
+      "name": "attribute-editor",
+      "tag": "cs-attribute-editor",
+      "status": "PASS"
+    },
+    {
+      "name": "autosuggest",
+      "tag": "cs-autosuggest",
+      "status": "RENDER_FAIL",
+      "error": "Cannot read properties of undefined (reading 'items')",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "badge",
+      "tag": "cs-badge",
+      "status": "PASS"
+    },
+    {
+      "name": "bar-chart",
+      "tag": "cs-bar-chart",
+      "status": "IMPORT_FAIL",
+      "error": "Cannot find module './styles.js' imported from /Users/piwit/GIT/@cumulus-ui/components/src/bar-chart/index.ts",
+      "errorType": "Error"
+    },
+    {
+      "name": "box",
+      "tag": "cs-box",
+      "status": "PASS"
+    },
+    {
+      "name": "breadcrumb-group",
+      "tag": "cs-breadcrumb-group",
+      "status": "PASS"
+    },
+    {
+      "name": "button",
+      "tag": "cs-button",
+      "status": "PASS"
+    },
+    {
+      "name": "button-dropdown",
+      "tag": "cs-button-dropdown",
+      "status": "RENDER_FAIL",
+      "error": "this.items is not iterable",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "button-group",
+      "tag": "cs-button-group",
+      "status": "PASS"
+    },
+    {
+      "name": "calendar",
+      "tag": "cs-calendar",
+      "status": "RENDER_FAIL",
+      "error": "referrerId is not defined",
+      "errorType": "ReferenceError"
+    },
+    {
+      "name": "cards",
+      "tag": "cs-cards",
+      "status": "PASS"
+    },
+    {
+      "name": "checkbox",
+      "tag": "cs-checkbox",
+      "status": "PASS"
+    },
+    {
+      "name": "code-editor",
+      "tag": "cs-code-editor",
+      "status": "RENDER_FAIL",
+      "error": "this._i18n is not a function",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "code-view",
+      "tag": "cs-code-view",
+      "status": "PASS"
+    },
+    {
+      "name": "collection-preferences",
+      "tag": "cs-collection-preferences",
+      "status": "PASS"
+    },
+    {
+      "name": "column-layout",
+      "tag": "cs-column-layout",
+      "status": "PASS"
+    },
+    {
+      "name": "container",
+      "tag": "cs-container",
+      "status": "PASS"
+    },
+    {
+      "name": "content-layout",
+      "tag": "cs-content-layout",
+      "status": "PASS"
+    },
+    {
+      "name": "copy-to-clipboard",
+      "tag": "cs-copy-to-clipboard",
+      "status": "PASS"
+    },
+    {
+      "name": "date-input",
+      "tag": "cs-date-input",
+      "status": "PASS"
+    },
+    {
+      "name": "date-picker",
+      "tag": "cs-date-picker",
+      "status": "PASS"
+    },
+    {
+      "name": "date-range-picker",
+      "tag": "cs-date-range-picker",
+      "status": "RENDER_FAIL",
+      "error": "this._i18n is not a function",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "drawer",
+      "tag": "cs-drawer",
+      "status": "PASS"
+    },
+    {
+      "name": "dropdown",
+      "tag": "cs-dropdown",
+      "status": "RENDER_FAIL",
+      "error": "interior is not defined",
+      "errorType": "ReferenceError"
+    },
+    {
+      "name": "error-boundary",
+      "tag": "cs-error-boundary",
+      "status": "RENDER_FAIL",
+      "error": "Cannot read properties of undefined (reading 'suppressed')",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "expandable-section",
+      "tag": "cs-expandable-section",
+      "status": "PASS"
+    },
+    {
+      "name": "file-dropzone",
+      "tag": "cs-file-dropzone",
+      "status": "PASS"
+    },
+    {
+      "name": "file-input",
+      "tag": "cs-file-input",
+      "status": "RENDER_FAIL",
+      "error": "Cannot read properties of undefined (reading 'DataTransfer')",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "file-token-group",
+      "tag": "cs-file-token-group",
+      "status": "PASS"
+    },
+    {
+      "name": "file-upload",
+      "tag": "cs-file-upload",
+      "status": "RENDER_FAIL",
+      "error": "this._i18n is not a function",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "flashbar",
+      "tag": "cs-flashbar",
+      "status": "PASS"
+    },
+    {
+      "name": "form",
+      "tag": "cs-form",
+      "status": "RENDER_FAIL",
+      "error": "this._i18n is not a function",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "form-field",
+      "tag": "cs-form-field",
+      "status": "PASS"
+    },
+    {
+      "name": "grid",
+      "tag": "cs-grid",
+      "status": "PASS"
+    },
+    {
+      "name": "header",
+      "tag": "cs-header",
+      "status": "PASS"
+    },
+    {
+      "name": "help-panel",
+      "tag": "cs-help-panel",
+      "status": "PASS"
+    },
+    {
+      "name": "hotspot",
+      "tag": "cs-hotspot",
+      "status": "RENDER_FAIL",
+      "error": "Cannot read properties of undefined (reading 'getContentForId')",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "icon",
+      "tag": "cs-icon",
+      "status": "PASS"
+    },
+    {
+      "name": "icon-provider",
+      "tag": "cs-icon-provider",
+      "status": "PASS"
+    },
+    {
+      "name": "input",
+      "tag": "cs-input",
+      "status": "PASS"
+    },
+    {
+      "name": "item-card",
+      "tag": "cs-item-card",
+      "status": "PASS"
+    },
+    {
+      "name": "key-value-pairs",
+      "tag": "cs-key-value-pairs",
+      "status": "RENDER_FAIL",
+      "error": "Cannot read properties of undefined (reading 'map')",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "line-chart",
+      "tag": "cs-line-chart",
+      "status": "IMPORT_FAIL",
+      "error": "Cannot find module './styles.js' imported from /Users/piwit/GIT/@cumulus-ui/components/src/line-chart/index.ts",
+      "errorType": "Error"
+    },
+    {
+      "name": "link",
+      "tag": "cs-link",
+      "status": "RENDER_FAIL",
+      "error": "Maximum call stack size exceeded",
+      "errorType": "RangeError"
+    },
+    {
+      "name": "list",
+      "tag": "cs-list",
+      "status": "PASS"
+    },
+    {
+      "name": "live-region",
+      "tag": "cs-live-region",
+      "status": "RENDER_FAIL",
+      "error": "delay is not defined",
+      "errorType": "ReferenceError"
+    },
+    {
+      "name": "mixed-line-bar-chart",
+      "tag": "cs-mixed-line-bar-chart",
+      "status": "IMPORT_FAIL",
+      "error": "Cannot find module '../internal/components/chart-status-container.js' imported from /Users/piwit/GIT/@cumulus-ui/components/src/mixed-line-bar-chart/index.ts",
+      "errorType": "Error"
+    },
+    {
+      "name": "modal",
+      "tag": "cs-modal",
+      "status": "PASS"
+    },
+    {
+      "name": "multiselect",
+      "tag": "cs-multiselect",
+      "status": "RENDER_FAIL",
+      "error": "Cannot read properties of undefined (reading 'dropdownStatus')",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "navigable-group",
+      "tag": "cs-navigable-group",
+      "status": "IMPORT_FAIL",
+      "error": "Cannot find module './styles.js' imported from /Users/piwit/GIT/@cumulus-ui/components/src/navigable-group/index.ts",
+      "errorType": "Error"
+    },
+    {
+      "name": "pagination",
+      "tag": "cs-pagination",
+      "status": "PASS"
+    },
+    {
+      "name": "panel-layout",
+      "tag": "cs-panel-layout",
+      "status": "PASS"
+    },
+    {
+      "name": "pie-chart",
+      "tag": "cs-pie-chart",
+      "status": "IMPORT_FAIL",
+      "error": "Cannot find module '../internal/components/chart-status-container.js' imported from /Users/piwit/GIT/@cumulus-ui/components/src/pie-chart/index.ts",
+      "errorType": "Error"
+    },
+    {
+      "name": "popover",
+      "tag": "cs-popover",
+      "status": "PASS"
+    },
+    {
+      "name": "progress-bar",
+      "tag": "cs-progress-bar",
+      "status": "PASS"
+    },
+    {
+      "name": "prompt-input",
+      "tag": "cs-prompt-input",
+      "status": "RENDER_FAIL",
+      "error": "this._adjustInputHeight is not a function",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "property-filter",
+      "tag": "cs-property-filter",
+      "status": "RENDER_FAIL",
+      "error": "Cannot read properties of undefined (reading 'reduce')",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "radio-button",
+      "tag": "cs-radio-button",
+      "status": "IMPORT_FAIL",
+      "error": "Cannot find module './styles.js' imported from /Users/piwit/GIT/@cumulus-ui/components/src/radio-button/index.ts",
+      "errorType": "Error"
+    },
+    {
+      "name": "radio-group",
+      "tag": "cs-radio-group",
+      "status": "PASS"
+    },
+    {
+      "name": "s3-resource-selector",
+      "tag": "cs-s3-resource-selector",
+      "status": "PASS"
+    },
+    {
+      "name": "segmented-control",
+      "tag": "cs-segmented-control",
+      "status": "PASS"
+    },
+    {
+      "name": "select",
+      "tag": "cs-select",
+      "status": "RENDER_FAIL",
+      "error": "this._getMenuProps is not a function",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "side-navigation",
+      "tag": "cs-side-navigation",
+      "status": "PASS"
+    },
+    {
+      "name": "slider",
+      "tag": "cs-slider",
+      "status": "PASS"
+    },
+    {
+      "name": "space-between",
+      "tag": "cs-space-between",
+      "status": "PASS"
+    },
+    {
+      "name": "spinner",
+      "tag": "cs-spinner",
+      "status": "PASS"
+    },
+    {
+      "name": "split-panel",
+      "tag": "cs-split-panel",
+      "status": "PASS"
+    },
+    {
+      "name": "status-indicator",
+      "tag": "cs-status-indicator",
+      "status": "PASS"
+    },
+    {
+      "name": "steps",
+      "tag": "cs-steps",
+      "status": "RENDER_FAIL",
+      "error": "Cannot read properties of undefined (reading 'map')",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "table",
+      "tag": "cs-table",
+      "status": "PASS"
+    },
+    {
+      "name": "tabs",
+      "tag": "cs-tabs",
+      "status": "RENDER_FAIL",
+      "error": "this.tabs is not iterable",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "tag-editor",
+      "tag": "cs-tag-editor",
+      "status": "RENDER_FAIL",
+      "error": "defaultOptions is not defined",
+      "errorType": "ReferenceError"
+    },
+    {
+      "name": "text-content",
+      "tag": "cs-text-content",
+      "status": "PASS"
+    },
+    {
+      "name": "text-filter",
+      "tag": "cs-text-filter",
+      "status": "PASS"
+    },
+    {
+      "name": "textarea",
+      "tag": "cs-textarea",
+      "status": "PASS"
+    },
+    {
+      "name": "tiles",
+      "tag": "cs-tiles",
+      "status": "PASS"
+    },
+    {
+      "name": "time-input",
+      "tag": "cs-time-input",
+      "status": "PASS"
+    },
+    {
+      "name": "toggle",
+      "tag": "cs-toggle",
+      "status": "PASS"
+    },
+    {
+      "name": "toggle-button",
+      "tag": "cs-toggle-button",
+      "status": "PASS"
+    },
+    {
+      "name": "token",
+      "tag": "cs-token",
+      "status": "PASS"
+    },
+    {
+      "name": "token-group",
+      "tag": "cs-token-group",
+      "status": "PASS"
+    },
+    {
+      "name": "tooltip",
+      "tag": "cs-tooltip",
+      "status": "PASS"
+    },
+    {
+      "name": "top-navigation",
+      "tag": "cs-top-navigation",
+      "status": "RENDER_FAIL",
+      "error": "Cannot read properties of undefined (reading 'logo')",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "tree-view",
+      "tag": "cs-tree-view",
+      "status": "RENDER_FAIL",
+      "error": "Cannot read properties of undefined (reading 'map')",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "tutorial-panel",
+      "tag": "cs-tutorial-panel",
+      "status": "RENDER_FAIL",
+      "error": "Cannot read properties of undefined (reading 'currentTutorial')",
+      "errorType": "TypeError"
+    },
+    {
+      "name": "wizard",
+      "tag": "cs-wizard",
+      "status": "RENDER_FAIL",
+      "error": "this._i18n is not a function",
+      "errorType": "TypeError"
+    }
+  ]
+}
