@@ -367,7 +367,7 @@ function deriveComponentName(functionName: string, componentDir: string, stripPr
  * not accessible.  Promoting them to computed getters restores the
  * original scoping semantics.
  */
-function promotePreambleVars(
+export function promotePreambleVars(
   preambleVars: PreambleVar[],
   bodyPreamble: string[],
   handlers: import('../ir/types.js').HandlerIR[],
@@ -395,15 +395,26 @@ function promotePreambleVars(
   for (const m of publicMethods) outsideTexts.push(m.body);
   for (const c of computedValues) outsideTexts.push(c.expression);
 
-  const outsideText = outsideTexts.join('\n');
+  let outsideText = outsideTexts.join('\n');
 
-  // Find preamble variables referenced in outside-render code
+  // Find preamble variables referenced in outside-render code.
+  // Iterate: when a preamble var is promoted, its expression may reference
+  // other preamble vars that also need promotion (preamble chains like a→b→c).
   const promotedNames = new Set<string>();
-  for (const pv of preambleVars) {
-    // Use word-boundary check to avoid partial matches
-    const pattern = new RegExp(`\\b${escapeRegex(pv.name)}\\b`);
-    if (pattern.test(outsideText)) {
-      promotedNames.add(pv.name);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const pv of preambleVars) {
+      if (promotedNames.has(pv.name)) continue;
+      // Use word-boundary check to avoid partial matches
+      const pattern = new RegExp(`\\b${escapeRegex(pv.name)}\\b`);
+      if (pattern.test(outsideText)) {
+        promotedNames.add(pv.name);
+        // Add this var's expression to the search corpus so preamble vars
+        // IT references also get promoted in the next iteration.
+        outsideText += '\n' + pv.expression;
+        changed = true;
+      }
     }
   }
 
@@ -465,7 +476,7 @@ function promotePreambleVars(
  * A preamble variable declaration: `const name = expression`.
  * Used to promote cross-referenced variables to class-level computed values.
  */
-interface PreambleVar {
+export interface PreambleVar {
   name: string;
   expression: string;
 }
